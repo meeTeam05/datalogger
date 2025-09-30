@@ -5,6 +5,7 @@
 #include "ring_buffer.h"
 
 /* GLOBAL FUNCTIONS ----------------------------------------------------------*/
+
 void RingBuffer_Init(ring_buffer_t *rb)
 {
 	rb->head = 0;

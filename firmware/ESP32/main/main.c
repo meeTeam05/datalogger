@@ -8,15 +8,15 @@
 #include "nvs_flash.h"
 #include "esp_event.h"
 #include "esp_netif.h"
-#include "protocol_examples_common.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 
 // Include custom libraries
+#include "wifi_manager.h"
 #include "stm32_uart.h"
 #include "mqtt_handler.h"
 #include "relay_control.h"
-#include "sensor_parser.h"
+#include "sht3x_parser.h"
 
 /* STATIC VARIABLES ----------------------------------------------------------*/
 static const char *TAG = "MQTT_BRIDGE_APP";
@@ -34,9 +34,9 @@ static const char *TAG = "MQTT_BRIDGE_APP";
 static stm32_uart_t stm32_uart;
 static mqtt_handler_t mqtt_handler;
 static relay_control_t relay_control;
-static sensor_parser_t sensor_parser;
+static sht3x_parser_t sht3x_parser;
 
-// FIXED: Global state tracking
+// Global state tracking
 static bool g_periodic_active = false;
 static bool g_device_on = false;
 static int g_periodic_rate = 1;  // Default 1 Hz
@@ -111,11 +111,11 @@ static void update_and_publish_state(bool device_on, bool periodic_active, int r
 /* CALLBACK FUNCTIONS --------------------------------------------------------*/
 
 /**
- * @brief Callback when single sensor data is received
+ * @brief Callback when single sht3x data is received
  */
-static void on_single_sensor_data(const sensor_data_t* data)
+static void on_single_sht3x_data(const sht3x_data_t* data)
 {
-    if (!SensorParser_IsValid(data) || !MQTT_Handler_IsConnected(&mqtt_handler))
+    if (!SHT3X_Parser_IsValid(data) || !MQTT_Handler_IsConnected(&mqtt_handler))
     {
         return;
     }
@@ -132,11 +132,11 @@ static void on_single_sensor_data(const sensor_data_t* data)
 }
 
 /**
- * @brief Callback when periodic sensor data is received
+ * @brief Callback when periodic sht3x data is received
  */
-static void on_periodic_sensor_data(const sensor_data_t* data)
+static void on_periodic_sht3x_data(const sht3x_data_t* data)
 {
-    if (!SensorParser_IsValid(data) || !MQTT_Handler_IsConnected(&mqtt_handler))
+    if (!SHT3X_Parser_IsValid(data) || !MQTT_Handler_IsConnected(&mqtt_handler))
     {
         return;
     }
@@ -159,8 +159,8 @@ static void on_stm32_data_received(const char* line)
 {
     ESP_LOGI(TAG, "<- STM32: %s", line);
     
-    // Parse and process sensor data
-    SensorParser_ProcessLine(&sensor_parser, line);
+    // Parse and process sht3x data
+    SHT3X_Parser_ProcessLine(&sht3x_parser, line);
 }
 
 /**
@@ -175,7 +175,7 @@ static void on_relay_state_changed(bool state)
 }
 
 /**
- * @brief FIXED: Parse command and extract rate
+ * @brief Parse command and extract rate
  */
 static int extract_periodic_rate(const char* command)
 {
@@ -205,7 +205,7 @@ static void on_mqtt_data_received(const char* topic, const char* data, int data_
     // Handle SHT3X commands
     if (strcmp(topic, TOPIC_SHT3X_COMMAND) == 0)
     {
-        // FIXED: Track periodic state based on commands
+        // Track periodic state based on commands
         if (strstr(data, "PERIODIC") && !strstr(data, "STOP"))
         {
             int new_rate = extract_periodic_rate(data);
@@ -237,12 +237,54 @@ static void on_mqtt_data_received(const char* topic, const char* data, int data_
             ESP_LOGW(TAG, "Unknown relay command: %s", data);
         }
     }
-    // FIXED: Handle state sync requests
+    // Handle state sync requests
     else if (strcmp(topic, TOPIC_STATE_SYNC) == 0 && 
              strstr(data, "REQUEST"))
     {
         ESP_LOGI(TAG, "State sync requested by client");
         publish_current_state();
+    }
+}
+
+/**
+ * @brief NEW: WiFi event callback
+ */
+static void on_wifi_event(wifi_state_t state, void* arg)
+{
+    switch (state)
+    {
+        case WIFI_STATE_CONNECTING:
+            ESP_LOGI(TAG, "WiFi: Connecting...");
+            break;
+            
+        case WIFI_STATE_CONNECTED:
+            ESP_LOGI(TAG, "WiFi: Connected successfully");
+            
+            // Get and display IP address
+            char ip_addr[16];
+            if (wifi_manager_get_ip_addr(ip_addr, sizeof(ip_addr)) == ESP_OK)
+            {
+                ESP_LOGI(TAG, "WiFi IP: %s", ip_addr);
+            }
+            
+            // Get and display signal strength
+            int8_t rssi;
+            if (wifi_manager_get_rssi(&rssi) == ESP_OK)
+            {
+                ESP_LOGI(TAG, "WiFi RSSI: %d dBm", rssi);
+            }
+            break;
+            
+        case WIFI_STATE_DISCONNECTED:
+            ESP_LOGW(TAG, "WiFi: Disconnected");
+            break;
+            
+        case WIFI_STATE_FAILED:
+            ESP_LOGE(TAG, "WiFi: Connection failed");
+            break;
+            
+        default:
+            break;
     }
 }
 
@@ -262,7 +304,7 @@ static bool initialize_components(void)
                          CONFIG_MQTT_UART_TXD,
                          CONFIG_MQTT_UART_RXD,
                          on_stm32_data_received))
-                         {
+    {
         ESP_LOGE(TAG, "Failed to initialize STM32 UART");
         success = false;
     }
@@ -273,7 +315,7 @@ static bool initialize_components(void)
                            CONFIG_MQTT_USERNAME,
                            CONFIG_MQTT_PASSWORD,
                            on_mqtt_data_received))
-                           {
+    {
         ESP_LOGE(TAG, "Failed to initialize MQTT Handler");
         success = false;
     }
@@ -285,14 +327,14 @@ static bool initialize_components(void)
         success = false;
     }
     
-    // Initialize Sensor Parser
-    if (!SensorParser_Init(&sensor_parser, on_single_sensor_data, on_periodic_sensor_data))
+    // Initialize sht3x Parser
+    if (!SHT3X_Parser_Init(&sht3x_parser, on_single_sht3x_data, on_periodic_sht3x_data))
     {
-        ESP_LOGE(TAG, "Failed to initialize Sensor Parser");
+        ESP_LOGE(TAG, "Failed to initialize Sht3x Parser");
         success = false;
     }
     
-    // FIXED: Initialize global state with actual hardware state
+    // Initialize global state with actual hardware state
     g_device_on = Relay_GetState(&relay_control);
     g_periodic_active = false;
     g_periodic_rate = 1;
@@ -346,9 +388,9 @@ static void subscribe_mqtt_topics(void)
     // Subscribe to command topics
     MQTT_Handler_Subscribe(&mqtt_handler, TOPIC_SHT3X_COMMAND, 1);
     MQTT_Handler_Subscribe(&mqtt_handler, TOPIC_CONTROL_RELAY, 1);
-    MQTT_Handler_Subscribe(&mqtt_handler, TOPIC_STATE_SYNC, 1);  // NEW: Subscribe to state sync
+    MQTT_Handler_Subscribe(&mqtt_handler, TOPIC_STATE_SYNC, 1);
     
-    // FIXED: Publish initial state with retain flag
+    // Publish initial state with retain flag
     publish_current_state();
     
     ESP_LOGI(TAG, "MQTT topics subscribed and initial state published");
@@ -381,14 +423,36 @@ void app_main(void)
     ESP_ERROR_CHECK(ret);
     ESP_LOGI(TAG, "NVS initialized");
     
-    // Initialize network
-    ESP_ERROR_CHECK(esp_netif_init());
+    // Initialize event loop (required for WiFi)
     ESP_ERROR_CHECK(esp_event_loop_create_default());
-    ESP_LOGI(TAG, "Network interface initialized");
+    ESP_LOGI(TAG, "Event loop initialized");
     
-    // Connect to WiFi
-    ESP_ERROR_CHECK(example_connect());
-    ESP_LOGI(TAG, "WiFi connected successfully");
+    // NEW: Initialize and connect WiFi using custom WiFi Manager
+    ESP_LOGI(TAG, "=== Initializing WiFi Manager ===");
+    wifi_manager_config_t wifi_config = wifi_manager_get_default_config();
+    wifi_config.event_callback = on_wifi_event;
+    wifi_config.callback_arg = NULL;
+    
+    if (wifi_manager_init(&wifi_config) != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to initialize WiFi Manager, restarting...");
+        esp_restart();
+    }
+    
+    if (wifi_manager_connect() != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to start WiFi connection, restarting...");
+        esp_restart();
+    }
+    
+    // Wait for WiFi connection
+    if (wifi_manager_wait_connected(CONFIG_WIFI_CONNECTION_TIMEOUT_MS) != ESP_OK)
+    {
+        ESP_LOGE(TAG, "WiFi connection failed, restarting...");
+        esp_restart();
+    }
+    
+    ESP_LOGI(TAG, "WiFi connected successfully!");
     
     // Initialize all components
     if (!initialize_components())
@@ -412,6 +476,7 @@ void app_main(void)
     // Main loop - monitor system status
     ESP_LOGI(TAG, "=== System Ready ===");
     ESP_LOGI(TAG, "Configuration:");
+    ESP_LOGI(TAG, "  WiFi SSID: %s", CONFIG_WIFI_SSID);
     ESP_LOGI(TAG, "  STM32 UART: Port %d, TXD=%d, RXD=%d, Baud=%d", 
              CONFIG_MQTT_UART_PORT_NUM, CONFIG_MQTT_UART_TXD, 
              CONFIG_MQTT_UART_RXD, CONFIG_MQTT_UART_BAUD_RATE);
@@ -430,8 +495,10 @@ void app_main(void)
     bool last_relay = g_device_on;
     bool last_periodic = g_periodic_active;
     bool last_mqtt = MQTT_Handler_IsConnected(&mqtt_handler);
+    bool last_wifi = wifi_manager_is_connected();
 
-    ESP_LOGI(TAG, "Initial State: MQTT=%s, Device=%s, Periodic=%s",
+    ESP_LOGI(TAG, "Initial State: WiFi=%s, MQTT=%s, Device=%s, Periodic=%s",
+             last_wifi ? "Connected" : "Disconnected",
              last_mqtt ? "Connected" : "Disconnected",
              last_relay ? "ON" : "OFF",
              last_periodic ? "ON" : "OFF");
@@ -442,10 +509,13 @@ void app_main(void)
         bool relay_now = g_device_on;
         bool periodic_now = g_periodic_active;
         bool mqtt_now = MQTT_Handler_IsConnected(&mqtt_handler);
+        bool wifi_now = wifi_manager_is_connected();
 
-        if (relay_now != last_relay || periodic_now != last_periodic || mqtt_now != last_mqtt)
+        if (relay_now != last_relay || periodic_now != last_periodic || 
+            mqtt_now != last_mqtt || wifi_now != last_wifi)
         {
-            ESP_LOGI(TAG, "System Status: MQTT=%s, Device=%s, Periodic=%s, Free Heap=%lu", 
+            ESP_LOGI(TAG, "Status: WiFi=%s, MQTT=%s, Device=%s, Periodic=%s, Heap=%lu", 
+                     wifi_now ? "Connected" : "Disconnected",
                      mqtt_now ? "Connected" : "Disconnected",
                      relay_now ? "ON" : "OFF",
                      periodic_now ? "ON" : "OFF",
@@ -455,6 +525,7 @@ void app_main(void)
         last_relay = relay_now;
         last_periodic = periodic_now;
         last_mqtt = mqtt_now;
+        last_wifi = wifi_now;
         
         vTaskDelay(pdMS_TO_TICKS(200));
     }

@@ -1,19 +1,19 @@
 /**
- * @file sensor_parser.c
+ * @file sht3x_parser.c
  */
 /* INCLUDES ------------------------------------------------------------------*/
-#include "sensor_parser.h"
+#include "sht3x_parser.h"
 #include "esp_log.h"
 #include <string.h>
 #include <stdio.h>
 
 /* STATIC VARIABLES ----------------------------------------------------------*/
-static const char *TAG = "SENSOR_PARSER";
+static const char *TAG = "SHT3X_PARSER";
 
 /* GLOBAL FUNCTIONS ----------------------------------------------------------*/
-bool SensorParser_Init(sensor_parser_t *parser, 
-                       sensor_data_callback_t single_callback,
-                       sensor_data_callback_t periodic_callback)
+bool SHT3X_Parser_Init(sht3x_parser_t *parser, 
+                       sht3x_data_callback_t single_callback,
+                       sht3x_data_callback_t periodic_callback)
 {
     if (!parser)
     {
@@ -23,13 +23,13 @@ bool SensorParser_Init(sensor_parser_t *parser,
     parser->single_callback = single_callback;
     parser->periodic_callback = periodic_callback;
     
-    ESP_LOGI(TAG, "Sensor parser initialized");
+    ESP_LOGI(TAG, "Sht3x parser initialized");
     return true;
 }
 
-sensor_data_t SensorParser_ParseLine(sensor_parser_t *parser, const char* line)
+sht3x_data_t SHT3X_Parser_ParseLine(sht3x_parser_t *parser, const char* line)
 {
-    sensor_data_t data = {0};
+    sht3x_data_t data = {0};
     data.valid = false;
     
     if (!line) {
@@ -45,19 +45,19 @@ sensor_data_t SensorParser_ParseLine(sensor_parser_t *parser, const char* line)
     
     if (parsed == 3)
     {
-        // Determine sensor type
-        if (strcmp(mode, SENSOR_MODE_SINGLE) == 0)
+        // Determine sht3x type
+        if (strcmp(mode, SHT3X_MODE_SINGLE) == 0)
         {
-            data.type = SENSOR_TYPE_SINGLE;
+            data.type = SHT3X_TYPE_SINGLE;
         } 
-        else if (strcmp(mode, SENSOR_MODE_PERIODIC) == 0)
+        else if (strcmp(mode, SHT3X_MODE_PERIODIC) == 0)
         {
-            data.type = SENSOR_TYPE_PERIODIC;
+            data.type = SHT3X_TYPE_PERIODIC;
         } 
         else
         {
-            data.type = SENSOR_TYPE_UNKNOWN;
-            ESP_LOGW(TAG, "Unknown sensor mode: %s", mode);
+            data.type = SHT3X_TYPE_UNKNOWN;
+            ESP_LOGW(TAG, "Unknown sht3x mode: %s", mode);
             return data;
         }
         
@@ -80,24 +80,24 @@ sensor_data_t SensorParser_ParseLine(sensor_parser_t *parser, const char* line)
         data.valid = true;
         
         ESP_LOGI(TAG, "Parsed %s: T=%.2f°C, H=%.2f%%", 
-                 SensorParser_GetTypeString(data.type), temp, hum);
+                 SHT3X_Parser_GetTypeString(data.type), temp, hum);
     } 
     else
     {
-        ESP_LOGW(TAG, "Failed to parse sensor data: %s", line);
+        ESP_LOGW(TAG, "Failed to parse sht3x data: %s", line);
     }
     
     return data;
 }
 
-bool SensorParser_ProcessLine(sensor_parser_t *parser, const char* line)
+bool SHT3X_Parser_ProcessLine(sht3x_parser_t *parser, const char* line)
 {
     if (!parser)
     {
         return false;
     }
     
-    sensor_data_t data = SensorParser_ParseLine(parser, line);
+    sht3x_data_t data = SHT3X_Parser_ParseLine(parser, line);
     
     if (!data.valid)
     {
@@ -107,14 +107,14 @@ bool SensorParser_ProcessLine(sensor_parser_t *parser, const char* line)
     // Call appropriate callback
     switch (data.type)
     {
-    case SENSOR_TYPE_SINGLE:
+    case SHT3X_TYPE_SINGLE:
         if (parser->single_callback)
         {
             parser->single_callback(&data);
         }
         break;
         
-    case SENSOR_TYPE_PERIODIC:
+    case SHT3X_TYPE_PERIODIC:
         if (parser->periodic_callback)
         {
             parser->periodic_callback(&data);
@@ -122,48 +122,52 @@ bool SensorParser_ProcessLine(sensor_parser_t *parser, const char* line)
         break;
         
     default:
-        ESP_LOGW(TAG, "No callback for sensor type: %d", data.type);
+        ESP_LOGW(TAG, "No callback for sht3x type: %d", data.type);
         return false;
     }
     
     return true;
 }
 
-sensor_type_t SensorParser_GetType(const char* type_str)
+sht3x_type_t SHT3X_Parser_GetType(const char* type_str)
 {
-    if (!type_str) {
-        return SENSOR_TYPE_UNKNOWN;
+    if (!type_str)
+    {
+        return SHT3X_TYPE_UNKNOWN;
     }
     
-    if (strcmp(type_str, SENSOR_MODE_SINGLE) == 0) {
-        return SENSOR_TYPE_SINGLE;
-    } else if (strcmp(type_str, SENSOR_MODE_PERIODIC) == 0) {
-        return SENSOR_TYPE_PERIODIC;
+    if (strcmp(type_str, SHT3X_MODE_SINGLE) == 0)
+    {
+        return SHT3X_TYPE_SINGLE;
+    } 
+    else if (strcmp(type_str, SHT3X_MODE_PERIODIC) == 0)
+    {
+        return SHT3X_TYPE_PERIODIC;
     }
     
-    return SENSOR_TYPE_UNKNOWN;
+    return SHT3X_TYPE_UNKNOWN;
 }
 
-const char* SensorParser_GetTypeString(sensor_type_t type)
+const char* SHT3X_Parser_GetTypeString(sht3x_type_t type)
 {
     switch (type) {
-    case SENSOR_TYPE_SINGLE:
-        return SENSOR_MODE_SINGLE;
-    case SENSOR_TYPE_PERIODIC:
-        return SENSOR_MODE_PERIODIC;
+    case SHT3X_TYPE_SINGLE:
+        return SHT3X_MODE_SINGLE;
+    case SHT3X_TYPE_PERIODIC:
+        return SHT3X_MODE_PERIODIC;
     default:
         return "UNKNOWN";
     }
 }
 
-bool SensorParser_IsValid(const sensor_data_t* data)
+bool SHT3X_Parser_IsValid(const sht3x_data_t* data)
 {
     if (!data) {
         return false;
     }
     
     return data->valid && 
-           (data->type == SENSOR_TYPE_SINGLE || data->type == SENSOR_TYPE_PERIODIC) &&
+           (data->type == SHT3X_TYPE_SINGLE || data->type == SHT3X_TYPE_PERIODIC) &&
            (data->temperature >= -40.0f && data->temperature <= 125.0f) &&
            (data->humidity >= 0.0f && data->humidity <= 100.0f);
 }

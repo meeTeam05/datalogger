@@ -109,3 +109,9 @@ firmware/ESP32/idf-env.json
 firmware/ESP32/**/*.elf
 firmware/ESP32/**/*.bin
 firmware/ESP32/**/*.map
+
+# Custom
+firmware/ESP32/pytest_mqtt5.py
+
+# ignore
+.gitignore

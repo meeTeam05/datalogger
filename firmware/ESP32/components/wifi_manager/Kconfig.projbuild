@@ -1,0 +1,134 @@
+menu "WiFi Connection Configuration"
+
+    config WIFI_SSID
+        string "WiFi SSID"
+        default "myssid"
+        help
+            SSID (network name) for WiFi connection.
+            Enter your WiFi network name here.
+
+    config WIFI_PASSWORD
+        string "WiFi Password"
+        default "mypassword"
+        help
+            WiFi password (WPA or WPA2) for the network.
+            Leave blank if the network has no security.
+
+    config WIFI_MAXIMUM_RETRY
+        int "Maximum WiFi Retry Attempts"
+        range 1 100
+        default 5
+        help
+            Maximum number of retry attempts to connect to WiFi.
+            Set this to avoid unlimited reconnection attempts.
+
+    config WIFI_SCAN_METHOD
+        int "WiFi Scan Method"
+        range 0 1
+        default 0
+        help
+            WiFi scan method:
+            0 = Fast scan (stop after finding SSID)
+            1 = All channel scan (scan all channels)
+
+    config WIFI_CONNECT_AP_SORT_METHOD
+        int "WiFi AP Sort Method"
+        range 0 1
+        default 0
+        help
+            Sort method when multiple APs are found:
+            0 = Sort by signal strength (RSSI)
+            1 = Sort by security mode
+
+    config WIFI_SCAN_RSSI_THRESHOLD
+        int "WiFi Minimum RSSI"
+        range -127 0
+        default -127
+        help
+            Minimum RSSI (signal strength) to accept.
+            -127 = accept all signal strengths
+
+    choice WIFI_SCAN_AUTH_MODE_THRESHOLD
+        prompt "WiFi Security Mode Threshold"
+        default WIFI_AUTH_WPA2_PSK
+        help
+            Minimum security mode to accept when scanning.
+
+        config WIFI_AUTH_OPEN
+            bool "OPEN (No Security)"
+        config WIFI_AUTH_WEP
+            bool "WEP"
+        config WIFI_AUTH_WPA_PSK
+            bool "WPA PSK"
+        config WIFI_AUTH_WPA2_PSK
+            bool "WPA2 PSK"
+        config WIFI_AUTH_WPA_WPA2_PSK
+            bool "WPA/WPA2 PSK"
+        config WIFI_AUTH_WPA3_PSK
+            bool "WPA3 PSK"
+        config WIFI_AUTH_WPA2_WPA3_PSK
+            bool "WPA2/WPA3 PSK"
+    endchoice
+
+    config WIFI_LISTEN_INTERVAL
+        int "WiFi Listen Interval"
+        range 0 100
+        default 3
+        help
+            Interval for station to listen to beacon from AP.
+            The unit is one beacon interval.
+            For example: beacon interval = 100ms, listen interval = 3
+            means station listens every 300ms.
+
+    config WIFI_POWER_SAVE
+        bool "Enable WiFi Power Save Mode"
+        default y
+        help
+            Enable WiFi power save mode to reduce power consumption.
+
+    choice WIFI_POWER_SAVE_MODE
+        prompt "WiFi Power Save Mode"
+        default WIFI_POWER_SAVE_MIN_MODEM
+        depends on WIFI_POWER_SAVE
+        help
+            Select power save mode:
+            - Minimum: Wake up every DTIM, broadcast data not lost
+            - Maximum: Wake up every listen interval, may lose broadcast data
+
+        config WIFI_POWER_SAVE_MIN_MODEM
+            bool "Minimum Modem Power Saving"
+        config WIFI_POWER_SAVE_MAX_MODEM
+            bool "Maximum Modem Power Saving"
+    endchoice
+
+    config WIFI_ENABLE_IPV6
+        bool "Enable IPv6"
+        default y
+        help
+            Enable IPv6 support for WiFi connection.
+
+    choice WIFI_IPV6_ADDR_TYPE
+        prompt "Preferred IPv6 Address Type"
+        default WIFI_IPV6_LOCAL_LINK
+        depends on WIFI_ENABLE_IPV6
+        help
+            Select which IPv6 address type to wait for.
+
+        config WIFI_IPV6_LOCAL_LINK
+            bool "Local Link Address"
+        config WIFI_IPV6_GLOBAL
+            bool "Global Address"
+        config WIFI_IPV6_SITE_LOCAL
+            bool "Site Local Address"
+        config WIFI_IPV6_UNIQUE_LOCAL
+            bool "Unique Local Address"
+    endchoice
+
+    config WIFI_CONNECTION_TIMEOUT_MS
+        int "WiFi Connection Timeout (ms)"
+        range 5000 60000
+        default 10000
+        help
+            Timeout for WiFi connection in milliseconds.
+
+endmenu

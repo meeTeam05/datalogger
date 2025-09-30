@@ -1,8 +1,8 @@
 # sdkconfig.defaults - Default configuration for ESP32 MQTT5 Client
 
 # Enable MQTT
-CONFIG_ESP_MQTT_PROTOCOL_311=y
-CONFIG_ESP_MQTT_PROTOCOL_5=y
+CONFIG_MQTT_PROTOCOL_311=y
+CONFIG_MQTT_PROTOCOL_5=y
 
 # Enable WiFi
 CONFIG_ESP32_WIFI_SW_COEXIST_ENABLE=y
@@ -30,8 +30,5 @@ CONFIG_MQTT_TASK_STACK_SIZE=6144
 # Log settings
 CONFIG_LOG_DEFAULT_LEVEL_INFO=y
 CONFIG_LOG_DEFAULT_LEVEL=3
-
-# Enable example connect
-CONFIG_EXAMPLE_CONNECT_WIFI=y
 
 # Remove JSON dependency - using simple string parsing
