@@ -1,0 +1,42 @@
+menu "MQTT Protocol Configuration"
+
+    config ENABLE_MQTT
+        bool "Enable MQTT Protocol"
+        default y
+        help
+            Enable MQTT protocol for IoT communication
+
+    config BROKER_URL
+        string "MQTT Broker URL"
+        default "mqtt://test.mosquitto.org"
+        depends on ENABLE_MQTT
+        help
+            URL of the MQTT broker to connect to.
+            Examples:
+            - mqtt://mqtt.eclipseprojects.io
+            - mqtt://broker.hivemq.com
+            - mqtt://test.mosquitto.org
+
+    config MQTT_CLIENT_ID
+        string "MQTT Client ID"
+        default "ESP32_DataLogger"
+        depends on ENABLE_MQTT
+        help
+            Unique client ID for MQTT connection.
+            Leave blank to auto-generate from MAC address.
+
+    config MQTT_USERNAME
+        string "MQTT Username"
+        default "DataLogger"
+        depends on ENABLE_MQTT
+        help
+            Username for MQTT broker authentication
+
+    config MQTT_PASSWORD
+        string "MQTT Password"
+        default "datalogger"
+        depends on ENABLE_MQTT
+        help
+            Password for MQTT broker authentication
+
+endmenu
