@@ -1,28 +1,39 @@
 /**
  * @file ring_buffer.h
  */
+
 #ifndef RING_BUFFER_H
 #define RING_BUFFER_H
 
 /* INCLUDES ------------------------------------------------------------------*/
+
 #include <stdint.h>
 #include <stdbool.h>
 
-/* DEFINES -------------------------------------------------------------------*/
+/* DEFINES ------------------------------------------------------------------*/
+
 #define RING_BUFFER_SIZE 256
 
 /* TYPEDEFS ------------------------------------------------------------------*/
 
-/*
- * @brief Ring buffer structure
+/**
+ * @typedef ring_buffer_t
+ *
+ * @brief Circular FIFO buffer implementation
+ *
+ * @details This structure defines a ring buffer with fixed size:
+ * 			- buffer[]: Data storage array
+ * 			- head: Write position (volatile for ISR safety)
+ * 			- tail: Read position (volatile for ISR safety)
  */
-typedef struct {
+typedef struct
+{
 	uint8_t buffer[RING_BUFFER_SIZE];
 	volatile uint16_t head;
 	volatile uint16_t tail;
 } ring_buffer_t;
 
-/* GLOBAL FUNCTIONS ----------------------------------------------------------*/
+/* PUBLIC API ----------------------------------------------------------------*/
 
 /**
  * @brief Initialize ring buffer
@@ -62,7 +73,7 @@ uint16_t RingBuffer_Available(ring_buffer_t *rb);
 
 /**
  * @brief Clear all data in ring buffer
- * 
+ *
  * @param rb Pointer to ring buffer structure
  */
 void RingBuffer_Clear(ring_buffer_t *rb);
