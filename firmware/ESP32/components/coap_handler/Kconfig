@@ -1,0 +1,57 @@
+menu "CoAP Protocol Configuration"
+
+    config ENABLE_COAP
+        bool "Enable CoAP Protocol"
+        default n
+        help
+            Enable CoAP protocol for IoT communication
+
+    config COAP_SERVER_IP
+        string "CoAP Server IP Address"
+        default "coap.me"
+        depends on ENABLE_COAP
+        help
+            IP address or hostname of the CoAP server.
+            Examples:
+            - coap.me
+            - californium.eclipseprojects.io
+            - 192.168.1.100
+
+    config COAP_SERVER_PORT
+        int "CoAP Server Port"
+        range 1 65535
+        default 5683
+        depends on ENABLE_COAP
+        help
+            Port number of the CoAP server.
+            Standard CoAP port: 5683
+            CoAP over DTLS (secure): 5684
+
+    config COAP_URI_PATH
+        string "CoAP Resource URI Path"
+        default "/test"
+        depends on ENABLE_COAP
+        help
+            URI path of the CoAP resource on the server.
+            Examples:
+            - /test
+            - /sensor/temperature
+            - /data
+
+    config COAP_MAX_RETRANSMIT
+        int "Maximum retransmission attempts"
+        range 0 10
+        default 4
+        depends on ENABLE_COAP
+        help
+            Maximum number of retransmission attempts for CoAP requests.
+
+    config COAP_REQUEST_TIMEOUT
+        int "Request timeout (seconds)"
+        range 1 60
+        default 10
+        depends on ENABLE_COAP
+        help
+            Timeout for CoAP requests in seconds.
+
+endmenu
