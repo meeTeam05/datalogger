@@ -1,247 +1,124 @@
-# Prerequisites# Prerequisites
-
-*.d*.d
-
-
-
-# Object files# Object files
-
-*.o*.o
-
-*.ko*.ko
-
-*.obj*.obj
-
-*.elf*.elf
-
-
-
-# Linker output# Linker output
-
-*.ilk*.ilk
-
-*.map*.map
-
-*.exp*.exp
-
-
-
-# Precompiled Headers# Precompiled Headers
-
-*.gch*.gch
-
-*.pch*.pch
-
-
-
-# Libraries# Libraries
-
-*.lib*.lib
-
-*.a*.a
-
-*.la*.la
-
-*.lo*.lo
-
-
-
-# Shared objects (inc. Windows DLLs)# Shared objects (inc. Windows DLLs)
-
-*.dll*.dll
-
-*.so*.so
-
-*.so.**.so.*
-
-*.dylib*.dylib
-
-
-
-# Executables# Executables
-
-*.exe*.exe
-
-*.out*.out
-
-*.app*.app
-
-*.i*86*.i*86
-
-*.x86_64*.x86_64
-
-*.hex*.hex
-
-
-
-# Debug files# Debug files
-
-*.dSYM/*.dSYM/
-
-*.su*.su
-
-*.idb*.idb
-
-*.pdb*.pdb
-
-
-
-# Kernel Module Compile Results# Kernel Module Compile Results
-
-*.mod**.mod*
-
-*.cmd*.cmd
-
-.tmp_versions/.tmp_versions/
-
-modules.ordermodules.order
-
-Module.symversModule.symvers
-
-Mkfile.oldMkfile.old
-
-dkms.confdkms.conf
-
-
-
-# debug information files# debug information files
-
-*.dwo*.dwo
-
-
-
-# Broker# Broker
-
-broker/databroker/data
-
-broker/logbroker/log
-
-
-
-# ==== STM32 (CubeIDE/CubeMX) ====# ==== STM32 (CubeIDE/CubeMX) ====
-
-firmware/STM32/Debug/firmware/STM32/Debug/
-
-firmware/STM32/Release/firmware/STM32/Release/
-
-firmware/STM32/MinSizeRel/firmware/STM32/MinSizeRel/
-
-firmware/STM32/RelWithDebInfo/firmware/STM32/RelWithDebInfo/
-
-
-
-firmware/STM32/.settings/firmware/STM32/.settings/
-
-firmware/STM32/.projectfirmware/STM32/.project
-
-firmware/STM32/.cprojectfirmware/STM32/.cproject
-
-firmware/STM32/.mxprojectfirmware/STM32/.mxproject
-
-firmware/STM32/*.launchfirmware/STM32/*.launch
-
-
-
-# artifacts & objects# artifacts & objects
-
-firmware/STM32/**/*.ofirmware/STM32/**/*.o
-
-firmware/STM32/**/*.dfirmware/STM32/**/*.d
-
-firmware/STM32/**/*.elffirmware/STM32/**/*.elf
-
-firmware/STM32/**/*.binfirmware/STM32/**/*.bin
-
-firmware/STM32/**/*.hexfirmware/STM32/**/*.hex
-
-firmware/STM32/**/*.mapfirmware/STM32/**/*.map
-
-firmware/STM32/**/*.lstfirmware/STM32/**/*.lst
-
-firmware/STM32/**/*.logfirmware/STM32/**/*.log
-
-
-
-# ==== ESP-IDF project ====# ==== ESP-IDF project ====
-
-firmware/ESP32/build/firmware/ESP32/build/
-
-firmware/ESP32/managed_components/firmware/ESP32/managed_components/
-
-
-
-# local tooling / IDE# local tooling / IDE
-
-firmware/ESP32/.vscode/firmware/ESP32/.vscode/
-
-
-
-# Devcontainer# Devcontainer 
-
-firmware/ESP32/.devcontainer/firmware/ESP32/.devcontainer/
-
-
-
-# configs - local configuration files# configs
-
-firmware/ESP32/sdkconfigfirmware/ESP32/sdkconfig.old
-
+# Prerequisites
+*.d
+
+# Object files
+*.o
+*.ko
+*.obj
+*.elf
+
+# Linker output
+*.ilk
+*.map
+*.exp
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Libraries
+*.lib
+*.a
+*.la
+*.lo
+
+# Shared objects (inc. Windows DLLs)
+*.dll
+*.so
+*.so.*
+*.dylib
+
+# Executables
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Kernel Module Compile Results
+*.mod*
+*.cmd
+.tmp_versions/
+modules.order
+Module.symvers
+Mkfile.old
+dkms.conf
+
+# debug information files
+*.dwo
+
+# Broker
+broker/data
+broker/log
+
+# ==== STM32 (CubeIDE/CubeMX) ====
+firmware/STM32/Debug/
+firmware/STM32/Release/
+firmware/STM32/MinSizeRel/
+firmware/STM32/RelWithDebInfo/
+
+firmware/STM32/.settings/
+firmware/STM32/.project
+firmware/STM32/.cproject
+firmware/STM32/.mxproject
+firmware/STM32/*.launch
+
+# artifacts & objects
+firmware/STM32/**/*.o
+firmware/STM32/**/*.d
+firmware/STM32/**/*.elf
+firmware/STM32/**/*.bin
+firmware/STM32/**/*.hex
+firmware/STM32/**/*.map
+firmware/STM32/**/*.lst
+firmware/STM32/**/*.log
+
+# ==== ESP-IDF project ====
+firmware/ESP32/build/
+firmware/ESP32/managed_components/
+
+# local tooling / IDE
+firmware/ESP32/.vscode/
+
+# Devcontainer 
+firmware/ESP32/.devcontainer/
+
+# configs
 firmware/ESP32/sdkconfig.old
 
 # caches / temp
-
-# caches / tempfirmware/ESP32/.ccache/
-
-firmware/ESP32/.ccache/firmware/ESP32/.pytest_cache/
-
-firmware/ESP32/.pytest_cache/firmware/ESP32/**/__pycache__/
-
-firmware/ESP32/**/__pycache__/firmware/ESP32/**/*.pyc
-
-firmware/ESP32/**/*.pycfirmware/ESP32/**/*.log
-
-firmware/ESP32/**/*.logfirmware/ESP32/.espressif/
-
-firmware/ESP32/.espressif/firmware/ESP32/idf-env.json
-
+firmware/ESP32/.ccache/
+firmware/ESP32/.pytest_cache/
+firmware/ESP32/**/__pycache__/
+firmware/ESP32/**/*.pyc
+firmware/ESP32/**/*.log
+firmware/ESP32/.espressif/
 firmware/ESP32/idf-env.json
 
 # binaries
-
-# binariesfirmware/ESP32/**/*.elf
-
-firmware/ESP32/**/*.elffirmware/ESP32/**/*.bin
-
-firmware/ESP32/**/*.binfirmware/ESP32/**/*.map
-
+firmware/ESP32/**/*.elf
+firmware/ESP32/**/*.bin
 firmware/ESP32/**/*.map
 
 # Custom
-
-# Test filesfirmware/ESP32/pytest_mqtt5.py
-
 firmware/ESP32/pytest_mqtt5.py
-
-# ignore
-
-# metadata.gitignore
-
-.metadata.metadata
-
-
-
-# IDE settings# Others
-
-.vscode/.vscode/
-
-**/.vscode/**/.vscode/
-
-
-
-.cache/.cache/
-
-**/.cache/**/.cache/
-
 firmware/ESP32/sdkconfig
 firmware/ESP32/sdkconfig.old
 firmware/ESP32/sdkconfig.defaults
+
+# Others
+.vscode/
+**/.vscode/
+
+.cache/
+**/.cache/
+
+.metadata/
+**/.metadata/
