@@ -1,0 +1,18 @@
+menu "Relay Control Configuration"
+
+    config RELAY_GPIO_NUM
+        int "Relay control GPIO pin number"
+        range 0 39 if IDF_TARGET_ESP32
+        range 0 46 if IDF_TARGET_ESP32S2
+        range 0 48 if IDF_TARGET_ESP32S3
+        range 0 21 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2
+        default 18 if IDF_TARGET_ESP32
+        default 18 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+        default 8 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2
+        help
+            GPIO number for relay control output.
+            Connect this to relay module input.
+            ESP32: Any GPIO except input-only pins (34-39)
+            Recommended: GPIO 18, 19, 21, 22, 23
+
+endmenu
