@@ -407,39 +407,56 @@ CONFIG_PARTITION_TABLE_MD5=y
 # end of Partition Table
 
 #
-# ESP32 MQTT5 Bridge Configuration
+# IoT Protocol Configuration
 #
 
 #
-# MQTT Broker Settings
+# MQTT Protocol Configuration
 #
-CONFIG_BROKER_URL="mqtt://192.168.1.3:1883"
+CONFIG_ENABLE_MQTT=y
+CONFIG_BROKER_URL="mqtt://test.mosquitto.org"
 CONFIG_MQTT_CLIENT_ID="ESP32_DataLogger"
 CONFIG_MQTT_USERNAME="DataLogger"
 CONFIG_MQTT_PASSWORD="datalogger"
-# end of MQTT Broker Settings
+# end of MQTT Protocol Configuration
 
 #
-# STM32 Communication UART Configuration
+# CoAP Protocol Configuration
+#
+CONFIG_ENABLE_COAP=y
+CONFIG_COAP_SERVER_IP="coap.me"
+CONFIG_COAP_SERVER_PORT=5683
+CONFIG_COAP_URI_PATH="/test"
+CONFIG_COAP_MAX_RETRANSMIT=4
+CONFIG_COAP_REQUEST_TIMEOUT=10
+# end of CoAP Protocol Configuration
+# end of IoT Protocol Configuration
+
+#
+# Hardware Pin Configuration
+#
+
+#
+# STM32 Communication (UART)
 #
 CONFIG_MQTT_UART_PORT_NUM=2
 CONFIG_MQTT_UART_BAUD_RATE=115200
 CONFIG_MQTT_UART_TXD=17
 CONFIG_MQTT_UART_RXD=16
-# end of STM32 Communication UART Configuration
+# end of STM32 Communication (UART)
 
 #
-# Hardware Control Configuration
+# Relay Control Configuration
 #
 CONFIG_RELAY_GPIO_NUM=18
-# end of Hardware Control Configuration
-# end of ESP32 MQTT5 Bridge Configuration
+# end of Relay Control Configuration
+# end of Hardware Pin Configuration
 
 #
 # WiFi Connection Configuration
 #
-CONFIG_WIFI_SSID="P. 613"
-CONFIG_WIFI_PASSWORD="613613316"
+CONFIG_WIFI_SSID="QUANG LAM"
+CONFIG_WIFI_PASSWORD="lam190567"
 CONFIG_WIFI_MAXIMUM_RETRY=5
 CONFIG_WIFI_SCAN_METHOD=0
 CONFIG_WIFI_CONNECT_AP_SORT_METHOD=0
@@ -1964,6 +1981,26 @@ CONFIG_WIFI_PROV_AUTOSTOP_TIMEOUT=30
 CONFIG_WIFI_PROV_STA_ALL_CHANNEL_SCAN=y
 # CONFIG_WIFI_PROV_STA_FAST_SCAN is not set
 # end of Wi-Fi Provisioning Manager
+
+#
+# CoAP Protocol Configuration
+#
+# end of CoAP Protocol Configuration
+
+#
+# MQTT Protocol Configuration
+#
+# end of MQTT Protocol Configuration
+
+#
+# Relay Control Configuration
+#
+# end of Relay Control Configuration
+
+#
+# STM32 Communication (UART)
+#
+# end of STM32 Communication (UART)
 # end of Component config
 
 # CONFIG_IDF_EXPERIMENTAL_FEATURES is not set

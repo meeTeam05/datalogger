@@ -26,6 +26,7 @@ esp32_mqtt_bridge/
 │   ├── mqtt_handler/                     # MQTT5 client wrapper
 │   ├── relay_control/                    # GPIO relay management
 │   ├── sensor_parser/                    # SHT3X data parsing
+│   ├── wifi_manager/                     # Wifi configure
 │   └── protocol_examples_common/         # Protocol Common
 ├── CMakeLists.txt                        # Root build configuration
 └── README.md
@@ -63,6 +64,9 @@ esp32_mqtt_bridge/
 - Separate handling for SINGLE/PERIODIC modes
 - Temperature range: -40°C to 125°C
 - Humidity range: 0% to 100%
+
+**Wifi Manager** (`components/wifi_manager/`)
+- Configure wifi for ESP
 
 ## Quick Start
 
