@@ -30,9 +30,9 @@
  */
 typedef enum
 {
-    SHT3X_TYPE_UNKNOWN = 0,
-    SHT3X_TYPE_SINGLE,
-    SHT3X_TYPE_PERIODIC
+    SHT3X_TYPE_UNKNOWN = 0, /*!< Invalid or unknown mode */
+    SHT3X_TYPE_SINGLE,      /*!< One-shot measurement mode */
+    SHT3X_TYPE_PERIODIC     /*!< Continuous measurement mode */
 } sht3x_type_t;
 
 /**
@@ -48,10 +48,10 @@ typedef enum
  */
 typedef struct
 {
-    sht3x_type_t type;
-    float temperature;
-    float humidity;
-    bool valid;
+    sht3x_type_t type; /*!< Operation mode */
+    float temperature; /*!< Temperature in Celsius */
+    float humidity;    /*!< Relative humidity in % */
+    bool valid;        /*!< Data validation flag */
 } sht3x_data_t;
 
 /**
@@ -76,8 +76,8 @@ typedef void (*sht3x_data_callback_t)(const sht3x_data_t *data);
  */
 typedef struct
 {
-    sht3x_data_callback_t single_callback;
-    sht3x_data_callback_t periodic_callback;
+    sht3x_data_callback_t single_callback;   /*!< Callback for single measurements */
+    sht3x_data_callback_t periodic_callback; /*!< Callback for periodic measurements */
 } sht3x_parser_t;
 
 /* PUBLIC API ----------------------------------------------------------------*/

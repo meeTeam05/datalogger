@@ -46,13 +46,13 @@ typedef void (*stm32_data_callback_t)(const char *line);
  */
 typedef struct
 {
-    int uart_num;
-    int baud_rate;
-    int tx_pin;
-    int rx_pin;
-    ring_buffer_t rx_buffer;
-    stm32_data_callback_t data_callback;
-    bool initialized;
+    int uart_num;                        /*!< UART port number */
+    int baud_rate;                       /*!< Baud rate */
+    int tx_pin;                          /*!< TX GPIO pin */
+    int rx_pin;                          /*!< TX GPIO pin */
+    ring_buffer_t rx_buffer;             /*!< Ring buffer for received data */
+    stm32_data_callback_t data_callback; /*!< Callback for received data lines */
+    bool initialized;                    /*!< Initialization state flag */
 } stm32_uart_t;
 
 /* PUBLIC API ----------------------------------------------------------------*/

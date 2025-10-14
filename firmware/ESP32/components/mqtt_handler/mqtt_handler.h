@@ -43,10 +43,10 @@ typedef void (*mqtt_data_callback_t)(const char *topic, const char *data, int da
  */
 typedef struct
 {
-  esp_mqtt_client_handle_t client;
-  mqtt_data_callback_t data_callback;
-  bool connected;
-  char client_id[32];
+  esp_mqtt_client_handle_t client;      /*!< ESP32 MQTT client handle */
+  mqtt_data_callback_t data_callback;   /*!< Callback for incoming messages */
+  bool connected;                       /*!< Connection status */
+  char client_id[32];                   /*!< Unique client identifier */
 } mqtt_handler_t;
 
 /* PUBLIC API ----------------------------------------------------------------*/

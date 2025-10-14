@@ -28,9 +28,9 @@
  */
 typedef struct
 {
-	uint8_t buffer[RING_BUFFER_SIZE];
-	volatile uint16_t head;
-	volatile uint16_t tail;
+	uint8_t buffer[RING_BUFFER_SIZE];	/*!< Data buffer */
+	volatile uint16_t head;				/*!< Write position */
+	volatile uint16_t tail;				/*!< Read position */
 } ring_buffer_t;
 
 /* PUBLIC API ----------------------------------------------------------------*/
