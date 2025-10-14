@@ -1,17 +1,24 @@
 /**
  * @file uart.h
+ *
+ * @brief Header file for UART communication handling
  */
+
 #ifndef UART_H
 #define UART_H
 
 /* INCLUDES ------------------------------------------------------------------*/
-#include "stm32f1xx_hal.h"
+
 #include <stdint.h>
+#include <stm32f1xx_hal.h>
 
 /* DEFINES -------------------------------------------------------------------*/
+
+// Define buffer size for UART
 #define BUFFER_UART 128
 
-/* VARIABLES -----------------------------------------------------------------*/
+/* EXTERNAL VARIABLES --------------------------------------------------------*/
+
 extern UART_HandleTypeDef huart1;
 
 extern uint8_t data_rx;
@@ -19,29 +26,37 @@ extern uint8_t buff[BUFFER_UART];
 extern uint8_t index_uart;
 extern uint8_t Flag_UART;
 
-/* GLOBAL FUNCTIONS ----------------------------------------------------------*/
-/*
- * @brief
+/* PUBLIC API ----------------------------------------------------------------*/
+
+/**
+ * @brief Initialize UART for receiving data with interrupt
  *
- * @note
+ * @param huart Pointer to UART handle
  *
- * @param *huart
+ * @details This function initializes the UART peripheral to receive data
+ *          using interrupts. It also initializes the ring buffer used for
+ *          storing received data.
  */
 void UART_Init(UART_HandleTypeDef *huart);
 
-/*
- * @brief
+/**
+ * @brief UART receive complete callback
  *
- * @note
+ * @param huart Pointer to UART handle
  *
- * @param *huart
+ * @details This function is called when a byte is received via UART.
+ *          It stores the received byte in the ring buffer and re-enables
+ *          the interrupt for the next byte.
  */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart);
 
-/*
- * @brief
+/**
+ * @brief Handle received UART data
  *
- * @note
+ * @details This function processes the data received via UART.
+ *          It checks for end-of-line characters and sets a flag
+ *          when a complete command is received. The command is then
+ *          executed and the buffer is cleared for the next command.
  */
 void UART_Handle(void);
 

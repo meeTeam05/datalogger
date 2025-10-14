@@ -1,79 +1,92 @@
 /**
  * @file ring_buffer.h
+ *
+ * @brief Ring Buffer Header
  */
+
 #ifndef RING_BUFFER_H
 #define RING_BUFFER_H
 
 /* INCLUDES ------------------------------------------------------------------*/
-#include <stdint.h>
+
 #include <stdbool.h>
+#include <stdint.h>
 
 /* DEFINES -------------------------------------------------------------------*/
+
 #define RING_BUFFER_SIZE 256
 
 /* TYPEDEFS ------------------------------------------------------------------*/
-/*
- * @brief
+
+/**
+ * @typedef ring_buffer_t
+ *
+ * @brief Circular FIFO buffer implementation
+ *
+ * @details This structure defines a ring buffer with fixed size:
+ * 			- buffer[]: Data storage array
+ * 			- head: Write position (volatile for ISR safety)
+ * 			- tail: Read position (volatile for ISR safety)
  */
-typedef struct {
-	uint8_t buffer[RING_BUFFER_SIZE];
-	volatile uint16_t head;
-	volatile uint16_t tail;
+typedef struct
+
+{
+    uint8_t buffer[RING_BUFFER_SIZE]; /*!< Data buffer */
+    volatile uint16_t head;           /*!< Write position */
+    volatile uint16_t tail;           /*!< Read position */
 } ring_buffer_t;
 
-/* GLOBAL FUNCTIONS ----------------------------------------------------------*/
-/*
- * @brief
+/* PUBLIC API ----------------------------------------------------------------*/
+
+/**
+ * @brief Initialize ring buffer
  *
- * @note
- *
- * @param *rb
+ * @param *rb Pointer to ring buffer structure
  */
 void RingBuffer_Init(ring_buffer_t *rb);
 
-/*
- * @brief
+/**
+ * @brief Put data into ring buffer
  *
- * @note
+ * @param *rb Pointer to ring buffer structure
+ * @param data Data byte to put
  *
- * @param *rb
- * @param data
- *
- * @return
+ * @return true if successful, false if buffer full
  */
 bool RingBuffer_Put(ring_buffer_t *rb, uint8_t data);
 
-/*
- * @brief
+/**
+ * @brief Get data from ring buffer
  *
- * @note
+ * @param *rb Pointer to ring buffer structure
+ * @param *data Pointer to store retrieved data
  *
- * @param *rb
- * @param *data
- *
- * @return
+ * @return true if successful, false if buffer empty
  */
 bool RingBuffer_Get(ring_buffer_t *rb, uint8_t *data);
 
-/*
- * @brief
+/**
+ * @brief Get number of available bytes in ring buffer
  *
- * @note
+ * @param *rb Pointer to ring buffer structure
  *
- * @param *rb
- *
- * @return
+ * @return Number of available bytes
  */
 uint16_t RingBuffer_Available(ring_buffer_t *rb);
 
-/*
- * @brief
+/**
+ * @brief Clear all data in ring buffer
  *
- * @note
+ * @param rb Pointer to ring buffer structure
+ */
+void RingBuffer_Clear(ring_buffer_t *rb);
+
+/**
+ * @brief Get number of free bytes in ring buffer
  *
- * @param *rb
+ * @param *rb Pointer to ring buffer structure
  *
- * @return
+ * @return Number of free bytes
  */
 uint16_t RingBuffer_Free(ring_buffer_t *rb);
 
