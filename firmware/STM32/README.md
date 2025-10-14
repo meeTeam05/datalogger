@@ -8,19 +8,19 @@ A robust command-line interface firmware for controlling SHT3X temperature/humid
 ┌──────────────────────────────────────────────────────────────────┐
 │                        STM32 Data Logger                         │
 │                                                                  │
-│  UART RX ──→ Ring Buffer ──→ Command Parser ──→ SHT3X Driver   │
+│  UART RX ──→ Ring Buffer ──→ Command Parser ──→ SHT3X Driver     │
 │     ↓              ↓               ↓                  ↓          │
-│  Interrupt    256B Circular   String Match      I2C @ 100kHz    │
-│  Driven       Buffer          Dispatch          + CRC Check     │
+│  Interrupt    256B Circular   String Match      I2C @ 100kHz     │
+│  Driven       Buffer          Dispatch          + CRC Check      │
 │                                    ↓                             │
-│                           Data Manager (Centralized)            │
+│                           Data Manager (Centralized)             │
 │                                    ↓                             │
-│                      ┌─────────────┴─────────────┐              │
+│                      ┌─────────────┴─────────────┐               │
 │                      ↓                           ↓               │
 │              JSON Formatter              DS3231 RTC              │
 │              (Single/Periodic)           Unix Timestamp          │
 │                      ↓                           ↓               │
-│                 UART TX ←────────────────────────┘              │
+│                 UART TX ←────────────────────────┘               │
 │                                                                  │
 └──────────────────────────────────────────────────────────────────┘
 
