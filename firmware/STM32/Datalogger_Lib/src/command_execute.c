@@ -1,63 +1,107 @@
 /**
  * @file command_execute.c
+ *
+ * @brief Implementation of command execution functions.
  */
+
 /* INCLUDES ------------------------------------------------------------------*/
+
+#include <stdint.h>
+#include <string.h>
 #include "command_execute.h"
 #include "cmd_func.h"
 #include "cmd_parser.h"
-#include <string.h>
-#include <stdint.h>
 
 /* VARIABLES -----------------------------------------------------------------*/
+
+// Extern command table defined in cmd_func.c
 extern command_function_t cmdTable[];
 
-/* STATIC FUNCTIONS ----------------------------------------------------------*/
-/*
- * @brief
+/* PRIVATE FUNCTIONS ---------------------------------------------------------*/
+
+/**
+ * @brief Tokenizes the input string into arguments.
  *
- * @note
+ * @param str The input string to tokenize.
+ * @param argv Array to hold pointers to the tokens.
+ * @param max_tokens Maximum number of tokens to extract.
  *
- * @param *str
- * @param **argv
- * @param max_tokens
+ * @return The number of tokens extracted.
  *
- * @return
+ * @note This function modifies the input string by inserting null terminators.
  */
 static uint8_t tokenize_string(char *str, char **argv, uint8_t max_tokens)
 {
-	uint8_t argc = 0;
-	char *token = strtok(str, " \t\r\n");
+    uint8_t argc = 0;
+    char *token = strtok(str, " \t\r\n");
 
-	while (token != NULL && argc < max_tokens)
-	{
-		argv[argc++] = token;
-		token = strtok(NULL, " \t\r\n");
-	}
+    while (token != NULL && argc < max_tokens)
+    {
+        argv[argc++] = token;
+        token = strtok(NULL, " \t\r\n");
+    }
 
-	return argc;
+    return argc;
 }
 
-/*
- * @brief
+/**
+ * @brief Finds a command in the command table by matching prefix.
  *
- * @note
+ * @param argc Number of arguments.
+ * @param argv Array of argument strings.
  *
- * @param *cmd
- *
- * @return
+ * @return Pointer to the command_function_t if found, NULL otherwise.
  */
-static command_function_t* find_command(char *cmd)
+static command_function_t *find_command(uint8_t argc, char **argv)
 {
-	for (uint8_t i = 0; cmdTable[i].cmdString != NULL; i++) {
-		if (!strcmp(cmdTable[i].cmdString , cmd))
-		{
-			return &cmdTable[i];
-		}
-	}
-	return NULL;
+    if (argc == 0)
+        return NULL;
+
+    for (uint8_t i = 0; cmdTable[i].cmdString != NULL; i++)
+    {
+        // Build command string from argv to match against table
+        char testCmd[256] = {0};
+        uint8_t cmdTokens = 0;
+
+        // Count tokens in table command
+        char tableCmdCopy[256];
+        strncpy(tableCmdCopy, cmdTable[i].cmdString, sizeof(tableCmdCopy) - 1);
+        tableCmdCopy[sizeof(tableCmdCopy) - 1] = '\0';
+
+        char *token = strtok(tableCmdCopy, " ");
+        while (token != NULL)
+        {
+            cmdTokens++;
+            token = strtok(NULL, " ");
+        }
+
+        // Build test string from argv with same number of tokens
+        if (cmdTokens > argc)
+            continue;
+
+        for (uint8_t j = 0; j < cmdTokens; j++)
+        {
+            strcat(testCmd, argv[j]);
+            if (j < cmdTokens - 1)
+                strcat(testCmd, " ");
+        }
+
+        // Compare
+        if (strcmp(cmdTable[i].cmdString, testCmd) == 0)
+        {
+            return &cmdTable[i];
+        }
+    }
+    return NULL;
 }
 
-/* GLOBAL FUNCTIONS ----------------------------------------------------------*/
+/* PUBLIC API ----------------------------------------------------------------*/
+
+/**
+ * @brief Executes a command from the command buffer.
+ *
+ * @param commandBuffer Pointer to the command string buffer.
+ */
 void COMMAND_EXECUTE(char *commandBuffer)
 {
     if (commandBuffer == NULL)
@@ -67,23 +111,20 @@ void COMMAND_EXECUTE(char *commandBuffer)
     strncpy(buffer, commandBuffer, sizeof(buffer) - 1);
     buffer[sizeof(buffer) - 1] = '\0';
 
-    char *argv[10];
-    uint8_t argc = tokenize_string(buffer, argv, 10);
+    char *argv[20];	// Increased to support more arguments
+    uint8_t argc = tokenize_string(buffer, argv, 20);
 
     if (argc == 0)
         return;
 
-    char cmdString[256] = {0};
-    for (uint8_t i = 0; i < argc; i++) {
-        strcat(cmdString, argv[i]);
-        if (i < argc - 1) strcat(cmdString, " ");
-    }
+    command_function_t *command = find_command(argc, argv);
 
-    command_function_t *command = find_command(cmdString);
-
-    if (command == NULL) {
+    if (command == NULL)
+    {
         Cmd_Default(argc, argv);
-    } else {
+    }
+    else
+    {
         command->func(argc, argv);
     }
 }
