@@ -707,8 +707,8 @@ void app_main(void)
              "No Protocol",
 #endif
 #ifdef CONFIG_ENABLE_COAP
-            // TODO: Uncomment if you have COAP handler
-            //  last_coap ? "Connected" : "Disconnected",
+             // TODO: Uncomment if you have COAP handler
+             //  last_coap ? "Connected" : "Disconnected",
              "No COAP",
 #else
              "No Protocol",
