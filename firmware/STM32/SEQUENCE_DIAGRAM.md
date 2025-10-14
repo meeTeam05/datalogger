@@ -305,21 +305,20 @@ sequenceDiagram
             activate CmdTable
             CmdTable->>CmdTable: Iterate through cmdTable[]
             CmdTable->>CmdTable: Compare command strings
+            CmdTable->>CmdExec: Return result
+            deactivate CmdTable
             
             alt Command found
-                CmdTable->>CmdExec: Return function pointer
-                deactivate CmdTable
                 CmdExec->>Parser: cmdTable[i].func(argc, argv)
                 activate Parser
                 Parser->>Parser: Execute command logic
                 Parser->>CmdExec: Return
                 deactivate Parser
             else Command not found
-                CmdTable->>CmdExec: Return NULL
-                deactivate CmdTable
                 CmdExec->>Parser: Cmd_Default(argc, argv)
                 activate Parser
-                Parser->>UART: Print "UNKNOWN COMMAND"
+                Parser->>Parser: Print "UNKNOWN COMMAND"
+                Parser->>CmdExec: Return
                 deactivate Parser
             end
             
@@ -434,9 +433,11 @@ sequenceDiagram
         
     else Timeout (no response)
         Note over Sensor: Sensor not responding
+        activate I2C
         I2C->>I2C: Wait for timeout (100ms)
         I2C->>HAL: Return HAL_TIMEOUT
         deactivate I2C
+        activate HAL
         HAL->>Driver: Return HAL_TIMEOUT
         deactivate HAL
         
@@ -447,22 +448,32 @@ sequenceDiagram
         Parser->>Parser: Preserve previous state
         
     else NACK received
+        activate Sensor
         Sensor->>I2C: NACK (busy/error)
+        deactivate Sensor
+        activate I2C
         I2C->>HAL: Return HAL_ERROR
         deactivate I2C
+        activate HAL
         HAL->>Driver: Return HAL_ERROR
         deactivate HAL
         
         Driver->>Driver: Check return status
         Driver->>HAL: HAL_I2C_GetError(&hi2c1)
+        activate HAL
         HAL->>Driver: Return error code
+        deactivate HAL
         Driver->>Parser: Return SHT3X_ERROR
         Parser->>UART: Print error message
         
     else CRC mismatch
+        activate Sensor
         Sensor->>I2C: Send data with incorrect CRC
+        deactivate Sensor
+        activate I2C
         I2C->>HAL: Transfer complete
         deactivate I2C
+        activate HAL
         HAL->>Driver: Return HAL_OK
         deactivate HAL
         

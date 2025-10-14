@@ -318,7 +318,7 @@ SHT3X HEATER ENABLE SUCCEEDED
 SHT3X HEATER DISABLE SUCCEEDED
 ```
 
-**⚠️ Note:** Heater significantly affects temperature readings. Disable before measurement.
+**Note:** Heater significantly affects temperature readings. Disable before measurement.
 
 #### Accelerated Response Time (ART)
 Quick-start periodic mode for fastest response.
@@ -621,8 +621,8 @@ The firmware uses a **single-point-of-output** architecture:
 
 ```c
 // OLD Architecture (scattered output)
-Parser → SHT3X_Single() → PRINT_CLI() ❌ Multiple output points
-Parser → SHT3X_Periodic() → PRINT_CLI() ❌
+Parser → SHT3X_Single() → PRINT_CLI() X Multiple output points
+Parser → SHT3X_Periodic() → PRINT_CLI() X
 
 // NEW Architecture (centralized)
 Parser → SHT3X_Single() → DataManager_UpdateSingle() → Set flag
@@ -634,8 +634,6 @@ Main Loop → DataManager_Print() → PRINT_CLI() ✓ Single output point
 - Unified timestamp handling
 - Thread-safe output (no race conditions)
 - Easy debugging (one place to monitor)
-
-**Implementation:** See [DATALOGGER_MANAGER_GUIDE.md](Datalogger_Lib/DATALOGGER_MANAGER_GUIDE.md)
 
 ### Ring Buffer Design
 
@@ -907,7 +905,6 @@ HAL_UART_Transmit_DMA(&huart1, (uint8_t*)buffer, len);
 - **[FLOW_DIAGRAM.md](FLOW_DIAGRAM.md)** - Control flow and decision logic
 - **[SEQUENCE_DIAGRAM.md](SEQUENCE_DIAGRAM.md)** - Time-ordered component interactions
 - **[UML_CLASS_DIAGRAM.md](UML_CLASS_DIAGRAM.md)** - Class structure and relationships
-- **[DATALOGGER_MANAGER_GUIDE.md](Datalogger_Lib/DATALOGGER_MANAGER_GUIDE.md)** - Centralized architecture guide
 
 ### API Documentation
 

@@ -120,7 +120,7 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    Start([SHT3X_Periodic_Parser]) --> CheckStop{argv[2] ==\nSTOP?}
+    Start([SHT3X_Periodic_Parser]) --> CheckStop{argv equals STOP?}
     CheckStop -->|Yes| StopCmd[Send Stop Command]
     CheckStop -->|No| ValidateArgs{argc >= 4?}
     
