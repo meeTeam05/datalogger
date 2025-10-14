@@ -1,39 +1,31 @@
 /**
  * @file uart.c
+ * 
+ * @brief Source file for UART communication handling
  */
+
 /* INCLUDES ------------------------------------------------------------------*/
-#include "uart.h"
+
+#include <string.h>
 #include "command_execute.h"
 #include "ring_buffer.h"
-#include <string.h>
+#include "uart.h"
 
 /* VARIABLES -----------------------------------------------------------------*/
-/*
- * @brief
- */
+
 uint8_t data_rx;
-
-/*
- * @brief
- */
 uint8_t buff[BUFFER_UART];
-
-/*
- * @brief
- */
 uint8_t index_uart = 0;
-
-/*
- * @brief
- */
 uint8_t Flag_UART = 0;
+ring_buffer_t uart_rx_rb;		// Ring buffer for UART reception
 
-/*
- * @brief
+/* PUBLIC API ----------------------------------------------------------------*/
+
+/**
+ * @brief Initialize UART for receiving data with interrupt
+ * 
+ * @param huart Pointer to UART handle
  */
-ring_buffer_t uart_rx_rb;	// Ring buffer
-
-/* GLOBAL FUNCTIONS ----------------------------------------------------------*/
 void UART_Init(UART_HandleTypeDef *huart)
 {
 	index_uart = 0;
@@ -45,6 +37,11 @@ void UART_Init(UART_HandleTypeDef *huart)
 	HAL_UART_Receive_IT(huart, &data_rx, sizeof(data_rx));
 }
 
+/**
+ * @brief UART receive complete callback
+ * 
+ * @param huart Pointer to UART handle
+ */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 	if (huart->Instance == huart1.Instance)
@@ -55,6 +52,9 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	}
 }
 
+/**
+ * @brief Handle received UART data
+ */
 void UART_Handle(void)
 {
 	uint8_t received_byte;
