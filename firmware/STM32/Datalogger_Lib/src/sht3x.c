@@ -405,6 +405,10 @@ SHT3X_StatusTypeDef SHT3X_Heater(sht3x_t *dev, const sht3x_heater_mode_t *modeHe
  */
 SHT3X_StatusTypeDef SHT3X_Single(sht3x_t *dev, sht3x_repeat_t *modeRepeat, float *outT, float *outRH)
 {
+	// Initialize output to 0.0 (default for sensor failure)
+	if (outT) *outT = 0.0f;
+	if (outRH) *outRH = 0.0f;
+	
 	if (!dev || !dev->hi2c || !modeRepeat)
 	{
 		return SHT3X_ERROR;
@@ -434,15 +438,18 @@ SHT3X_StatusTypeDef SHT3X_Single(sht3x_t *dev, sht3x_repeat_t *modeRepeat, float
 	if (HAL_I2C_Master_Receive(dev->hi2c, (uint16_t)(dev->device_address),
 							   frame, sizeof(frame), SHT3X_I2C_TIMEOUT) != HAL_OK)
 	{
+		// I2C error, output remains 0.0
 		return SHT3X_ERROR;
 	}
 
 	float tC = 0.0f, rh = 0.0f;
 	if (SHT3X_ParseFrame(frame, &tC, &rh) != SHT3X_OK)
 	{
+		// Parse error (CRC failure), output remains 0.0
 		return SHT3X_ERROR;
 	}
 
+	// Valid data, update device state and output
 	dev->temperature = tC;
 	dev->humidity = rh;
 
@@ -489,6 +496,10 @@ SHT3X_StatusTypeDef SHT3X_Single(sht3x_t *dev, sht3x_repeat_t *modeRepeat, float
 SHT3X_StatusTypeDef SHT3X_Periodic(sht3x_t *dev, sht3x_mode_t *modePeriodic, sht3x_repeat_t *modeRepeat,
 								   float *outT, float *outRH)
 {
+	// Initialize output to 0.0 (default for sensor failure)
+	if (outT) *outT = 0.0f;
+	if (outRH) *outRH = 0.0f;
+	
 	if (!dev || !dev->hi2c || !modePeriodic || !modeRepeat)
 	{
 		return SHT3X_ERROR;
@@ -533,6 +544,10 @@ SHT3X_StatusTypeDef SHT3X_Periodic(sht3x_t *dev, sht3x_mode_t *modePeriodic, sht
 	dev->currentState = *modePeriodic;
 	dev->modeRepeat = *modeRepeat;
 
+	// Wait for first measurement to be ready (use measurement duration based on repeatability)
+	HAL_Delay(SHT3X_MEAS_DURATION_MS[*modeRepeat]);
+	
+	// Fetch first measurement (will be 0.0/0.0 if sensor fails)
 	SHT3X_FetchData(dev, outT, outRH);
 
 	return SHT3X_OK;
@@ -611,6 +626,10 @@ SHT3X_StatusTypeDef SHT3X_Stop_Periodic(sht3x_t *dev)
  */
 void SHT3X_FetchData(sht3x_t *dev, float *outT, float *outRH)
 {
+	// Initialize output to 0.0 (default for sensor failure)
+	if (outT) *outT = 0.0f;
+	if (outRH) *outRH = 0.0f;
+	
 	if (!dev || !dev->hi2c)
 	{
 		return;
@@ -627,15 +646,18 @@ void SHT3X_FetchData(sht3x_t *dev, float *outT, float *outRH)
 						 SHT3X_COMMAND_FETCH_DATA, I2C_MEMADD_SIZE_16BIT,
 						 frame, sizeof(frame), SHT3X_I2C_TIMEOUT) != HAL_OK)
 	{
+		// I2C error, output remains 0.0
 		return;
 	}
 
 	float tC = 0.0f, rh = 0.0f;
 	if (SHT3X_ParseFrame(frame, &tC, &rh) != SHT3X_OK)
 	{
+		// Parse error (CRC failure), output remains 0.0
 		return;
 	}
 
+	// Valid data, update device state and output
 	dev->temperature = tC;
 	dev->humidity = rh;
 

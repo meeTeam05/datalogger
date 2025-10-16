@@ -102,16 +102,13 @@ void SHT3X_Single_Parser(uint8_t argc, char **argv)
 		return;
 	}
 
-	float temp, hum;
-	if (SHT3X_Single(&g_sht3x, &modeRepeat, &temp, &hum) == SHT3X_OK)
-	{
-		// Update data manager with single measurement data
-		DataManager_UpdateSingle(temp, hum);
-	}
-	else
-	{
-		PRINT_CLI("SHT3X SINGLE MODE FAILED\r\n");
-	}
+	float temp = 0.0f, hum = 0.0f;
+	
+	// Always try to read sensor, if fails temp/hum remain 0.0
+	SHT3X_Single(&g_sht3x, &modeRepeat, &temp, &hum);
+	
+	// Always update data manager with measurement data (0.0 if sensor failed)
+	DataManager_UpdateSingle(temp, hum);
 }
 
 /**
@@ -176,17 +173,16 @@ void SHT3X_Periodic_Parser(uint8_t argc, char **argv)
 		return;
 	}
 
-	float temp, hum;
-	if (SHT3X_Periodic(&g_sht3x, &modePeriodic, &modeRepeat, &temp, &hum) == SHT3X_OK)
-	{
-		// Update data manager with periodic measurement data
-		DataManager_UpdatePeriodic(temp, hum);
-		next_fetch_ms = HAL_GetTick() + periodic_interval_ms;
-	}
-	else
-	{
-		PRINT_CLI("SHT3X PERIODIC MODE FAILED\r\n");
-	}
+	float temp = 0.0f, hum = 0.0f;
+	
+	// Start periodic mode on sensor
+	SHT3X_Periodic(&g_sht3x, &modePeriodic, &modeRepeat, &temp, &hum);
+	
+	// Always update data manager with first measurement (0.0 if sensor failed)
+	DataManager_UpdatePeriodic(temp, hum);
+	
+	// Schedule next fetch regardless of sensor status
+	next_fetch_ms = HAL_GetTick() + periodic_interval_ms;
 }
 
 /**
