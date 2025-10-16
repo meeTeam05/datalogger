@@ -536,13 +536,13 @@ SHT3X_StatusTypeDef SHT3X_Periodic(sht3x_t *dev, sht3x_mode_t *modePeriodic, sht
 		return HAL_ERROR;
 	}
 
-	if (SHT3X_Send_Command(dev, SHT3X_MEASURE_CMD[row][*modeRepeat]) != HAL_OK)
-	{
-		return SHT3X_ERROR;
-	}
-
+	// Set state BEFORE sending command so periodic fetch continues even if sensor fails
 	dev->currentState = *modePeriodic;
 	dev->modeRepeat = *modeRepeat;
+
+	// Try to send periodic measurement command to sensor
+	// If this fails, state is already set so main loop will continue fetching 0.0/0.0
+	SHT3X_Send_Command(dev, SHT3X_MEASURE_CMD[row][*modeRepeat]);
 
 	// Wait for first measurement to be ready (use measurement duration based on repeatability)
 	HAL_Delay(SHT3X_MEAS_DURATION_MS[*modeRepeat]);
