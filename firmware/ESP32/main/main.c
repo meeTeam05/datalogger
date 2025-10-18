@@ -667,9 +667,9 @@ void app_main(void)
         if (wifi_manager_wait_connected(CONFIG_WIFI_CONNECTION_TIMEOUT_MS) == ESP_OK)
         {
             ESP_LOGI(TAG, "WiFi connected successfully!");
-            // Mark WiFi connect time for 2-second MQTT stabilization delay (same as reconnect logic)
+            // Mark WiFi connect time for 4-second MQTT stabilization delay
             g_wifi_reconnect_time_ms = esp_timer_get_time() / 1000;
-            ESP_LOGI(TAG, "MQTT will start after 2s network stabilization delay");
+            ESP_LOGI(TAG, "MQTT will start after 4s network stabilization delay");
         }
         else
         {
@@ -802,15 +802,29 @@ void app_main(void)
             g_wifi_reconnect_time_ms = now_ms; // Mark reconnect time
         }
 
-        // Start MQTT after 2 seconds of WiFi being stable (both on boot and reconnect)
+        // Start MQTT after 4 seconds of WiFi being stable (both on boot and reconnect)
+        // Increased from 2s to 4s to ensure:
+        // - DHCP assignment is complete
+        // - DNS resolver is ready
+        // - Network stack is fully initialized
         if (wifi_now && g_wifi_reconnect_time_ms > 0 && 
-            (now_ms - g_wifi_reconnect_time_ms) >= 2000 && !mqtt_now)
+            (now_ms - g_wifi_reconnect_time_ms) >= 4000 && !mqtt_now)
         {
             uint32_t elapsed = now_ms - g_wifi_reconnect_time_ms;
             ESP_LOGI(TAG, "Starting MQTT (network stable after %u ms delay)", elapsed);
             MQTT_Handler_Start(&mqtt_handler);
             g_wifi_reconnect_time_ms = 0; // Clear timer
             g_mqtt_started = true;
+        }
+
+        // Manual reconnection with exponential backoff (since auto-reconnect is disabled)
+        // This provides more control and prevents connection spam
+        if (wifi_now && !mqtt_now && g_mqtt_started)
+        {
+            if (MQTT_Handler_Reconnect(&mqtt_handler))
+            {
+                ESP_LOGD(TAG, "MQTT reconnection attempt in progress");
+            }
         }
 
         // MQTT state changed from disconnected to connected - SUBSCRIBE to topics
