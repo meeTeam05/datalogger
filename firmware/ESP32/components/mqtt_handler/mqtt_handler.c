@@ -1,6 +1,6 @@
 /**
  * @file mqtt_handler.c
- * 
+ *
  * @brief MQTT5 Handler Library Implementation for ESP32
  */
 
@@ -9,13 +9,30 @@
 #include "mqtt_handler.h"
 #include "esp_log.h"
 #include "esp_wifi.h"
+#include "esp_timer.h"
 #include <string.h>
+#include <inttypes.h>
 
 /* PRIVATE VARIABLES ---------------------------------------------------------*/
 
 static const char *TAG = "MQTT_HANDLER";
 
 /* PRIVATE FUNCTIONS ---------------------------------------------------------*/
+
+/**
+ * @brief Reset reconnection backoff counter
+ *
+ * @details Call this when MQTT successfully connects to reset
+ *          the retry counter for the next failure.
+ */
+static void mqtt_reset_backoff(mqtt_handler_t *mqtt)
+{
+  if (mqtt)
+  {
+    mqtt->retry_count = 0;
+    mqtt->last_retry_time_ms = 0;
+  }
+}
 
 /**
  * @brief MQTT event handler for processing client events
@@ -42,6 +59,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
   case MQTT_EVENT_CONNECTED:
     ESP_LOGI(TAG, "Connected");
     mqtt->connected = true;
+    mqtt_reset_backoff(mqtt); // Reset retry counter on successful connection
     break;
 
   case MQTT_EVENT_DISCONNECTED:
@@ -113,7 +131,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
 /* PUBLIC API ----------------------------------------------------------------*/
 
 /**
- * @brief Initialize MQTT handler 
+ * @brief Initialize MQTT handler
  */
 bool MQTT_Handler_Init(mqtt_handler_t *mqtt, const char *broker_url,
                        const char *username, const char *password,
@@ -128,6 +146,8 @@ bool MQTT_Handler_Init(mqtt_handler_t *mqtt, const char *broker_url,
   mqtt->client = NULL;
   mqtt->data_callback = callback;
   mqtt->connected = false;
+  mqtt->retry_count = 0;        // Initialize retry counter
+  mqtt->last_retry_time_ms = 0; // Initialize retry timer
 
   // Generate client ID from MAC
   uint8_t mac[6];
@@ -139,11 +159,11 @@ bool MQTT_Handler_Init(mqtt_handler_t *mqtt, const char *broker_url,
   esp_mqtt_client_config_t mqtt_cfg = {
       .broker.address.uri = broker_url,
       .session.protocol_ver = MQTT_PROTOCOL_V_5,
-      .network.disable_auto_reconnect = false, // Enable auto-reconnect
-      .network.reconnect_timeout_ms = 10000,   // Space out retries: 10s between attempts
-      .network.timeout_ms = 5000,              // Fast timeout: 5s (reduced from 10s for quicker retry)
+      .network.disable_auto_reconnect = true, // Disable auto-reconnect for manual control
+      .network.reconnect_timeout_ms = 2000,   // 2s initial retry (will use exponential backoff)
+      .network.timeout_ms = 5000,             // Connection timeout: 5s (was 15s - too long)
       .credentials.client_id = mqtt->client_id,
-      .session.keepalive = 60,                 // KeepAlive: 60s heartbeat
+      .session.keepalive = 60, // KeepAlive: 60s heartbeat
   };
 
   // Set credentials if provided
@@ -183,7 +203,7 @@ bool MQTT_Handler_Init(mqtt_handler_t *mqtt, const char *broker_url,
 }
 
 /**
- * @brief Start MQTT client 
+ * @brief Start MQTT client
  */
 bool MQTT_Handler_Start(mqtt_handler_t *mqtt)
 {
@@ -198,7 +218,7 @@ bool MQTT_Handler_Start(mqtt_handler_t *mqtt)
     // If already started, try to reconnect
     if (ret == ESP_FAIL)
     {
-      ESP_LOGI(TAG, "Reconnecting...");
+      ESP_LOGI(TAG, "Started (already running, attempting reconnect)");
       ret = esp_mqtt_client_reconnect(mqtt->client);
       if (ret != ESP_OK)
       {
@@ -211,7 +231,50 @@ bool MQTT_Handler_Start(mqtt_handler_t *mqtt)
     return false;
   }
 
-  ESP_LOGI(TAG, "Started");
+  ESP_LOGI(TAG, "Started (timeout: 5s, retry interval: 5s)");
+  return true;
+}
+
+/**
+ * @brief Reconnect MQTT with fixed retry interval
+ *
+ * @details Implements fixed 5-second retry strategy:
+ *          - Each reconnection attempt is spaced 5 seconds apart
+ *          - This prevents flooding the broker while still reconnecting quickly
+ *          - No exponential backoff to keep timing predictable
+ */
+bool MQTT_Handler_Reconnect(mqtt_handler_t *mqtt)
+{
+  if (!mqtt || !mqtt->client)
+  {
+    return false;
+  }
+
+  uint32_t now_ms = esp_timer_get_time() / 1000;
+
+// Fixed retry interval: 5 seconds between attempts
+#define MQTT_RETRY_INTERVAL_MS 5000
+
+  // Check if enough time has elapsed since last retry
+  if ((now_ms - mqtt->last_retry_time_ms) < MQTT_RETRY_INTERVAL_MS)
+  {
+    // Not yet time to retry
+    return false;
+  }
+
+  // Time to reconnect - attempt reconnect
+  mqtt->last_retry_time_ms = now_ms;
+  mqtt->retry_count++;
+
+  ESP_LOGI(TAG, "Reconnecting... (attempt %" PRIu32 ")", mqtt->retry_count);
+
+  esp_err_t ret = esp_mqtt_client_reconnect(mqtt->client);
+  if (ret != ESP_OK)
+  {
+    ESP_LOGW(TAG, "Reconnect failed: %s", esp_err_to_name(ret));
+    return false;
+  }
+
   return true;
 }
 

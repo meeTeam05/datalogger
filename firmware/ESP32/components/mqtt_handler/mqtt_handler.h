@@ -1,6 +1,6 @@
 /**
  * @file mqtt_handler.h
- * 
+ *
  * @brief MQTT5 Handler Library for ESP32
  */
 
@@ -44,10 +44,12 @@ typedef void (*mqtt_data_callback_t)(const char *topic, const char *data, int da
  */
 typedef struct
 {
-  esp_mqtt_client_handle_t client;      /*!< ESP32 MQTT client handle */
-  mqtt_data_callback_t data_callback;   /*!< Callback for incoming messages */
-  bool connected;                       /*!< Connection status */
-  char client_id[32];                   /*!< Unique client identifier */
+  esp_mqtt_client_handle_t client;    /*!< ESP32 MQTT client handle */
+  mqtt_data_callback_t data_callback; /*!< Callback for incoming messages */
+  bool connected;                     /*!< Connection status */
+  char client_id[32];                 /*!< Unique client identifier */
+  uint32_t retry_count;               /*!< Retry attempt counter (for exponential backoff) */
+  uint32_t last_retry_time_ms;        /*!< Timestamp of last retry attempt */
 } mqtt_handler_t;
 
 /* PUBLIC API ----------------------------------------------------------------*/
@@ -110,6 +112,15 @@ int MQTT_Handler_Publish(mqtt_handler_t *mqtt, const char *topic,
  * @return true if connected
  */
 bool MQTT_Handler_IsConnected(mqtt_handler_t *mqtt);
+
+/**
+ * @brief Reconnect MQTT with exponential backoff
+ *
+ * @param mqtt MQTT handler structure
+ *
+ * @return true if reconnection initiated, false if backoff delay not elapsed
+ */
+bool MQTT_Handler_Reconnect(mqtt_handler_t *mqtt);
 
 /**
  * @brief Stop MQTT client
