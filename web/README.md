@@ -7,17 +7,49 @@ A real-time IoT web dashboard for monitoring SHT31 temperature and humidity sens
 This professional-grade web application provides comprehensive monitoring and control capabilities for IoT sensor networks:
 
 - Real-time Data Visualization: Live temperature/humidity charts with statistical analysis
-- MQTT WebSocket Communication: Bi-directional communication with ESP32 devices  
+- **MQTT Protocol**: Bi-directional communication with ESP32 devices (reliable)
+- **CoAP Protocol** (Optional): Lightweight sensor data streaming from ESP32
 - Firebase Cloud Integration: Persistent data storage and historical analysis
 - Device Control Interface: Remote relay switching and sampling configuration
 - Responsive Design: Optimized for desktop, tablet, and mobile devices
 - State Synchronization: Automatic hardware/software state management
 
+## Protocols Supported
+
+| Protocol | Purpose | Implementation |
+|----------|---------|-----------------|
+| **MQTT** | Device control + state messages | ✅ Working (Mosquitto broker) |
+| **CoAP** | Lightweight sensor data (optional) | 📖 See COAP_INTEGRATION.md |
+| **HTTP** | Dashboard + REST API | ✅ Node.js Express |
+| **WebSocket** | Browser real-time updates | ✅ MQTT over WebSocket |
+
 ## Architecture
 
 ```
-Web Dashboard ←→ MQTT Broker ←→ ESP32 ←→ STM32 + SHT31 Sensor
-                      ↓
+┌──────────────────────┐
+│  Web Dashboard       │
+│  (HTML/CSS/JS)       │
+└──────────┬───────────┘
+           │ HTTP(S)
+    ┌──────▼──────────┐
+    │  Node.js Server │
+    │  (Express.js)   │
+    ├─────────────────┤
+    │  HTTP REST      │
+    │  MQTT 1883      │
+    │  CoAP 5683      │
+    └──────┬──────────┘
+           │
+    ┌──────▼────────┐
+    │  Mosquitto    │
+    │  MQTT Broker  │
+    └──────┬────────┘
+           │
+    ┌──────▼─────────────┐
+    │  ESP32 Datalogger  │
+    │  WiFi + MQTT/CoAP  │
+    └─────────────────────┘
+```
               Firebase Database
 ```
 
@@ -29,11 +61,16 @@ Real-time monitoring and control interface for STM32-ESP32 datalogger system.
 
 ### 1. Setup Web Server
 ```bash
-# Python (recommended for development)
+# Option A: Python (recommended for development)
+cd web
 python -m http.server 8080
 
-# Node.js alternative
+# Option B: Node.js alternative
 npx http-server -p 8080
+
+# Option C: Node.js with CoAP support (see below)
+npm install
+node server.js
 
 # Access dashboard at http://localhost:8080
 ```
@@ -41,25 +78,46 @@ npx http-server -p 8080
 ### 2. Configure MQTT Connection
 
 Click the settings button and configure:
-- MQTT Broker IP: Your broker's IP address
-- WebSocket Port: Default 8083
-- WebSocket Path: Default `/mqtt`
-- Credentials: Username/password if authentication enabled
+- **MQTT Broker IP**: Your broker's IP address (192.168.1.100)
+- **WebSocket Port**: Default 8083
+- **WebSocket Path**: Default `/mqtt`
+- **Credentials**: Username/password (ask admin)
 
-### 3. Firebase Setup (Optional)
-For data persistence, configure Firebase:
+### 3. Configure CoAP (Optional)
+
+For lightweight sensor data streaming:
+1. See `COAP_INTEGRATION.md` for setup
+2. Run Node.js server to handle CoAP messages
+3. Data will be automatically displayed in dashboard
+
+### 4. Firebase Setup (Optional)
+For cloud data persistence:
 - **Database URL**: Your Firebase Realtime Database URL
 - **API Key**: Firebase project API key  
 - **Project ID**: Firebase project identifier
 
 ## Deployment Options
 
-### Development Environment
+### Development Environment (Quick Start)
 ```bash
-# Local testing
+# Local testing - simplest setup
+cd web
 python -m http.server 8080
 
 # Access via http://[local-ip]:8080 for network testing
+```
+
+### Development with CoAP Support
+```bash
+# Install Node.js dependencies
+npm install
+
+# Create server.js (see COAP_INTEGRATION.md)
+node server.js
+
+# Starts both:
+# - HTTP server: http://localhost:3000
+# - CoAP listener: udp://localhost:5683
 ```
 
 ### Production Deployment
