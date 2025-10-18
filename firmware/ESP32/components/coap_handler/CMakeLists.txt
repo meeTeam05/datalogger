@@ -1,7 +1,10 @@
-file(GLOB_RECURSE app_srcs *.c)
+#TODO: WILL ENABLE IN THE FUTURE
 
 idf_component_register(
-    SRCS ${app_srcs}
+    SRCS "coap_handler.c"
     INCLUDE_DIRS "."
     REQUIRES 
+        lwip
+        esp_event
+        espressif__coap
 )
