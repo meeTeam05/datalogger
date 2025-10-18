@@ -12,14 +12,6 @@
 
 /* PUBLIC API ----------------------------------------------------------------*/
 
-/**
- * @brief Formatted print function over UART
- *
- * @param fmt Format string (like printf)
- * @param ... Variable arguments
- *
- * @note Uses HAL_UART_Transmit to send data over UART
- */
 void PRINT_CLI(char *fmt, ...)
 {
 	char stringBuffer[BUFFER_PRINT];

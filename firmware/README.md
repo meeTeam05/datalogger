@@ -1,8 +1,10 @@
-# FIRMWARE
+# Firmware
 
-Complete firmware suite for an IoT sensor system featuring STM32-based SHT3X sensor interface with ESP32 MQTT bridge for web-based monitoring and control.
+## Overview
 
-## System Architecture
+This directory contains firmware for both STM32 and ESP32 microcontrollers in the datalogger system.
+
+## Architecture
 
 ```
 SHT3X Sensor ←→ STM32 CLI Interface ←[UART]→ ESP32 MQTT Bridge ←[WiFi]→ Web Dashboard
@@ -11,48 +13,41 @@ SHT3X Sensor ←→ STM32 CLI Interface ←[UART]→ ESP32 MQTT Bridge ←[WiFi]
                   Serial Terminal
 ```
 
-## Project Components
+## Components
 
-### [STM32 Sensor Interface](STM32/) 
+### STM32 Firmware 
 **Primary sensor control and data acquisition**
 
-- **Hardware**: STM32F1xx + SHT3X temperature/humidity sensor
-- **Interface**: Command-line interface via UART (115200 baud)
-- **Features**: Single-shot measurements, continuous monitoring (0.5-10Hz), heater control
-- **Architecture**: Ring buffer + command parser + I2C sensor driver
-- **Data Output**: Real-time temperature/humidity readings with timestamp
+- Hardware: STM32F1xx + SHT3X temperature/humidity sensor
+- Interface: Command-line interface via UART (115200 baud)
+- Features: Single-shot measurements, continuous monitoring (0.5-10Hz), heater control
+- Architecture: Ring buffer + command parser + I2C sensor driver
+- Data Output: Real-time temperature/humidity readings with timestamp
 
-**Key Capabilities:**
+Key Capabilities:
 - Precision control: HIGH/MEDIUM/LOW repeatability settings
 - Multiple sampling modes: Single-shot and periodic (0.5, 1, 2, 4, 10 Hz)
 - Built-in heater management for condensation prevention
 - Robust I2C communication with CRC validation
 - Local serial terminal control for debugging
 
-### [ESP32 MQTT Bridge](ESP32/)
+### ESP32 Firmware
 **IoT connectivity and remote control**
 
-- **Hardware**: ESP32 DevKit + relay module
-- **Connectivity**: WiFi + MQTT5 protocol  
-- **Features**: Bidirectional STM32↔Web communication, relay control, real-time data streaming
-- **Architecture**: Modular components for UART, MQTT, parsing, and GPIO control
-- **Integration**: Transparent bridge between STM32 CLI and web applications
+- Hardware: ESP32 DevKit + relay module
+- Connectivity: WiFi + MQTT5 protocol  
+- Features: Bidirectional STM32-Web communication, relay control, real-time data streaming
+- Architecture: Modular components for UART, MQTT, parsing, and GPIO control
+- Integration: Transparent bridge between STM32 CLI and web applications
 
-**Key Capabilities:**
-- Command forwarding: Web → MQTT → ESP32 → STM32
-- Data streaming: STM32 → ESP32 → MQTT → Web dashboard
+Key Capabilities:
+- Command forwarding: Web to MQTT to ESP32 to STM32
+- Data streaming: STM32 to ESP32 to MQTT to Web dashboard
 - Device control: Remote relay switching via GPIO
 - State synchronization: Real-time system status monitoring
 - Auto-reconnection and error recovery
 
-## Getting Started
-
-### Prerequisites
-- **STM32**: STM32CubeMX, GCC ARM toolchain, ST-Link programmer
-- **ESP32**: ESP-IDF v5.0+, USB-C cable for programming
-- **Infrastructure**: MQTT broker (Mosquitto recommended), WiFi network
-
-### Quick Setup
+## Configuration
 
 1. **STM32 Setup**
 ```bash

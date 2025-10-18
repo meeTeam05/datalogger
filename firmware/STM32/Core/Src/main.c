@@ -151,6 +151,9 @@ int main(void)
         // Update data manager with periodic data
         DataManager_UpdatePeriodic(outT, outRH);
 
+        // Toggle GPIO
+        HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+
         // Record this fetch time to prevent duplicates
         last_fetch_ms = now;
 

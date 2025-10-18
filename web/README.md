@@ -1,17 +1,17 @@
-# SHT31 Temperature Monitor Dashboard
-
-A real-time IoT web dashboard for monitoring SHT31 temperature and humidity sensors via MQTT WebSocket connections with Firebase data persistence.
+# Web Dashboard
 
 ## Overview
 
+A real-time IoT web dashboard for monitoring SHT31 temperature and humidity sensors via MQTT WebSocket connections with Firebase data persistence.
+
 This professional-grade web application provides comprehensive monitoring and control capabilities for IoT sensor networks:
 
-- **Real-time Data Visualization** - Live temperature/humidity charts with statistical analysis
-- **MQTT WebSocket Communication** - Bi-directional communication with ESP32 devices  
-- **Firebase Cloud Integration** - Persistent data storage and historical analysis
-- **Device Control Interface** - Remote relay switching and sampling configuration
-- **Responsive Design** - Optimized for desktop, tablet, and mobile devices
-- **State Synchronization** - Automatic hardware/software state management
+- Real-time Data Visualization: Live temperature/humidity charts with statistical analysis
+- MQTT WebSocket Communication: Bi-directional communication with ESP32 devices  
+- Firebase Cloud Integration: Persistent data storage and historical analysis
+- Device Control Interface: Remote relay switching and sampling configuration
+- Responsive Design: Optimized for desktop, tablet, and mobile devices
+- State Synchronization: Automatic hardware/software state management
 
 ## Architecture
 
@@ -21,12 +21,11 @@ Web Dashboard ←→ MQTT Broker ←→ ESP32 ←→ STM32 + SHT31 Sensor
               Firebase Database
 ```
 
-## Quick Start
+## Features
 
-### Prerequisites
-- MQTT broker with WebSocket support (Mosquitto recommended)
-- Modern web browser with WebSocket support
-- Optional: Firebase account for data persistence
+Real-time monitoring and control interface for STM32-ESP32 datalogger system.
+
+## Configuration
 
 ### 1. Setup Web Server
 ```bash
@@ -40,11 +39,12 @@ npx http-server -p 8080
 ```
 
 ### 2. Configure MQTT Connection
-Click the settings button (⚙️) and configure:
-- **MQTT Broker IP**: Your broker's IP address
-- **WebSocket Port**: Default 8083
-- **WebSocket Path**: Default `/mqtt`
-- **Credentials**: Username/password if authentication enabled
+
+Click the settings button and configure:
+- MQTT Broker IP: Your broker's IP address
+- WebSocket Port: Default 8083
+- WebSocket Path: Default `/mqtt`
+- Credentials: Username/password if authentication enabled
 
 ### 3. Firebase Setup (Optional)
 For data persistence, configure Firebase:
@@ -144,20 +144,20 @@ const FIREBASE_CONFIG = {
 | `esp32/sensor/sht3x/periodic/humidity` | ESP32 → Web | Continuous humidity data | `65.2` |
 | `esp32/sensor/sht3x/single/temperature` | ESP32 → Web | Single temperature reading | `24.1` |
 | `esp32/sensor/sht3x/single/humidity` | ESP32 → Web | Single humidity reading | `58.7` |
-| `esp32/state` | Bi-directional | Device state synchronization | `{"device":"ON","periodic":"OFF","rate":1}` |
+| `esp32/state` | Bi-directional | Device state synchronization | `{"device":"ON","periodic":"OFF","timestamp":123456789}` |
 
 ## Features
 
 ### Real-Time Monitoring
 - **Live Charts**: Temperature and humidity visualization with Chart.js
-- **Configurable Sampling**: 0.5Hz to 10Hz periodic sampling rates
+- **Configurable Interval**: 1 second to 60 minutes periodic sampling interval
 - **Statistical Analysis**: Real-time min/max/average calculations
 - **Current Value Display**: Large, prominent current reading display
 
 ### Device Control
 - **Power Management**: Remote relay switching for device control
 - **Operating Modes**: 
-  - Periodic sampling with configurable rates
+  - Periodic sampling with configurable interval (1s to 60 minutes)
   - Single-shot readings on demand
 - **State Synchronization**: Automatic UI/hardware state management
 - **Connection Monitoring**: Real-time MQTT and Firebase status
@@ -308,7 +308,7 @@ web/
 **Device Control Interface**
 - Relay power switching
 - Sampling mode configuration
-- Frame rate adjustment
+- Periodic interval adjustment (1s to 60 minutes)
 
 ### Adding New Features
 

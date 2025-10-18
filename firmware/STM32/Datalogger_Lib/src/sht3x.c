@@ -233,13 +233,6 @@ static SHT3X_StatusTypeDef SHT3X_ReadStatus(sht3x_t *dev, uint16_t *state_word)
 
 /* PUBLIC API ----------------------------------------------------------------*/
 
-/**
- * @brief Initializes the SHT3x sensor
- *
- * @param dev Pointer to the SHT3x device structure
- * @param hi2c Pointer to the I2C handle
- * @param addr7bit 7-bit I2C address of the sensor (SHT3X_I2C_ADDR_GND or SHT3X_I2C_ADDR_VDD)
- */
 void SHT3X_Init(sht3x_t *dev, I2C_HandleTypeDef *hi2c, uint8_t addr7bit)
 {
 
@@ -291,11 +284,6 @@ void SHT3X_Init(sht3x_t *dev, I2C_HandleTypeDef *hi2c, uint8_t addr7bit)
 	HAL_Delay(1);
 }
 
-/**
- * @brief De-initializes the SHT3x sensor
- *
- * @param dev Pointer to the SHT3x device structure
- */
 void SHT3X_DeInit(sht3x_t *dev)
 {
 	if (!dev || !dev->hi2c)
@@ -338,14 +326,6 @@ void SHT3X_DeInit(sht3x_t *dev)
 	dev->modeRepeat = SHT3X_HIGH;
 }
 
-/**
- * @brief Controls the heater of the SHT3x sensor
- *
- * @param dev Pointer to the SHT3x device structure
- * @param modeHeater Pointer to the heater mode (enable or disable)
- *
- * @return SHT3X_StatusTypeDef Status of the operation (SHT3X_OK or SHT3X_ERROR)
- */
 SHT3X_StatusTypeDef SHT3X_Heater(sht3x_t *dev, const sht3x_heater_mode_t *modeHeater)
 {
 	if (!dev || !dev->hi2c || !modeHeater)
@@ -393,22 +373,14 @@ SHT3X_StatusTypeDef SHT3X_Heater(sht3x_t *dev, const sht3x_heater_mode_t *modeHe
 	return SHT3X_OK;
 }
 
-/**
- * @brief Performs a single measurement with the SHT3x sensor
- *
- * @param dev Pointer to the SHT3x device structure
- * @param modeRepeat Pointer to the repeatability mode (HIGH, MEDIUM, LOW)
- * @param outT Pointer to store the measured temperature value (in degrees Celsius), can be NULL
- * @param outRH Pointer to store the measured relative humidity value (in percentage), can be NULL
- *
- * @return SHT3X_StatusTypeDef Status of the operation (SHT3X_OK or SHT3X_ERROR)
- */
 SHT3X_StatusTypeDef SHT3X_Single(sht3x_t *dev, sht3x_repeat_t *modeRepeat, float *outT, float *outRH)
 {
 	// Initialize output to 0.0 (default for sensor failure)
-	if (outT) *outT = 0.0f;
-	if (outRH) *outRH = 0.0f;
-	
+	if (outT)
+		*outT = 0.0f;
+	if (outRH)
+		*outRH = 0.0f;
+
 	if (!dev || !dev->hi2c || !modeRepeat)
 	{
 		return SHT3X_ERROR;
@@ -484,22 +456,15 @@ SHT3X_StatusTypeDef SHT3X_Single(sht3x_t *dev, sht3x_repeat_t *modeRepeat, float
 	return SHT3X_OK;
 }
 
-/**
- * @brief Starts periodic measurements with the SHT3x sensor
- *
- * @param dev Pointer to the SHT3x device structure
- * @param modePeriodic Pointer to the periodic measurement mode (05MPS, 1MPS, 2MPS, 4MPS, 10MPS)
- * @param modeRepeat Pointer to the repeatability mode (HIGH, MEDIUM, LOW)
- *
- * @return SHT3X_StatusTypeDef Status of the operation (SHT3X_OK or SHT3X_ERROR)
- */
 SHT3X_StatusTypeDef SHT3X_Periodic(sht3x_t *dev, sht3x_mode_t *modePeriodic, sht3x_repeat_t *modeRepeat,
 								   float *outT, float *outRH)
 {
 	// Initialize output to 0.0 (default for sensor failure)
-	if (outT) *outT = 0.0f;
-	if (outRH) *outRH = 0.0f;
-	
+	if (outT)
+		*outT = 0.0f;
+	if (outRH)
+		*outRH = 0.0f;
+
 	if (!dev || !dev->hi2c || !modePeriodic || !modeRepeat)
 	{
 		return SHT3X_ERROR;
@@ -546,20 +511,13 @@ SHT3X_StatusTypeDef SHT3X_Periodic(sht3x_t *dev, sht3x_mode_t *modePeriodic, sht
 
 	// Wait for first measurement to be ready (use measurement duration based on repeatability)
 	HAL_Delay(SHT3X_MEAS_DURATION_MS[*modeRepeat]);
-	
+
 	// Fetch first measurement (will be 0.0/0.0 if sensor fails)
 	SHT3X_FetchData(dev, outT, outRH);
 
 	return SHT3X_OK;
 }
 
-/**
- * @brief Activates the ART (Accelerated Response Time) mode of the SHT3x sensor
- *
- * @param dev Pointer to the SHT3x device structure
- *
- * @return SHT3X_StatusTypeDef Status of the operation (SHT3X_OK or SHT3X_ERROR)
- */
 SHT3X_StatusTypeDef SHT3X_ART(sht3x_t *dev)
 {
 	if (!dev || !dev->hi2c)
@@ -587,13 +545,6 @@ SHT3X_StatusTypeDef SHT3X_ART(sht3x_t *dev)
 	return SHT3X_OK;
 }
 
-/**
- * @brief Stops periodic measurements with the SHT3x sensor
- *
- * @param dev Pointer to the SHT3x device structure
- *
- * @return SHT3X_StatusTypeDef Status of the operation (SHT3X_OK or SHT3X_ERROR)
- */
 SHT3X_StatusTypeDef SHT3X_Stop_Periodic(sht3x_t *dev)
 {
 	if (!dev || !dev->hi2c)
@@ -617,19 +568,14 @@ SHT3X_StatusTypeDef SHT3X_Stop_Periodic(sht3x_t *dev)
 	return SHT3X_OK;
 }
 
-/**
- * @brief Fetches the latest measurement data from the SHT3x sensor in periodic mode
- *
- * @param dev Pointer to the SHT3x device structure
- * @param outT Pointer to store the fetched temperature value (in degrees Celsius)
- * @param outRH Pointer to store the fetched relative humidity value (in percentage)
- */
 void SHT3X_FetchData(sht3x_t *dev, float *outT, float *outRH)
 {
 	// Initialize output to 0.0 (default for sensor failure)
-	if (outT) *outT = 0.0f;
-	if (outRH) *outRH = 0.0f;
-	
+	if (outT)
+		*outT = 0.0f;
+	if (outRH)
+		*outRH = 0.0f;
+
 	if (!dev || !dev->hi2c)
 	{
 		return;

@@ -11,17 +11,21 @@
 
 #include <stdint.h>
 
-/* PUBLIC API ----------------------------------------------------------------*/
+/* EXTERNAL VARIABLES --------------------------------------------------------*/
 
 /**
- * @brief Command parser function for unknown commands
- *
- * @param argc Argument count
- * @param argv Argument vector
- *
- * @note argv[0] is the command itself
+ * @brief External variable for periodic timing control
+ * @note Allows cmd_parser to reset timing when starting PERIODIC mode
  */
-void Cmd_Default(uint8_t argc, char **argv);
+extern uint32_t next_fetch_ms;
+
+/**
+ * @brief External variable for periodic interval configuration
+ * @note Allows cmd_parser to access and modify the periodic measurement interval
+ */
+extern uint32_t periodic_interval_ms;
+
+/* PUBLIC API ----------------------------------------------------------------*/
 
 /**
  * @brief Command parser for SHT3X heater commands
@@ -34,26 +38,6 @@ void Cmd_Default(uint8_t argc, char **argv);
 void SHT3X_Heater_Parser(uint8_t argc, char **argv);
 
 /**
- * @brief Command parser for SHT3X single measurement commands
- *
- * @param argc Argument count
- * @param argv Argument vector
- *
- * @note argv[0] is the command itself
- */
-void SHT3X_Single_Parser(uint8_t argc, char **argv);
-
-/**
- * @brief Command parser for SHT3X periodic measurement commands
- *
- * @param argc Argument count
- * @param argv Argument vector
- *
- * @note argv[0] is the command itself
- */
-void SHT3X_Periodic_Parser(uint8_t argc, char **argv);
-
-/**
  * @brief Command parser for SHT3X ART (Accelerated Response Time) commands
  *
  * @param argc Argument count
@@ -62,16 +46,6 @@ void SHT3X_Periodic_Parser(uint8_t argc, char **argv);
  * @note argv[0] is the command itself
  */
 void SHT3X_ART_Parser(uint8_t argc, char **argv);
-
-/**
- * @brief Command parser for SHT3X stop periodic measurement commands
- *
- * @param argc Argument count
- * @param argv Argument vector
- *
- * @note argv[0] is the command itself
- */
-void SHT3X_Stop_Periodic_Parser(uint8_t argc, char **argv);
 
 /**
  * @brief Command parser for DS3231 set time input commands
@@ -83,18 +57,54 @@ void SHT3X_Stop_Periodic_Parser(uint8_t argc, char **argv);
  */
 void DS3231_Set_Time_Parser(uint8_t argc, char **argv);
 
-/* EXTERNAL VARIABLES --------------------------------------------------------*/
+/**
+ * @brief Command parser for SINGLE measurement command
+ *
+ * @param argc Argument count
+ * @param argv Argument vector
+ *
+ * @note argv[0] is the command itself
+ */
+void SINGLE_PARSER(uint8_t argc, char **argv);
 
 /**
- * @brief External variable for periodic timing control
- * @note Allows cmd_parser to reset timing when starting PERIODIC mode
+ * @brief Command parser for PERIODIC ON command
+ *
+ * @param argc Argument count
+ * @param argv Argument vector
+ *
+ * @note argv[0] is the command itself
  */
-extern uint32_t next_fetch_ms;
+void PERIODIC_ON_PARSER(uint8_t argc, char **argv);
 
 /**
- * @brief External variable for periodic interval in milliseconds
- * @note Set by cmd_parser based on the periodic mode (0.5/1/2/4/10 MPS)
+ * @brief Command parser for PERIODIC OFF command
+ *
+ * @param argc Argument count
+ * @param argv Argument vector
+ *
+ * @note argv[0] is the command itself
  */
-extern uint32_t periodic_interval_ms;
+void PERIODIC_OFF_PARSER(uint8_t argc, char **argv);
+
+/**
+ * @brief Command parser for SET TIME command
+ *
+ * @param argc Argument count
+ * @param argv Argument vector
+ *
+ * @note argv[0] is the command itself
+ */
+void SET_TIME_PARSER(uint8_t argc, char **argv);
+
+/**
+ * @brief Command parser for SET PERIODIC INTERVAL command
+ *
+ * @param argc Argument count
+ * @param argv Argument vector
+ *
+ * @note argv[0] is the command itself
+ */
+void SET_PERIODIC_INTERVAL_PARSER(uint8_t argc, char **argv);
 
 #endif /* CMD_PARSER_H */

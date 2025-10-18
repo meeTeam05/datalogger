@@ -17,7 +17,8 @@
 #include "wifi_manager.h"
 #include "stm32_uart.h"
 #include "relay_control.h"
-#include "sht3x_parser.h"
+#include "json_sensor_parser.h"
+#include "json_utils.h" // JSON utility library
 
 #ifdef CONFIG_ENABLE_MQTT
 #include "mqtt_handler.h"
@@ -30,14 +31,26 @@
 /* DEFINES ------------------------------------------------------------------*/
 
 #ifdef CONFIG_ENABLE_MQTT
-// MQTT Topics
-#define TOPIC_SHT3X_COMMAND "esp32/sensor/sht3x/command"
-#define TOPIC_SHT3X_SINGLE_TEMPERATURE "esp32/sensor/sht3x/single/temperature"
-#define TOPIC_SHT3X_SINGLE_HUMIDITY "esp32/sensor/sht3x/single/humidity"
-#define TOPIC_SHT3X_PERIODIC_TEMPERATURE "esp32/sensor/sht3x/periodic/temperature"
-#define TOPIC_SHT3X_PERIODIC_HUMIDITY "esp32/sensor/sht3x/periodic/humidity"
-#define TOPIC_CONTROL_RELAY "esp32/control/relay"
-#define TOPIC_STATE_SYNC "esp32/state"
+/**
+ * MQTT Topic Naming Convention:
+ * Format: {organization}/{device-type}/{component}/{action}/{attribute}
+ *
+ * Benefits:
+ * - Clear hierarchy for access control (ACL)
+ * - Easy to add new sensors/devices
+ * - Wildcard subscription support
+ * - Industry standard compliance
+ */
+
+// Command topics
+#define TOPIC_STM32_COMMAND "datalogger/stm32/command"
+#define TOPIC_RELAY_CONTROL "datalogger/esp32/relay/control"
+#define TOPIC_SYSTEM_STATE "datalogger/esp32/system/state"
+
+// Data topics - JSON format
+#define TOPIC_STM32_DATA_SINGLE "datalogger/stm32/single/data"
+#define TOPIC_STM32_DATA_PERIODIC "datalogger/stm32/periodic/data"
+
 #endif
 
 /* STATIC VARIABLES ----------------------------------------------------------*/
@@ -56,12 +69,12 @@ static mqtt_handler_t mqtt_handler;
 // Global components
 static stm32_uart_t stm32_uart;
 static relay_control_t relay_control;
-static sht3x_parser_t sht3x_parser;
+static json_sensor_parser_t json_parser; // Use new JSON parser
 
 // Global state tracking
 static bool g_periodic_active = false;
 static bool g_device_on = false;
-static int g_periodic_rate = 1; // Default 1 Hz
+static bool g_mqtt_reconnected = false; // Track MQTT reconnection events
 
 /* STATE SYNCHRONIZATION FUNCTIONS -------------------------------------------*/
 
@@ -72,23 +85,24 @@ static int g_periodic_rate = 1; // Default 1 Hz
  * @param buffer_size Size of the buffer
  *
  * @details Creates a JSON string representing the current state.
- *          Example: {"device":"ON","periodic":"OFF","rate":1,"timestamp":123456789}
- *          Timestamp is in milliseconds since boot.
+ *          Example: {"device":"ON","periodic":"OFF"}
+ *          Timestamp removed to avoid confusion with milliseconds-since-boot.
  */
 static void create_state_message(char *buffer, size_t buffer_size)
 {
+    // Create state message WITHOUT timestamp
+    // Timestamp is only meaningful for sensor data (from STM32 RTC)
+    // State sync doesn't need timestamp - just current status
     snprintf(buffer, buffer_size,
-             "{\"device\":\"%s\",\"periodic\":\"%s\",\"rate\":%d,\"timestamp\":%lld}",
+             "{\"device\":\"%s\",\"periodic\":\"%s\"}",
              g_device_on ? "ON" : "OFF",
-             g_periodic_active ? "ON" : "OFF",
-             g_periodic_rate,
-             (long long)(esp_timer_get_time() / 1000)); // milliseconds
+             g_periodic_active ? "ON" : "OFF");
 }
 
 /**
  * @brief Publish current state via MQTT
  *
- * @details Publishes the current state to the TOPIC_STATE_SYNC topic
+ * @details Publishes the current state to the TOPIC_SYSTEM_STATE topic
  *          with retain flag.
  */
 static void publish_current_state(void)
@@ -103,7 +117,7 @@ static void publish_current_state(void)
     create_state_message(state_msg, sizeof(state_msg));
 
     // Publish with retain flag so new clients get latest state
-    MQTT_Handler_Publish(&mqtt_handler, TOPIC_STATE_SYNC, state_msg, 0, 1, 1);
+    MQTT_Handler_Publish(&mqtt_handler, TOPIC_SYSTEM_STATE, state_msg, 0, 1, 1);
     ESP_LOGI(TAG, "State published: %s", state_msg);
 #endif
 
@@ -117,12 +131,11 @@ static void publish_current_state(void)
  *
  * @param device_on Current device (relay) state
  * @param periodic_active Current periodic reporting state
- * @param rate Current periodic reporting rate
  *
  * @details Updates the global state variables and publishes the new state
  *          if any of the values have changed.
  */
-static void update_and_publish_state(bool device_on, bool periodic_active, int rate)
+static void update_and_publish_state(bool device_on, bool periodic_active)
 {
     bool state_changed = false;
 
@@ -140,13 +153,6 @@ static void update_and_publish_state(bool device_on, bool periodic_active, int r
         ESP_LOGI(TAG, "Periodic state changed: %s", periodic_active ? "ON" : "OFF");
     }
 
-    if (g_periodic_rate != rate)
-    {
-        g_periodic_rate = rate;
-        state_changed = true;
-        ESP_LOGI(TAG, "Periodic rate changed: %d Hz", rate);
-    }
-
     if (state_changed)
     {
         publish_current_state();
@@ -156,38 +162,39 @@ static void update_and_publish_state(bool device_on, bool periodic_active, int r
 /* CALLBACK FUNCTIONS --------------------------------------------------------*/
 
 /**
- * @brief Callback when single sht3x data is received
+ * @brief Callback when single sensor data is received
  *
- * @param data Pointer to received sht3x data
+ * @param data Pointer to received sensor data
  *
- * @details Publishes single measurement data via MQTT if connected.
+ * @details Publishes single measurement data via MQTT.
+ *          Called by JSON parser after validation, so data is always valid.
  */
-static void on_single_sht3x_data(const sht3x_data_t *data)
+static void on_single_sensor_data(const sensor_data_t *data)
 {
-    if (!SHT3X_Parser_IsValid(data))
-    {
-        return;
-    }
+    // Data is already validated by JSON parser, no need to check again
 
 #ifdef CONFIG_ENABLE_MQTT
-    if (MQTT_Handler_IsConnected(&mqtt_handler))
-    {
-        char temp_str[16], hum_str[16];
-        snprintf(temp_str, sizeof(temp_str), "%.2f", data->temperature);
-        snprintf(hum_str, sizeof(hum_str), "%.2f", data->humidity);
+    // Publish full JSON data using utility function
+    char json_msg[256];
+    JSON_Utils_CreateSensorData(json_msg, sizeof(json_msg),
+                                JSON_Parser_GetModeString(data->mode),
+                                data->timestamp,
+                                data->has_temperature ? data->temperature : 0.0f,
+                                data->has_humidity ? data->humidity : 0.0f);
 
-        MQTT_Handler_Publish(&mqtt_handler, TOPIC_SHT3X_SINGLE_TEMPERATURE, temp_str, 0, 0, 0);
-        MQTT_Handler_Publish(&mqtt_handler, TOPIC_SHT3X_SINGLE_HUMIDITY, hum_str, 0, 0, 0);
+    // Publish immediately, MQTT_Handler will queue if not connected
+    MQTT_Handler_Publish(&mqtt_handler, TOPIC_STM32_DATA_SINGLE, json_msg, 0, 0, 0);
 
-        ESP_LOGI(TAG, "MQTT SINGLE data: T=%.2f°C, H=%.2f%%",
-                 data->temperature, data->humidity);
-    }
+    ESP_LOGI(TAG, "SINGLE data published: T=%.2f°C, H=%.2f%%",
+             data->has_temperature ? data->temperature : 0.0f,
+             data->has_humidity ? data->humidity : 0.0f);
 #endif
 
 #ifdef CONFIG_ENABLE_COAP
     // TODO: Add COAP publish logic here if needed
     ESP_LOGI(TAG, "COAP SINGLE data: T=%.2f°C, H=%.2f%%",
-             data->temperature, data->humidity);
+             data->has_temperature ? data->temperature : 0.0f,
+             data->has_humidity ? data->humidity : 0.0f);
 #endif
 
 #if !(CONFIG_ENABLE_MQTT || CONFIG_ENABLE_COAP)
@@ -196,38 +203,39 @@ static void on_single_sht3x_data(const sht3x_data_t *data)
 }
 
 /**
- * @brief Callback when periodic sht3x data is received
+ * @brief Callback when periodic sensor data is received
  *
- * @param data Pointer to received sht3x data
+ * @param data Pointer to received sensor data
  *
- * @details Publishes periodic measurement data via MQTT if connected.
+ * @details Publishes periodic measurement data via MQTT.
+ *          Called by JSON parser after validation, so data is always valid.
  */
-static void on_periodic_sht3x_data(const sht3x_data_t *data)
+static void on_periodic_sensor_data(const sensor_data_t *data)
 {
-    if (!SHT3X_Parser_IsValid(data))
-    {
-        return;
-    }
+    // Data is already validated by JSON parser, no need to check again
 
 #ifdef CONFIG_ENABLE_MQTT
-    if (MQTT_Handler_IsConnected(&mqtt_handler))
-    {
-        char temp_str[16], hum_str[16];
-        snprintf(temp_str, sizeof(temp_str), "%.2f", data->temperature);
-        snprintf(hum_str, sizeof(hum_str), "%.2f", data->humidity);
+    // Publish full JSON data using utility function
+    char json_msg[256];
+    JSON_Utils_CreateSensorData(json_msg, sizeof(json_msg),
+                                JSON_Parser_GetModeString(data->mode),
+                                data->timestamp,
+                                data->has_temperature ? data->temperature : 0.0f,
+                                data->has_humidity ? data->humidity : 0.0f);
 
-        MQTT_Handler_Publish(&mqtt_handler, TOPIC_SHT3X_PERIODIC_TEMPERATURE, temp_str, 0, 0, 0);
-        MQTT_Handler_Publish(&mqtt_handler, TOPIC_SHT3X_PERIODIC_HUMIDITY, hum_str, 0, 0, 0);
+    // Publish immediately, MQTT_Handler will queue if not connected
+    MQTT_Handler_Publish(&mqtt_handler, TOPIC_STM32_DATA_PERIODIC, json_msg, 0, 0, 0);
 
-        ESP_LOGI(TAG, "MQTT PERIODIC data: T=%.2f°C, H=%.2f%%",
-                 data->temperature, data->humidity);
-    }
+    ESP_LOGI(TAG, "PERIODIC data published: T=%.2f°C, H=%.2f%%",
+             data->has_temperature ? data->temperature : 0.0f,
+             data->has_humidity ? data->humidity : 0.0f);
 #endif
 
 #ifdef CONFIG_ENABLE_COAP
     // TODO: Add COAP publish logic here if needed
     ESP_LOGI(TAG, "COAP PERIODIC data: T=%.2f°C, H=%.2f%%",
-             data->temperature, data->humidity);
+             data->has_temperature ? data->temperature : 0.0f,
+             data->has_humidity ? data->humidity : 0.0f);
 #endif
 
 #if !(CONFIG_ENABLE_MQTT || CONFIG_ENABLE_COAP)
@@ -238,16 +246,16 @@ static void on_periodic_sht3x_data(const sht3x_data_t *data)
 /**
  * @brief Callback when data is received from STM32
  *
- * @param line Received data line
+ * @param line Received data line (JSON format)
  *
- * @details Forwards received data line to sht3x parser.
+ * @details Forwards received JSON data to the JSON parser.
  */
 static void on_stm32_data_received(const char *line)
 {
     ESP_LOGI(TAG, "<- STM32: %s", line);
 
-    // Parse and process sht3x data
-    SHT3X_Parser_ProcessLine(&sht3x_parser, line);
+    // Parse and process JSON sensor data
+    JSON_Parser_ProcessLine(&json_parser, line);
 }
 
 /**
@@ -255,43 +263,26 @@ static void on_stm32_data_received(const char *line)
  *
  * @param state New relay state (true=ON, false=OFF)
  *
- * @details Updates global state and publishes new state.
+ * @details CRITICAL: This is called by relay hardware changes.
+ *          We MUST update state and publish, but NEVER send commands here
+ *          to avoid infinite loops.
+ *
+ *          When device turns OFF, periodic MUST also stop.
  */
 static void on_relay_state_changed(bool state)
 {
-    // Update global state
-    update_and_publish_state(state, g_periodic_active, g_periodic_rate);
+    ESP_LOGI(TAG, "Relay hardware state changed: %s", state ? "ON" : "OFF");
 
-    ESP_LOGI(TAG, "Relay state changed: %s", state ? "ON" : "OFF");
-}
+    // If device turned OFF, force periodic OFF
+    bool new_periodic_state = state ? g_periodic_active : false;
 
-/**
- * @brief Extract periodic rate from command string
- *
- * @param command Command string
- *
- * @return Extracted rate or current rate if not found
- *
- * @details Looks for "PERIODIC <rate>" in the command string and extracts the rate.
- *          Returns current rate if not found or invalid.
- */
-static int extract_periodic_rate(const char *command)
-{
-    // Look for rate in command like "SHT3X PERIODIC 2 HIGH"
-    char *rate_str = strstr(command, "PERIODIC");
-    if (rate_str)
+    if (!state && g_periodic_active)
     {
-        rate_str += 8; // Skip "PERIODIC"
-        while (*rate_str == ' ')
-            rate_str++; // Skip spaces
-
-        int rate = atoi(rate_str);
-        if (rate > 0 && rate <= 10)
-        {
-            return rate;
-        }
+        ESP_LOGI(TAG, "Device OFF detected - periodic mode will be stopped");
     }
-    return g_periodic_rate; // Return current rate if not found
+
+    // Update and publish state (this notifies web)
+    update_and_publish_state(state, new_periodic_state);
 }
 
 #ifdef CONFIG_ENABLE_MQTT
@@ -302,29 +293,29 @@ static int extract_periodic_rate(const char *command)
  * @param data Message payload
  * @param data_len Length of the payload
  *
- * @details Handles commands for SHT3X sensor and relay control.
+ * @details Handles commands for STM32 sensor, relay control, and state sync.
  */
 static void on_mqtt_data_received(const char *topic, const char *data, int data_len)
 {
     ESP_LOGI(TAG, "<- MQTT: %s = %.*s", topic, data_len, data);
 
-    // Handle SHT3X commands
-    if (strcmp(topic, TOPIC_SHT3X_COMMAND) == 0)
+    // Handle STM32 commands from web
+    if (strcmp(topic, TOPIC_STM32_COMMAND) == 0)
     {
-        // Track periodic state based on commands
-        if (strstr(data, "PERIODIC") && !strstr(data, "STOP"))
-        {
-            int new_rate = extract_periodic_rate(data);
-            update_and_publish_state(g_device_on, true, new_rate);
-        }
-        else if (strstr(data, "PERIODIC STOP"))
-        {
-            update_and_publish_state(g_device_on, false, g_periodic_rate);
-        }
-
+        // Forward command to STM32 first
         if (STM32_UART_SendCommand(&stm32_uart, data))
         {
-            ESP_LOGI(TAG, "Command forwarded to STM32: %s", data);
+            ESP_LOGI(TAG, "Command sent to STM32: %s", data);
+
+            // Update periodic state based on command (for state tracking only)
+            if (strcmp(data, "PERIODIC ON") == 0)
+            {
+                update_and_publish_state(g_device_on, true);
+            }
+            else if (strcmp(data, "PERIODIC OFF") == 0)
+            {
+                update_and_publish_state(g_device_on, false);
+            }
         }
         else
         {
@@ -332,7 +323,7 @@ static void on_mqtt_data_received(const char *topic, const char *data, int data_
         }
     }
     // Handle relay commands
-    else if (strcmp(topic, TOPIC_CONTROL_RELAY) == 0)
+    else if (strcmp(topic, TOPIC_RELAY_CONTROL) == 0)
     {
         if (Relay_ProcessCommand(&relay_control, data))
         {
@@ -343,12 +334,77 @@ static void on_mqtt_data_received(const char *topic, const char *data, int data_
             ESP_LOGW(TAG, "Unknown relay command: %s", data);
         }
     }
-    // Handle state sync requests
-    else if (strcmp(topic, TOPIC_STATE_SYNC) == 0 &&
+    // Handle state sync requests - only on ESP32 boot or reconnect
+    else if (strcmp(topic, TOPIC_SYSTEM_STATE) == 0 &&
              strstr(data, "REQUEST"))
     {
-        ESP_LOGI(TAG, "State sync requested by client");
-        publish_current_state();
+        // Only respond if MQTT just reconnected (flag set by connection handler)
+        if (g_mqtt_reconnected)
+        {
+            ESP_LOGI(TAG, "State sync requested after reconnect");
+            publish_current_state();
+            g_mqtt_reconnected = false; // Clear flag after responding
+        }
+        else
+        {
+            ESP_LOGD(TAG, "Ignoring state sync request (no reconnect event)");
+        }
+    }
+    // Handle state updates from web - sync ESP32 hardware with web UI
+    else if (strcmp(topic, TOPIC_SYSTEM_STATE) == 0 &&
+             strchr(data, '{') != NULL)
+    {
+        // Parse JSON state: {"device":"ON/OFF","periodic":"ON/OFF"}
+        bool new_device_state = (strstr(data, "\"device\":\"ON\"") != NULL);
+        bool new_periodic_state = (strstr(data, "\"periodic\":\"ON\"") != NULL);
+
+        ESP_LOGI(TAG, "State sync from web: device=%s, periodic=%s",
+                 new_device_state ? "ON" : "OFF",
+                 new_periodic_state ? "ON" : "OFF");
+
+        // CRITICAL: Check if states actually changed before doing anything
+        bool device_changed = (new_device_state != g_device_on);
+        bool periodic_changed = (new_periodic_state != g_periodic_active);
+
+        if (!device_changed && !periodic_changed)
+        {
+            ESP_LOGD(TAG, "State unchanged, ignoring sync request");
+            return;
+        }
+
+        // CRITICAL FIX: Update global state FIRST to prevent callback loop
+        // When Relay_SetState() triggers callback, g_device_on will already match
+        // new state, so callback won't publish (no change detected)
+        bool old_device_state = g_device_on;
+        bool old_periodic_state = g_periodic_active;
+
+        g_device_on = new_device_state;
+        g_periodic_active = new_periodic_state;
+
+        // Sync relay hardware if device state changed
+        if (device_changed)
+        {
+            Relay_SetState(&relay_control, new_device_state);
+            ESP_LOGI(TAG, "Relay hardware synced: %s -> %s",
+                     old_device_state ? "ON" : "OFF",
+                     new_device_state ? "ON" : "OFF");
+            // Callback will NOT publish because g_device_on already updated
+        }
+
+        // Sync periodic state with STM32 if changed and device is ON
+        if (periodic_changed && new_device_state)
+        {
+            const char *cmd = new_periodic_state ? "PERIODIC ON" : "PERIODIC OFF";
+            STM32_UART_SendCommand(&stm32_uart, cmd);
+            ESP_LOGI(TAG, "Periodic command sent: %s", cmd);
+        }
+
+        // If device is OFF, ensure periodic is also OFF
+        if (!new_device_state && old_periodic_state)
+        {
+            STM32_UART_SendCommand(&stm32_uart, "PERIODIC OFF");
+            ESP_LOGI(TAG, "Periodic forced OFF (device is OFF)");
+        }
     }
 }
 #endif
@@ -462,17 +518,16 @@ static bool initialize_components(void)
         success = false;
     }
 
-    // Initialize sht3x Parser
-    if (!SHT3X_Parser_Init(&sht3x_parser, on_single_sht3x_data, on_periodic_sht3x_data))
+    // Initialize JSON Sensor Parser
+    if (!JSON_Parser_Init(&json_parser, on_single_sensor_data, on_periodic_sensor_data, NULL))
     {
-        ESP_LOGE(TAG, "Failed to initialize Sht3x Parser");
+        ESP_LOGE(TAG, "Failed to initialize JSON Sensor Parser");
         success = false;
     }
 
     // Initialize global state with actual hardware state
     g_device_on = Relay_GetState(&relay_control);
     g_periodic_active = false;
-    g_periodic_rate = 1;
 
     return success;
 }
@@ -539,14 +594,20 @@ static void subscribe_mqtt_topics(void)
     }
 
     // Subscribe to command topics
-    MQTT_Handler_Subscribe(&mqtt_handler, TOPIC_SHT3X_COMMAND, 1);
-    MQTT_Handler_Subscribe(&mqtt_handler, TOPIC_CONTROL_RELAY, 1);
-    MQTT_Handler_Subscribe(&mqtt_handler, TOPIC_STATE_SYNC, 1);
+    MQTT_Handler_Subscribe(&mqtt_handler, TOPIC_STM32_COMMAND, 1);
+    MQTT_Handler_Subscribe(&mqtt_handler, TOPIC_RELAY_CONTROL, 1);
+    MQTT_Handler_Subscribe(&mqtt_handler, TOPIC_SYSTEM_STATE, 1);
+
+    // Set reconnection flag to allow next REQUEST to trigger state publish
+    g_mqtt_reconnected = true;
 
     // Publish initial state with retain flag
     publish_current_state();
 
-    ESP_LOGI(TAG, "MQTT topics subscribed and initial state published");
+    ESP_LOGI(TAG, "MQTT topics subscribed:");
+    ESP_LOGI(TAG, "Topic: %s (commands to STM32)", TOPIC_STM32_COMMAND);
+    ESP_LOGI(TAG, "Topic: %s (relay control)", TOPIC_RELAY_CONTROL);
+    ESP_LOGI(TAG, "Topic: %s (state sync)", TOPIC_SYSTEM_STATE);
 }
 #endif
 
@@ -668,13 +729,11 @@ void app_main(void)
     ESP_LOGI(TAG, "MQTT Configuration:");
     ESP_LOGI(TAG, "MQTT Broker: %s", CONFIG_BROKER_URL);
     ESP_LOGI(TAG, "Topics:");
-    ESP_LOGI(TAG, "Commands: %s", TOPIC_SHT3X_COMMAND);
-    ESP_LOGI(TAG, "Relay: %s", TOPIC_CONTROL_RELAY);
-    ESP_LOGI(TAG, "State: %s", TOPIC_STATE_SYNC);
-    ESP_LOGI(TAG, "Single Temperature: %s", TOPIC_SHT3X_SINGLE_TEMPERATURE);
-    ESP_LOGI(TAG, "Single Humidity: %s", TOPIC_SHT3X_SINGLE_HUMIDITY);
-    ESP_LOGI(TAG, "Periodic Temperature: %s", TOPIC_SHT3X_PERIODIC_TEMPERATURE);
-    ESP_LOGI(TAG, "Periodic Humidity: %s", TOPIC_SHT3X_PERIODIC_HUMIDITY);
+    ESP_LOGI(TAG, "Command: %s", TOPIC_STM32_COMMAND);
+    ESP_LOGI(TAG, "Relay: %s", TOPIC_RELAY_CONTROL);
+    ESP_LOGI(TAG, "State: %s", TOPIC_SYSTEM_STATE);
+    ESP_LOGI(TAG, "Single Data: %s", TOPIC_STM32_DATA_SINGLE);
+    ESP_LOGI(TAG, "Periodic Data: %s", TOPIC_STM32_DATA_PERIODIC);
 #endif
 
 #ifdef CONFIG_ENABLE_COAP

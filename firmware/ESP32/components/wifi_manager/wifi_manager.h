@@ -1,5 +1,6 @@
 /**
  * @file wifi_manager.h
+ * 
  * @brief WiFi Manager Library for ESP32
  */
 

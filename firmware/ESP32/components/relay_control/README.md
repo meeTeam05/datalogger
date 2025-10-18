@@ -25,6 +25,7 @@ Configure for your relay:
 ## Key Functions
 
 - `Relay_Init()` - Initialize relay with GPIO
+- `Relay_DeInit()` - DeInitialize relay with GPIO
 - `Relay_SetState()` - Control relay (ON/OFF)
 - `Relay_Toggle()` - Toggle current state
 - `Relay_ProcessCommand()` - Parse and execute commands

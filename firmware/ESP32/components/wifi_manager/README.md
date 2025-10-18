@@ -1,5 +1,7 @@
 # WiFi Manager Component
 
+## Overview
+
 A comprehensive WiFi management library for ESP32 with advanced configuration options and power management features.
 
 ## Features
@@ -20,7 +22,7 @@ wifi_manager/
 ├── Kconfig.projbuild   # WiFi configuration options
 ├── wifi_manager.c      # Implementation
 ├── wifi_manager.h      # Public API
-└── README.md          # This file
+└── README.md           # This file
 ```
 
 ## Configuration

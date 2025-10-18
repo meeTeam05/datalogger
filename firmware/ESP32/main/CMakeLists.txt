@@ -9,7 +9,8 @@ idf_component_register(
         coap_handler
         stm32_uart
         relay_control
-        sht3x_parser
+        json_sensor_parser
+        json_utils
         esp_wifi
         esp_netif
         nvs_flash

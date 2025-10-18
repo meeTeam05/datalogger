@@ -1,8 +1,10 @@
-# ESP32 MQTT Bridge Firmware
+# ESP32 Firmware
 
-ESP32 firmware for bridging STM32-based SHT31 temperature/humidity sensors to MQTT networks with real-time web dashboard control.
+## Overview
 
-## Architecture Overview
+ESP32 firmware serves as an MQTT bridge between STM32 datalogger and cloud/web dashboard. Receives sensor data via UART, publishes to MQTT broker, and controls relay based on MQTT commands.
+
+## Architecture
 
 ```
 MQTT Broker ←→ ESP32 MQTT Handler ←→ STM32 UART Interface ←→ STM32
@@ -32,9 +34,16 @@ esp32_mqtt_bridge/
 └── README.md
 ```
 
-## Component Architecture
+## Features
 
-### Core Components
+- MQTT v5: Modern protocol with QoS support
+- JSON Parsing: Parse sensor data from STM32
+- Command Modes: SINGLE/PERIODIC/CONTINUOUS/RELAY
+- Auto-Reconnect: WiFi and MQTT auto-recovery
+- Thread-Safe: FreeRTOS task management
+- Ring Buffer: UART RX buffering
+
+## Components
 
 **Ring Buffer** (`components/ring_buffer/`)
 - Thread-safe circular buffer for UART data

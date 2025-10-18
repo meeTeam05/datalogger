@@ -1,5 +1,7 @@
 /**
  * @file mqtt_handler.c
+ * 
+ * @brief MQTT5 Handler Library Implementation for ESP32
  */
 
 /* INCLUDES ------------------------------------------------------------------*/
@@ -101,15 +103,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
 /* PUBLIC API ----------------------------------------------------------------*/
 
 /**
- * @brief Initialize MQTT handler
- *
- * @param mqtt MQTT handler structure
- * @param broker_url MQTT broker URL
- * @param username Username (can be NULL)
- * @param password Password (can be NULL)
- * @param callback Data received callback function
- *
- * @return true if successful
+ * @brief Initialize MQTT handler 
  */
 bool MQTT_Handler_Init(mqtt_handler_t *mqtt, const char *broker_url,
                        const char *username, const char *password,
@@ -179,11 +173,7 @@ bool MQTT_Handler_Init(mqtt_handler_t *mqtt, const char *broker_url,
 }
 
 /**
- * @brief Start MQTT client
- *
- * @param mqtt MQTT handler structure
- *
- * @return true if successful
+ * @brief Start MQTT client 
  */
 bool MQTT_Handler_Start(mqtt_handler_t *mqtt)
 {
@@ -205,12 +195,6 @@ bool MQTT_Handler_Start(mqtt_handler_t *mqtt)
 
 /**
  * @brief Subscribe to MQTT topic
- *
- * @param mqtt MQTT handler structure
- * @param topic Topic to subscribe
- * @param qos QoS level (0-2)
- *
- * @return Message ID if successful, -1 if failed
  */
 int MQTT_Handler_Subscribe(mqtt_handler_t *mqtt, const char *topic, int qos)
 {
@@ -234,15 +218,6 @@ int MQTT_Handler_Subscribe(mqtt_handler_t *mqtt, const char *topic, int qos)
 
 /**
  * @brief Publish data to MQTT topic
- *
- * @param mqtt MQTT handler structure
- * @param topic Topic to publish
- * @param data Data to publish
- * @param data_len Data length (0 for null-terminated string)
- * @param qos QoS level (0-2)
- * @param retain Retain flag
- *
- * @return Message ID if successful, -1 if failed
  */
 int MQTT_Handler_Publish(mqtt_handler_t *mqtt, const char *topic,
                          const char *data, int data_len, int qos, int retain)

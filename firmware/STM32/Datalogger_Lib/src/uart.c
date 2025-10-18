@@ -1,6 +1,6 @@
 /**
  * @file uart.c
- * 
+ *
  * @brief Source file for UART communication handling
  */
 
@@ -17,15 +17,10 @@ uint8_t data_rx;
 uint8_t buff[BUFFER_UART];
 uint8_t index_uart = 0;
 uint8_t Flag_UART = 0;
-ring_buffer_t uart_rx_rb;		// Ring buffer for UART reception
+ring_buffer_t uart_rx_rb; // Ring buffer for UART reception
 
 /* PUBLIC API ----------------------------------------------------------------*/
 
-/**
- * @brief Initialize UART for receiving data with interrupt
- * 
- * @param huart Pointer to UART handle
- */
 void UART_Init(UART_HandleTypeDef *huart)
 {
 	index_uart = 0;
@@ -37,11 +32,6 @@ void UART_Init(UART_HandleTypeDef *huart)
 	HAL_UART_Receive_IT(huart, &data_rx, sizeof(data_rx));
 }
 
-/**
- * @brief UART receive complete callback
- * 
- * @param huart Pointer to UART handle
- */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 	if (huart->Instance == huart1.Instance)
@@ -52,9 +42,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	}
 }
 
-/**
- * @brief Handle received UART data
- */
 void UART_Handle(void)
 {
 	uint8_t received_byte;
@@ -75,7 +62,7 @@ void UART_Handle(void)
 
 	if (Flag_UART)
 	{
-		COMMAND_EXECUTE((char*)buff);
+		COMMAND_EXECUTE((char *)buff);
 
 		memset(buff, 0, sizeof(buff));
 		index_uart = 0;

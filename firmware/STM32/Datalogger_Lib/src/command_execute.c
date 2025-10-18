@@ -97,11 +97,6 @@ static command_function_t *find_command(uint8_t argc, char **argv)
 
 /* PUBLIC API ----------------------------------------------------------------*/
 
-/**
- * @brief Executes a command from the command buffer.
- *
- * @param commandBuffer Pointer to the command string buffer.
- */
 void COMMAND_EXECUTE(char *commandBuffer)
 {
     if (commandBuffer == NULL)
@@ -111,7 +106,7 @@ void COMMAND_EXECUTE(char *commandBuffer)
     strncpy(buffer, commandBuffer, sizeof(buffer) - 1);
     buffer[sizeof(buffer) - 1] = '\0';
 
-    char *argv[20];	// Increased to support more arguments
+    char *argv[20]; // Increased to support more arguments
     uint8_t argc = tokenize_string(buffer, argv, 20);
 
     if (argc == 0)
@@ -119,12 +114,5 @@ void COMMAND_EXECUTE(char *commandBuffer)
 
     command_function_t *command = find_command(argc, argv);
 
-    if (command == NULL)
-    {
-        Cmd_Default(argc, argv);
-    }
-    else
-    {
-        command->func(argc, argv);
-    }
+    command->func(argc, argv);
 }

@@ -28,7 +28,7 @@ body {
     overflow: hidden;
 }
 
-/* Header Styles */
+/* Header Styles - Simplified */
 .header {
     text-align: center;
     margin-bottom: 10px;
@@ -37,21 +37,144 @@ body {
     position: relative;
 }
 
-.header h1 {
-    font-size: 1.7rem;
-    margin-bottom: 5px;
-    background: linear-gradient(45deg, #667eea, #764ba2);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    font-weight: 700;
+/* Clock Display - Professional Minimalist Design */
+.clock-group {
+    grid-column: span 1;
 }
 
-.header p {
-    margin: 0;
-    font-size: 0.9rem;
-    color: #666;
+.clock-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.clock-display {
+    background: #f8f9fa;
+    border: 2px solid #dee2e6;
+    border-radius: 12px;
+    padding: 12px 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    min-width: 180px;
+}
+
+.time-wrapper {
+    text-align: center;
+    margin-bottom: 4px;
+}
+
+.date-wrapper {
+    text-align: center;
+    padding-top: 4px;
+    border-top: 1px solid #dee2e6;
+}
+
+#currentTime {
+    font-size: 1.8rem;
+    font-weight: 600;
+    color: #2c3e50;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    letter-spacing: 2px;
+    display: block;
+}
+
+#currentDate {
+    font-size: 0.85rem;
+    color: #6c757d;
     font-weight: 500;
+    letter-spacing: 0.5px;
+    display: block;
+}
+
+/* Time Picker Modal Styles */
+.interval-modal {
+    max-width: 500px;
+}
+
+.time-picker-container {
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    margin: 30px 0;
+    padding: 20px;
+}
+
+.picker-column {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 140px;
+}
+
+.picker-label {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 15px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.picker-scroll {
+    height: 280px;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+    scroll-snap-type: y mandatory;
+    position: relative;
+    -webkit-overflow-scrolling: touch;
+    background: #f8f9fa;
+    border-radius: 12px;
+    width: 100%;
+}
+
+/* Hide scrollbar completely */
+.picker-scroll::-webkit-scrollbar {
+    display: none;
+}
+
+.picker-scroll {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.picker-item {
+    height: 70px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    font-weight: 400;
+    color: #adb5bd;
+    cursor: pointer;
+    transition: color 0.2s ease;
+    scroll-snap-align: center;
+    user-select: none;
+}
+
+.picker-item.selected {
+    color: #2c3e50;
+    font-weight: 600;
+    font-size: 2.5rem;
+}
+
+/* Simple selection indicator */
+.picker-scroll::before,
+.picker-scroll::after {
+    content: '';
+    position: absolute;
+    left: 10%;
+    right: 10%;
+    height: 2px;
+    background: #dee2e6;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.picker-scroll::before {
+    top: 105px;
+}
+
+.picker-scroll::after {
+    top: 175px;
 }
 
 /* MQTT Connection Status - Enhanced with Firebase */

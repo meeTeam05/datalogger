@@ -1,5 +1,6 @@
 /**
  * @file wifi_manager.c
+ * 
  * @brief WiFi Manager Implementation
  */
 
@@ -228,12 +229,6 @@ static void ip_event_handler(void *arg, esp_event_base_t event_base,
 
 /**
  * @brief Get default WiFi Manager configuration from Kconfig
- *
- * @return Default configuration structure
- *
- * @details Populates a wifi_manager_config_t structure with default values
- *          defined in Kconfig. This includes SSID, password, retry limits,
- *          scan methods, power save settings, and more.
  */
 wifi_manager_config_t wifi_manager_get_default_config(void)
 {
@@ -267,14 +262,7 @@ wifi_manager_config_t wifi_manager_get_default_config(void)
 }
 
 /**
- * @brief Initialize WiFi Manager
- *
- * @param config Configuration structure (NULL to use default from Kconfig)
- *
- * @return ESP_OK on success, error code otherwise
- *
- * @details Initializes the WiFi Manager with the provided configuration.
- *          Sets up WiFi, event handlers, and prepares for connection.
+ * @brief Initialize WiFi Manager 
  */
 esp_err_t wifi_manager_init(wifi_manager_config_t *config)
 {
@@ -384,13 +372,7 @@ esp_err_t wifi_manager_init(wifi_manager_config_t *config)
 }
 
 /**
- * @brief Connect to WiFi
- *
- * @return ESP_OK on success, error code otherwise
- *
- * @details Starts the WiFi connection process. Must be called after
- *          wifi_manager_init(). Returns immediately; use
- *          wifi_manager_wait_connected() to block until connected.
+ * @brief Connect to WiFi network
  */
 esp_err_t wifi_manager_connect(void)
 {
@@ -419,10 +401,6 @@ esp_err_t wifi_manager_connect(void)
 
 /**
  * @brief Disconnect from WiFi
- *
- * @return ESP_OK on success, error code otherwise
- *
- * @details Disconnects from the current WiFi network and updates state.
  */
 esp_err_t wifi_manager_disconnect(void)
 {
@@ -444,11 +422,6 @@ esp_err_t wifi_manager_disconnect(void)
 
 /**
  * @brief Get current WiFi connection state
- *
- * @return Current WiFi state
- *
- * @details Returns the current state of the WiFi connection, which can be
- *          one of the values defined in the wifi_state_t enum.
  */
 wifi_state_t wifi_manager_get_state(void)
 {
@@ -457,11 +430,6 @@ wifi_state_t wifi_manager_get_state(void)
 
 /**
  * @brief Check if WiFi is connected
- *
- * @return true if connected, false otherwise
- *
- * @details Returns true if the WiFi is currently connected to an AP,
- *          false otherwise.
  */
 bool wifi_manager_is_connected(void)
 {
@@ -469,13 +437,7 @@ bool wifi_manager_is_connected(void)
 }
 
 /**
- * @brief Wait for WiFi connection
- *
- * @param timeout_ms Timeout in milliseconds (0 = wait forever)
- *
- * @return ESP_OK if connected, ESP_ERR_TIMEOUT on timeout
- *
- * @details Blocks until the WiFi is connected or the timeout expires.
+ * @brief Wait for WiFi connection with timeout 
  */
 esp_err_t wifi_manager_wait_connected(uint32_t timeout_ms)
 {
@@ -513,15 +475,7 @@ esp_err_t wifi_manager_wait_connected(uint32_t timeout_ms)
 }
 
 /**
- * @brief Get WiFi RSSI (signal strength)
- *
- * @param[out] rssi Pointer to store RSSI value
- *
- * @return ESP_OK on success, error code otherwise
- *
- * @details Retrieves the Received Signal Strength Indicator (RSSI) of the
- *          currently connected WiFi network. The RSSI value is stored in the
- *          provided pointer.
+ * @brief Get WiFi RSSI (signal strength) 
  */
 esp_err_t wifi_manager_get_rssi(int8_t *rssi)
 {
@@ -546,15 +500,7 @@ esp_err_t wifi_manager_get_rssi(int8_t *rssi)
 }
 
 /**
- * @brief Get WiFi IP address
- *
- * @param[out] ip_addr Buffer to store IP address string (minimum 16 bytes)
- * @param len Buffer length
- *
- * @return ESP_OK on success, error code otherwise
- *
- * @details Retrieves the current IP address assigned to the WiFi interface.
- *          The IP address is stored as a string in the provided buffer.
+ * @brief Get WiFi IP address 
  */
 esp_err_t wifi_manager_get_ip_addr(char *ip_addr, size_t len)
 {
@@ -580,11 +526,6 @@ esp_err_t wifi_manager_get_ip_addr(char *ip_addr, size_t len)
 
 /**
  * @brief Deinitialize WiFi Manager
- *
- * @return ESP_OK on success, error code otherwise
- *
- * @details Cleans up resources allocated by the WiFi Manager, stops WiFi,
- *          and unregisters event handlers.
  */
 esp_err_t wifi_manager_deinit(void)
 {

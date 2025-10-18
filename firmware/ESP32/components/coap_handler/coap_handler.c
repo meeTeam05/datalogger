@@ -6,3 +6,4 @@
 
 #include "coap_handler.h"
 
+//TODO: Implement CoAP handler functions here

@@ -1,5 +1,7 @@
 /**
  * @file stm32_uart.c
+ * 
+ * @brief STM32 UART Communication Library Implementation
  */
 
 /* INCLUDES ------------------------------------------------------------------*/
@@ -26,6 +28,10 @@ static const char *TAG = "STM32_UART";
  * @param output_size Size of output buffer
  *
  * @return true if line is valid and cleaned, false otherwise
+ *
+ * @details Accepts two formats:
+ *          1. JSON: {"mode":"SINGLE","timestamp":123,"temperature":25.50,"humidity":60.00}
+ *          2. Legacy: SINGLE timestamp temperature humidity
  */
 static bool STM32_UART_CleanLine(const char *input, char *output, size_t output_size)
 {
@@ -34,49 +40,78 @@ static bool STM32_UART_CleanLine(const char *input, char *output, size_t output_
         return false;
     }
 
+    // Skip leading whitespace and garbage
+    while (*input && (*input < 32 || *input > 126))
+    {
+        input++;
+    }
+
+    if (*input == '\0')
+    {
+        return false;
+    }
+
+    // Check if it's JSON format (starts with '{')
+    if (*input == '{')
+    {
+        // Find the end of JSON (first '}')
+        const char *json_end = strchr(input, '}');
+        if (!json_end)
+        {
+            ESP_LOGW(TAG, "Incomplete JSON: %s", input);
+            return false;
+        }
+
+        // Calculate JSON length
+        size_t json_len = json_end - input + 1;
+        if (json_len >= output_size)
+        {
+            ESP_LOGW(TAG, "JSON too long: %zu bytes", json_len);
+            return false;
+        }
+
+        // Validate JSON contains required fields
+        if (!strstr(input, "\"mode\"") || !strstr(input, "\"timestamp\""))
+        {
+            ESP_LOGW(TAG, "Invalid JSON structure");
+            return false;
+        }
+
+        // Copy cleaned JSON
+        memcpy(output, input, json_len);
+        output[json_len] = '\0';
+
+        ESP_LOGI(TAG, "Valid JSON received: %s", output);
+        return true;
+    }
+
+    // Legacy format: MODE timestamp temp humidity
     const char *src = input;
     char *dst = output;
     size_t dst_pos = 0;
-    bool found_valid_start = false;
 
-    // Skip leading garbage characters until we find a valid start
-    while (*src != '\0' && dst_pos < output_size - 1)
+    // Copy only printable ASCII characters
+    while (*src && dst_pos < output_size - 1)
     {
-        // Look for valid sensor mode keywords
-        if (!found_valid_start)
-        {
-            if (strncmp(src, "SINGLE", 6) == 0 || strncmp(src, "PERIODIC", 8) == 0)
-            {
-                found_valid_start = true;
-            }
-            else
-            {
-                src++;
-                continue;
-            }
-        }
-
-        // Copy valid characters
-        if ((*src >= 32 && *src <= 126) || *src == ' ')
+        if (*src >= 32 && *src <= 126)
         {
             *dst++ = *src;
             dst_pos++;
         }
         src++;
     }
-
     *dst = '\0';
 
-    // Check if we found a valid line
-    if (!found_valid_start || dst_pos == 0)
+    // Validate legacy format
+    if (strstr(output, "SINGLE") == NULL && strstr(output, "PERIODIC") == NULL)
     {
-        ESP_LOGW(TAG, "No valid data found in line: %s", input);
+        ESP_LOGW(TAG, "No valid mode keyword: %s", output);
         return false;
     }
 
-    // Additional validation: should contain at least mode + 2 numbers
+    // Check minimum fields (mode + at least timestamp)
     int space_count = 0;
-    for (int i = 0; i < dst_pos; i++)
+    for (size_t i = 0; i < dst_pos; i++)
     {
         if (output[i] == ' ')
         {
@@ -84,13 +119,13 @@ static bool STM32_UART_CleanLine(const char *input, char *output, size_t output_
         }
     }
 
-    if (space_count < 2)
+    if (space_count < 1)
     {
-        ESP_LOGW(TAG, "Invalid line format (not enough spaces): %s", output);
+        ESP_LOGW(TAG, "Invalid format: %s", output);
         return false;
     }
 
-    ESP_LOGI(TAG, "Cleaned line: '%s' -> '%s'", input, output);
+    ESP_LOGI(TAG, "Valid legacy format: %s", output);
     return true;
 }
 
@@ -133,16 +168,7 @@ static void uart_event_task(void *pvParameters)
 /* PUBLIC API ----------------------------------------------------------------*/
 
 /**
- * @brief Initialize STM32 UART communication
- *
- * @param uart STM32 UART structure
- * @param uart_num UART port number
- * @param baud_rate Baud rate
- * @param tx_pin TX GPIO pin
- * @param rx_pin RX GPIO pin
- * @param callback Data received callback function
- *
- * @return true if successful
+ * @brief Initialize STM32 UART communication 
  */
 bool STM32_UART_Init(stm32_uart_t *uart, int uart_num, int baud_rate,
                      int tx_pin, int rx_pin, stm32_data_callback_t callback)
@@ -211,11 +237,6 @@ bool STM32_UART_Init(stm32_uart_t *uart, int uart_num, int baud_rate,
 
 /**
  * @brief Send command to STM32
- *
- * @param uart STM32 UART structure
- * @param command Command string to send
- *
- * @return true if command was sent successfully
  */
 bool STM32_UART_SendCommand(stm32_uart_t *uart, const char *command)
 {
@@ -224,20 +245,20 @@ bool STM32_UART_SendCommand(stm32_uart_t *uart, const char *command)
         return false;
     }
 
-    // FIXED: Longer delay before sending command to ensure STM32 is ready
-    vTaskDelay(pdMS_TO_TICKS(50));
-
-    // FIXED: Clear receive buffer before sending new command
+    // Clear RX buffer before sending to prevent old data contamination
     uart_flush_input(uart->uart_num);
     RingBuffer_Clear(&uart->rx_buffer);
+
+    // Small delay to ensure STM32 is ready
+    vTaskDelay(pdMS_TO_TICKS(20));
 
     char cmd_with_lf[STM32_UART_MAX_LINE_LENGTH];
     int len = snprintf(cmd_with_lf, sizeof(cmd_with_lf), "%s\n", command);
 
     int sent = uart_write_bytes(uart->uart_num, cmd_with_lf, len);
 
-    // FIXED: Ensure data is transmitted
-    uart_wait_tx_done(uart->uart_num, pdMS_TO_TICKS(100));
+    // Wait for transmission complete
+    uart_wait_tx_done(uart->uart_num, pdMS_TO_TICKS(50));
 
     if (sent == len)
     {
@@ -253,8 +274,6 @@ bool STM32_UART_SendCommand(stm32_uart_t *uart, const char *command)
 
 /**
  * @brief Process data received from STM32
- *
- * @param uart STM32 UART structure
  */
 void STM32_UART_ProcessData(stm32_uart_t *uart)
 {
@@ -308,10 +327,6 @@ void STM32_UART_ProcessData(stm32_uart_t *uart)
 
 /**
  * @brief Start UART event task
- *
- * @param uart STM32 UART structure
- *
- * @return true if task started successfully
  */
 bool STM32_UART_StartTask(stm32_uart_t *uart)
 {

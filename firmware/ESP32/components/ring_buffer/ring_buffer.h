@@ -1,5 +1,7 @@
 /**
  * @file ring_buffer.h
+ * 
+ * @brief Ring Buffer Library for ESP32
  */
 
 #ifndef RING_BUFFER_H

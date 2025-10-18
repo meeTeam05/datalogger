@@ -13,31 +13,15 @@
 #include "data_manager.h"
 #include "print_cli.h"
 #include "sht3x.h"
-#include "stm32f1xx_hal.h"  // For HAL_Delay and HAL_GetTick
+#include "stm32f1xx_hal.h" // For HAL_Delay and HAL_GetTick
+
+/* DEFINES -------------------------------------------------------------------*/
+
+#define SHT3X_MODE_REPEAT_DEFAULT SHT3X_HIGH
+#define SHT3X_MODE_PERIODIC_DEFAULT SHT3X_PERIODIC_1MPS
 
 /* PUBLIC API ----------------------------------------------------------------*/
 
-/**
- * @brief Command parser function for unknown commands
- *
- * @param argc Argument count
- * @param argv Argument vector
- *
- * @note argv[0] is the command itself
- */
-void Cmd_Default(uint8_t argc, char **argv)
-{
-	PRINT_CLI("UNKNOWN COMMAND\r\n");
-}
-
-/**
- * @brief Command parser for SHT3X heater commands
- *
- * @param argc Argument count
- * @param argv Argument vector
- *
- * @note argv[0] is the command itself
- */
 void SHT3X_Heater_Parser(uint8_t argc, char **argv)
 {
 	if (argc == 3 && strcmp(argv[2], "ENABLE") == 0)
@@ -67,161 +51,15 @@ void SHT3X_Heater_Parser(uint8_t argc, char **argv)
 	}
 }
 
-/**
- * @brief Command parser for SHT3X single measurement commands
- *
- * @param argc Argument count
- * @param argv Argument vector
- *
- * @note argv[0] is the command itself
- */
-void SHT3X_Single_Parser(uint8_t argc, char **argv)
-{
-	if (argc < 3)
-	{
-		PRINT_CLI("SHT3X SINGLE <HIGH|MEDIUM|LOW>\r\n");
-		return;
-	}
-
-	sht3x_repeat_t modeRepeat;
-
-	if (strcmp(argv[2], "HIGH") == 0)
-	{
-		modeRepeat = SHT3X_HIGH;
-	}
-	else if (strcmp(argv[2], "MEDIUM") == 0)
-	{
-		modeRepeat = SHT3X_MEDIUM;
-	}
-	else if (strcmp(argv[2], "LOW") == 0)
-	{
-		modeRepeat = SHT3X_LOW;
-	}
-	else
-	{
-		return;
-	}
-
-	float temp = 0.0f, hum = 0.0f;
-	
-	// Always try to read sensor, if fails temp/hum remain 0.0
-	SHT3X_Single(&g_sht3x, &modeRepeat, &temp, &hum);
-	
-	// Always update data manager with measurement data (0.0 if sensor failed)
-	DataManager_UpdateSingle(temp, hum);
-}
-
-/**
- * @brief Command parser for SHT3X periodic measurement commands
- *
- * @param argc Argument count
- * @param argv Argument vector
- *
- * @note argv[0] is the command itself
- */
-void SHT3X_Periodic_Parser(uint8_t argc, char **argv)
-{
-
-	if (argc < 4)
-	{
-		PRINT_CLI("SHT3X PERIODIC <0.5|1|2|4|10> <HIGH|MEDIUM|LOW>\r\n");
-		return;
-	}
-
-	sht3x_mode_t modePeriodic;
-	
-	if (strcmp(argv[2], "0.5") == 0)
-	{
-		modePeriodic = SHT3X_PERIODIC_05MPS;
-	}
-	else if (strcmp(argv[2], "1") == 0)
-	{
-		modePeriodic = SHT3X_PERIODIC_1MPS;
-	}
-	else if (strcmp(argv[2], "2") == 0)
-	{
-		modePeriodic = SHT3X_PERIODIC_2MPS;
-	}
-	else if (strcmp(argv[2], "4") == 0)
-	{
-		modePeriodic = SHT3X_PERIODIC_4MPS;
-	}
-	else if (strcmp(argv[2], "10") == 0)
-	{
-		modePeriodic = SHT3X_PERIODIC_10MPS;
-	}
-	else
-	{
-		return;
-	}
-
-	sht3x_repeat_t modeRepeat;
-	if (strcmp(argv[3], "HIGH") == 0)
-	{
-		modeRepeat = SHT3X_HIGH;
-	}
-	else if (strcmp(argv[3], "MEDIUM") == 0)
-	{
-		modeRepeat = SHT3X_MEDIUM;
-	}
-	else if (strcmp(argv[3], "LOW") == 0)
-	{
-		modeRepeat = SHT3X_LOW;
-	}
-	else
-	{
-		return;
-	}
-
-	float temp = 0.0f, hum = 0.0f;
-	
-	// Start periodic mode on sensor
-	SHT3X_Periodic(&g_sht3x, &modePeriodic, &modeRepeat, &temp, &hum);
-	
-	// Always update data manager with first measurement (0.0 if sensor failed)
-	DataManager_UpdatePeriodic(temp, hum);
-	
-	// Schedule next fetch regardless of sensor status
-	next_fetch_ms = HAL_GetTick() + periodic_interval_ms;
-}
-
-/**
- * @brief Command parser for SHT3X ART (Accelerated Response Time) commands
- *
- * @param argc Argument count
- * @param argv Argument vector
- *
- * @note argv[0] is the command itself
- */
 void SHT3X_ART_Parser(uint8_t argc, char **argv)
 {
 	if (SHT3X_ART(&g_sht3x) == SHT3X_OK)
 	{
-		 PRINT_CLI("SHT3X ART MODE SUCCEEDED\r\n");
+		PRINT_CLI("SHT3X ART MODE SUCCEEDED\r\n");
 	}
 	else
 	{
 		PRINT_CLI("SHT3X ART MODE FAILED\r\n");
-	}
-}
-
-/**
- * @brief Command parser for SHT3X stop periodic measurement commands
- *
- * @param argc Argument count
- * @param argv Argument vector
- *
- * @note argv[0] is the command itself
- */
-void SHT3X_Stop_Periodic_Parser(uint8_t argc, char **argv)
-{
-	if (SHT3X_Stop_Periodic(&g_sht3x) == SHT3X_OK)
-	{
-		PRINT_CLI("SHT3X STOP PERIODIC SUCCEEDED\r\n");
-	}
-	else
-	{
-		PRINT_CLI("SHT3X STOP PERIODIC FAILED\r\n");
 	}
 }
 
@@ -271,4 +109,107 @@ void DS3231_Set_Time_Parser(uint8_t argc, char **argv)
 	{
 		PRINT_CLI("DS3231 FAILED TO SET TIME\r\n");
 	}
+}
+
+void SINGLE_PARSER(uint8_t argc, char **argv)
+{
+	if (argc != 1)
+	{
+		return;
+	}
+
+	float temp = 0.0f, hum = 0.0f;
+	sht3x_repeat_t repeat = SHT3X_MODE_REPEAT_DEFAULT; // Create variable for pointer
+
+	// Read sensor data in single-shot mode
+	SHT3X_StatusTypeDef status = SHT3X_Single(&g_sht3x, &repeat, &temp, &hum);
+
+	// Update data manager with measurement (0.0 if sensor failed)
+	if (status == SHT3X_OK)
+	{
+		DataManager_UpdateSingle(temp, hum);
+	}
+	else
+	{
+		// Sensor read failed, report 0.0 values
+		DataManager_UpdateSingle(0.0f, 0.0f);
+	}
+}
+
+void PERIODIC_ON_PARSER(uint8_t argc, char **argv)
+{
+	if (argc != 2)
+	{
+		return;
+	}
+
+	float temp = 0.0f, hum = 0.0f;
+
+	sht3x_mode_t mode = SHT3X_MODE_PERIODIC_DEFAULT;
+	sht3x_repeat_t repeat = SHT3X_MODE_REPEAT_DEFAULT;
+
+	// Start periodic mode on sensor
+	SHT3X_StatusTypeDef status = SHT3X_Periodic(&g_sht3x, &mode, &repeat, &temp, &hum);
+
+	// Update data manager with first measurement
+	if (status == SHT3X_OK)
+	{
+		DataManager_UpdatePeriodic(temp, hum);
+	}
+	else
+	{
+		// Sensor failed to start, report 0.0 values
+		DataManager_UpdatePeriodic(0.0f, 0.0f);
+	}
+
+	// Schedule next fetch regardless of sensor status
+	next_fetch_ms = HAL_GetTick() + periodic_interval_ms;
+}
+
+void PERIODIC_OFF_PARSER(uint8_t argc, char **argv)
+{
+	if (argc != 2)
+	{
+		return;
+	}
+
+	SHT3X_Stop_Periodic(&g_sht3x);
+}
+
+void SET_TIME_PARSER(uint8_t argc, char **argv)
+{
+    // SET TIME <unix_timestamp>
+    if (argc != 3)
+    {
+        return;
+    }
+
+    // Parse Unix timestamp
+    time_t timestamp = (time_t)atol(argv[2]);
+
+    // Convert to struct tm
+    struct tm *time = localtime(&timestamp);
+
+    if (time == NULL)
+    {
+        return;
+    }
+
+    // Call DS3231_Set_Time with struct tm pointer
+    DS3231_Set_Time(&g_ds3231, time);
+}
+
+void SET_PERIODIC_INTERVAL_PARSER(uint8_t argc, char **argv)
+{
+	// SET PERIODIC INTERVAL <SECONDS>
+	uint32_t interval;
+	
+	if (argc != 4)
+	{
+		return;
+	}
+	interval = (uint32_t)atoi(argv[3]);
+
+	// Validate interval (minimum 1 second)
+	periodic_interval_ms = interval * 1000; // Convert seconds to milliseconds
 }
