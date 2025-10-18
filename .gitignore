@@ -122,3 +122,6 @@ firmware/ESP32/sdkconfig.defaults
 
 .metadata/
 **/.metadata/
+
+**/managed_components/**
+firmware/ESP32/dependencies.lock
