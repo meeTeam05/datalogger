@@ -40,29 +40,34 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
   switch (event_id)
   {
   case MQTT_EVENT_CONNECTED:
-    ESP_LOGI(TAG, "MQTT Connected");
+    ESP_LOGI(TAG, "Connected");
     mqtt->connected = true;
     break;
 
   case MQTT_EVENT_DISCONNECTED:
-    ESP_LOGI(TAG, "MQTT Disconnected");
+    // Only log if we were previously connected (avoid spam on startup)
+    if (mqtt->connected)
+    {
+      ESP_LOGI(TAG, "Disconnected");
+    }
     mqtt->connected = false;
     break;
 
   case MQTT_EVENT_SUBSCRIBED:
-    ESP_LOGI(TAG, "MQTT Subscribed, msg_id=%d", event->msg_id);
+    ESP_LOGI(TAG, "Subscribed (msg_id=%d)", event->msg_id);
     break;
 
   case MQTT_EVENT_UNSUBSCRIBED:
-    ESP_LOGI(TAG, "MQTT Unsubscribed, msg_id=%d", event->msg_id);
+    ESP_LOGI(TAG, "Unsubscribed (msg_id=%d)", event->msg_id);
     break;
 
   case MQTT_EVENT_PUBLISHED:
-    ESP_LOGD(TAG, "MQTT Published, msg_id=%d", event->msg_id);
+    // Don't log every publish - too verbose
+    // ESP_LOGD(TAG, "Published (msg_id=%d)", event->msg_id);
     break;
 
   case MQTT_EVENT_DATA:
-    ESP_LOGI(TAG, "<- MQTT: %.*s = %.*s", event->topic_len, event->topic,
+    ESP_LOGI(TAG, "<- %.*s: %.*s", event->topic_len, event->topic,
              event->data_len, event->data);
 
     // Call callback if available
@@ -90,12 +95,17 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
     break;
 
   case MQTT_EVENT_ERROR:
-    ESP_LOGE(TAG, "MQTT Error");
+    // Only log error details if it's not a simple disconnect
+    if (event->error_handle->error_type != MQTT_ERROR_TYPE_NONE)
+    {
+      ESP_LOGE(TAG, "Error (type=%d)", event->error_handle->error_type);
+    }
     mqtt->connected = false;
     break;
 
   default:
-    ESP_LOGD(TAG, "MQTT Event: %ld", event_id);
+    // Don't log every event - too verbose
+    // ESP_LOGD(TAG, "Event: %ld", event_id);
     break;
   }
 }
@@ -129,11 +139,11 @@ bool MQTT_Handler_Init(mqtt_handler_t *mqtt, const char *broker_url,
   esp_mqtt_client_config_t mqtt_cfg = {
       .broker.address.uri = broker_url,
       .session.protocol_ver = MQTT_PROTOCOL_V_5,
-      .network.disable_auto_reconnect = false,
-      .network.reconnect_timeout_ms = 5000,
-      .network.timeout_ms = 10000,
+      .network.disable_auto_reconnect = false, // Enable auto-reconnect
+      .network.reconnect_timeout_ms = 10000,   // Space out retries: 10s between attempts
+      .network.timeout_ms = 5000,              // Fast timeout: 5s (reduced from 10s for quicker retry)
       .credentials.client_id = mqtt->client_id,
-      .session.keepalive = 60,
+      .session.keepalive = 60,                 // KeepAlive: 60s heartbeat
   };
 
   // Set credentials if provided
@@ -185,11 +195,23 @@ bool MQTT_Handler_Start(mqtt_handler_t *mqtt)
   esp_err_t ret = esp_mqtt_client_start(mqtt->client);
   if (ret != ESP_OK)
   {
-    ESP_LOGE(TAG, "Failed to start MQTT client: %s", esp_err_to_name(ret));
+    // If already started, try to reconnect
+    if (ret == ESP_FAIL)
+    {
+      ESP_LOGI(TAG, "Reconnecting...");
+      ret = esp_mqtt_client_reconnect(mqtt->client);
+      if (ret != ESP_OK)
+      {
+        ESP_LOGE(TAG, "Reconnect failed: %s", esp_err_to_name(ret));
+        return false;
+      }
+      return true;
+    }
+    ESP_LOGE(TAG, "Start failed: %s", esp_err_to_name(ret));
     return false;
   }
 
-  ESP_LOGI(TAG, "MQTT client started");
+  ESP_LOGI(TAG, "Started");
   return true;
 }
 
@@ -206,11 +228,11 @@ int MQTT_Handler_Subscribe(mqtt_handler_t *mqtt, const char *topic, int qos)
   int msg_id = esp_mqtt_client_subscribe(mqtt->client, topic, qos);
   if (msg_id >= 0)
   {
-    ESP_LOGI(TAG, "Subscribed to %s, msg_id=%d", topic, msg_id);
+    ESP_LOGI(TAG, "Subscribe: %s", topic);
   }
   else
   {
-    ESP_LOGE(TAG, "Failed to subscribe to %s", topic);
+    ESP_LOGE(TAG, "Subscribe failed: %s", topic);
   }
 
   return msg_id;
@@ -234,15 +256,11 @@ int MQTT_Handler_Publish(mqtt_handler_t *mqtt, const char *topic,
 
   int msg_id = esp_mqtt_client_publish(mqtt->client, topic,
                                        data, data_len, qos, retain);
-  if (msg_id >= 0)
+  if (msg_id < 0)
   {
-    ESP_LOGD(TAG, "Published to %s: %.*s, msg_id=%d", topic,
-             data_len, data, msg_id);
+    ESP_LOGE(TAG, "Publish failed: %s", topic);
   }
-  else
-  {
-    ESP_LOGE(TAG, "Failed to publish to %s", topic);
-  }
+  // Don't log successful publish - too verbose
 
   return msg_id;
 }
@@ -259,8 +277,9 @@ void MQTT_Handler_Stop(mqtt_handler_t *mqtt)
     return;
   }
 
+  mqtt->connected = false; // Update status immediately before stopping
   esp_mqtt_client_stop(mqtt->client);
-  ESP_LOGI(TAG, "MQTT client stopped");
+  ESP_LOGI(TAG, "Stopped");
 }
 
 void MQTT_Handler_Deinit(mqtt_handler_t *mqtt)

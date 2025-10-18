@@ -76,6 +76,12 @@ static bool g_periodic_active = false;
 static bool g_device_on = false;
 static bool g_mqtt_reconnected = false; // Track MQTT reconnection events
 
+// WiFi/MQTT reconnection tracking
+static uint32_t g_last_wifi_retry_ms = 0;
+static bool g_wifi_disconnected_notified = false; // Track if STM32 was notified about disconnect
+static uint32_t g_wifi_reconnect_time_ms = 0;     // Track when WiFi reconnected
+static bool g_mqtt_started = false;               // Track if MQTT has been started (for boot stabilization)
+
 /* STATE SYNCHRONIZATION FUNCTIONS -------------------------------------------*/
 
 /**
@@ -185,20 +191,13 @@ static void on_single_sensor_data(const sensor_data_t *data)
     // Publish immediately, MQTT_Handler will queue if not connected
     MQTT_Handler_Publish(&mqtt_handler, TOPIC_STM32_DATA_SINGLE, json_msg, 0, 0, 0);
 
-    ESP_LOGI(TAG, "SINGLE data published: T=%.2f°C, H=%.2f%%",
+    ESP_LOGI(TAG, "SINGLE: %.2f°C, %.2f%%",
              data->has_temperature ? data->temperature : 0.0f,
              data->has_humidity ? data->humidity : 0.0f);
 #endif
 
 #ifdef CONFIG_ENABLE_COAP
     // TODO: Add COAP publish logic here if needed
-    ESP_LOGI(TAG, "COAP SINGLE data: T=%.2f°C, H=%.2f%%",
-             data->has_temperature ? data->temperature : 0.0f,
-             data->has_humidity ? data->humidity : 0.0f);
-#endif
-
-#if !(CONFIG_ENABLE_MQTT || CONFIG_ENABLE_COAP)
-    ESP_LOGW(TAG, "To receive data, enable MQTT or COAP in configuration");
 #endif
 }
 
@@ -226,20 +225,13 @@ static void on_periodic_sensor_data(const sensor_data_t *data)
     // Publish immediately, MQTT_Handler will queue if not connected
     MQTT_Handler_Publish(&mqtt_handler, TOPIC_STM32_DATA_PERIODIC, json_msg, 0, 0, 0);
 
-    ESP_LOGI(TAG, "PERIODIC data published: T=%.2f°C, H=%.2f%%",
+    ESP_LOGI(TAG, "PERIODIC: %.2f°C, %.2f%%",
              data->has_temperature ? data->temperature : 0.0f,
              data->has_humidity ? data->humidity : 0.0f);
 #endif
 
 #ifdef CONFIG_ENABLE_COAP
     // TODO: Add COAP publish logic here if needed
-    ESP_LOGI(TAG, "COAP PERIODIC data: T=%.2f°C, H=%.2f%%",
-             data->has_temperature ? data->temperature : 0.0f,
-             data->has_humidity ? data->humidity : 0.0f);
-#endif
-
-#if !(CONFIG_ENABLE_MQTT || CONFIG_ENABLE_COAP)
-    ESP_LOGW(TAG, "To receive data, enable MQTT or COAP in configuration");
 #endif
 }
 
@@ -252,7 +244,8 @@ static void on_periodic_sensor_data(const sensor_data_t *data)
  */
 static void on_stm32_data_received(const char *line)
 {
-    ESP_LOGI(TAG, "<- STM32: %s", line);
+    // Don't log every data line - too verbose, STM32 UART already logs
+    // ESP_LOGI(TAG, "← STM32: %s", line);
 
     // Parse and process JSON sensor data
     JSON_Parser_ProcessLine(&json_parser, line);
@@ -297,16 +290,14 @@ static void on_relay_state_changed(bool state)
  */
 static void on_mqtt_data_received(const char *topic, const char *data, int data_len)
 {
-    ESP_LOGI(TAG, "<- MQTT: %s = %.*s", topic, data_len, data);
+    // Don't log here - MQTT handler already logs incoming messages
 
     // Handle STM32 commands from web
     if (strcmp(topic, TOPIC_STM32_COMMAND) == 0)
     {
-        // Forward command to STM32 first
+        // Forward command to STM32
         if (STM32_UART_SendCommand(&stm32_uart, data))
         {
-            ESP_LOGI(TAG, "Command sent to STM32: %s", data);
-
             // Update periodic state based on command (for state tracking only)
             if (strcmp(data, "PERIODIC ON") == 0)
             {
@@ -319,7 +310,7 @@ static void on_mqtt_data_received(const char *topic, const char *data, int data_
         }
         else
         {
-            ESP_LOGE(TAG, "Failed to send command to STM32: %s", data);
+            ESP_LOGE(TAG, "Failed to forward to STM32: %s", data);
         }
     }
     // Handle relay commands
@@ -358,19 +349,20 @@ static void on_mqtt_data_received(const char *topic, const char *data, int data_
         bool new_device_state = (strstr(data, "\"device\":\"ON\"") != NULL);
         bool new_periodic_state = (strstr(data, "\"periodic\":\"ON\"") != NULL);
 
-        ESP_LOGI(TAG, "State sync from web: device=%s, periodic=%s",
-                 new_device_state ? "ON" : "OFF",
-                 new_periodic_state ? "ON" : "OFF");
-
         // CRITICAL: Check if states actually changed before doing anything
         bool device_changed = (new_device_state != g_device_on);
         bool periodic_changed = (new_periodic_state != g_periodic_active);
 
         if (!device_changed && !periodic_changed)
         {
-            ESP_LOGD(TAG, "State unchanged, ignoring sync request");
+            // State unchanged - this is likely a retained message or echo
+            // Don't log or process to avoid spam
             return;
         }
+
+        ESP_LOGI(TAG, "State sync from web: device=%s, periodic=%s",
+                 new_device_state ? "ON" : "OFF",
+                 new_periodic_state ? "ON" : "OFF");
 
         // CRITICAL FIX: Update global state FIRST to prevent callback loop
         // When Relay_SetState() triggers callback, g_device_on will already match
@@ -385,7 +377,7 @@ static void on_mqtt_data_received(const char *topic, const char *data, int data_
         if (device_changed)
         {
             Relay_SetState(&relay_control, new_device_state);
-            ESP_LOGI(TAG, "Relay hardware synced: %s -> %s",
+            ESP_LOGI(TAG, "Relay synced: %s → %s",
                      old_device_state ? "ON" : "OFF",
                      new_device_state ? "ON" : "OFF");
             // Callback will NOT publish because g_device_on already updated
@@ -396,14 +388,14 @@ static void on_mqtt_data_received(const char *topic, const char *data, int data_
         {
             const char *cmd = new_periodic_state ? "PERIODIC ON" : "PERIODIC OFF";
             STM32_UART_SendCommand(&stm32_uart, cmd);
-            ESP_LOGI(TAG, "Periodic command sent: %s", cmd);
+            ESP_LOGI(TAG, "Periodic: %s", cmd);
         }
 
         // If device is OFF, ensure periodic is also OFF
         if (!new_device_state && old_periodic_state)
         {
             STM32_UART_SendCommand(&stm32_uart, "PERIODIC OFF");
-            ESP_LOGI(TAG, "Periodic forced OFF (device is OFF)");
+            ESP_LOGI(TAG, "Periodic forced OFF (device OFF)");
         }
     }
 }
@@ -421,7 +413,8 @@ static void on_mqtt_data_received(const char *topic, const char *data, int data_
  * @param state Current WiFi state
  * @param arg User argument (not used)
  *
- * @details Logs WiFi state changes and retrieves IP/RSSI on connection.
+ * @details Logs WiFi state changes, retrieves IP/RSSI on connection,
+ *          and sends WiFi status to STM32 (only once per state change).
  */
 static void on_wifi_event(wifi_state_t state, void *arg)
 {
@@ -432,29 +425,47 @@ static void on_wifi_event(wifi_state_t state, void *arg)
         break;
 
     case WIFI_STATE_CONNECTED:
-        ESP_LOGI(TAG, "WiFi: Connected successfully");
+        ESP_LOGI(TAG, "WiFi: Connected");
 
         // Get and display IP address
         char ip_addr[16];
         if (wifi_manager_get_ip_addr(ip_addr, sizeof(ip_addr)) == ESP_OK)
         {
-            ESP_LOGI(TAG, "WiFi IP: %s", ip_addr);
+            ESP_LOGI(TAG, "  IP: %s", ip_addr);
         }
 
         // Get and display signal strength
         int8_t rssi;
         if (wifi_manager_get_rssi(&rssi) == ESP_OK)
         {
-            ESP_LOGI(TAG, "WiFi RSSI: %d dBm", rssi);
+            ESP_LOGI(TAG, "  RSSI: %d dBm", rssi);
         }
+
+        // Send WiFi CONNECTED status to STM32 (only once)
+        STM32_UART_SendCommand(&stm32_uart, "WIFI CONNECTED\n");
+        g_wifi_disconnected_notified = false; // Reset disconnect flag
         break;
 
     case WIFI_STATE_DISCONNECTED:
         ESP_LOGW(TAG, "WiFi: Disconnected");
+
+        // Send WiFi DISCONNECTED status to STM32 (only once, not on every retry)
+        if (!g_wifi_disconnected_notified)
+        {
+            STM32_UART_SendCommand(&stm32_uart, "WIFI DISCONNECTED\n");
+            g_wifi_disconnected_notified = true;
+        }
         break;
 
     case WIFI_STATE_FAILED:
-        ESP_LOGE(TAG, "WiFi: Connection failed");
+        ESP_LOGE(TAG, "WiFi: Failed (all retries exhausted)");
+
+        // Send WiFi DISCONNECTED status to STM32 (only if not already sent)
+        if (!g_wifi_disconnected_notified)
+        {
+            STM32_UART_SendCommand(&stm32_uart, "WIFI DISCONNECTED");
+            g_wifi_disconnected_notified = true;
+        }
         break;
 
     default:
@@ -469,24 +480,15 @@ static void on_wifi_event(wifi_state_t state, void *arg)
  *
  * @return true if all components initialized successfully, false otherwise
  *
- * @details Initializes STM32 UART, MQTT Handler, Relay Control, and SHT3X Parser.
+ * @details Initializes MQTT Handler, Relay Control, and JSON Parser.
+ *          STM32 UART is already initialized before WiFi.
  *          Sets initial global state based on hardware.
  */
 static bool initialize_components(void)
 {
     bool success = true;
 
-    // Initialize STM32 UART
-    if (!STM32_UART_Init(&stm32_uart,
-                         CONFIG_MQTT_UART_PORT_NUM,
-                         CONFIG_MQTT_UART_BAUD_RATE,
-                         CONFIG_MQTT_UART_TXD,
-                         CONFIG_MQTT_UART_RXD,
-                         on_stm32_data_received))
-    {
-        ESP_LOGE(TAG, "Failed to initialize STM32 UART");
-        success = false;
-    }
+    // STM32 UART already initialized before WiFi (to send WiFi status)
 
 #ifdef CONFIG_ENABLE_MQTT
     // Initialize MQTT Handler
@@ -537,7 +539,7 @@ static bool initialize_components(void)
  *
  * @return true if all services started successfully, false otherwise
  *
- * @details Starts STM32 UART task, MQTT client, and CoAP client if enabled.
+ * @details Starts STM32 UART task, and MQTT client (only if WiFi is connected).
  */
 static bool start_services(void)
 {
@@ -551,12 +553,8 @@ static bool start_services(void)
     }
 
 #ifdef CONFIG_ENABLE_MQTT
-    // Start MQTT client
-    if (!MQTT_Handler_Start(&mqtt_handler))
-    {
-        ESP_LOGE(TAG, "Failed to start MQTT client");
-        success = false;
-    }
+    // DO NOT start MQTT here - will start in main loop when network is stable
+    // This prevents MQTT session conflicts when ESP32 reboots
 #endif
 
 #ifdef CONFIG_ENABLE_COAP
@@ -575,24 +573,10 @@ static bool start_services(void)
 /**
  * @brief Subscribe to MQTT topics
  *
- * @details Subscribes to command and control topics after ensuring MQTT connection.
+ * @details Subscribes to command and control topics. Called when MQTT connects.
  */
 static void subscribe_mqtt_topics(void)
 {
-    // Wait for MQTT connection
-    int retry_count = 0;
-    while (!MQTT_Handler_IsConnected(&mqtt_handler) && retry_count < 30)
-    {
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        retry_count++;
-    }
-
-    if (!MQTT_Handler_IsConnected(&mqtt_handler))
-    {
-        ESP_LOGE(TAG, "MQTT connection timeout, cannot subscribe to topics");
-        return;
-    }
-
     // Subscribe to command topics
     MQTT_Handler_Subscribe(&mqtt_handler, TOPIC_STM32_COMMAND, 1);
     MQTT_Handler_Subscribe(&mqtt_handler, TOPIC_RELAY_CONTROL, 1);
@@ -603,28 +587,10 @@ static void subscribe_mqtt_topics(void)
 
     // Publish initial state with retain flag
     publish_current_state();
-
-    ESP_LOGI(TAG, "MQTT topics subscribed:");
-    ESP_LOGI(TAG, "Topic: %s (commands to STM32)", TOPIC_STM32_COMMAND);
-    ESP_LOGI(TAG, "Topic: %s (relay control)", TOPIC_RELAY_CONTROL);
-    ESP_LOGI(TAG, "Topic: %s (state sync)", TOPIC_SYSTEM_STATE);
 }
 #endif
 
-#ifdef CONFIG_ENABLE_MQTT
-/**
- * @brief MQTT subscribe task
- *
- * @param param Task parameter (not used)
- *
- * @details Task to handle MQTT topic subscriptions.
- */
-static void mqtt_subscribe_task(void *param)
-{
-    subscribe_mqtt_topics();
-    vTaskDelete(NULL);
-}
-#endif
+
 
 /* MAIN APPLICATION ----------------------------------------------------------*/
 
@@ -661,6 +627,20 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     ESP_LOGI(TAG, "Event loop initialized");
 
+    // Initialize STM32 UART early (before WiFi) so we can send WiFi status
+    ESP_LOGI(TAG, "=== Initializing STM32 UART ===");
+    if (!STM32_UART_Init(&stm32_uart,
+                         CONFIG_MQTT_UART_PORT_NUM,
+                         CONFIG_MQTT_UART_BAUD_RATE,
+                         CONFIG_MQTT_UART_TXD,
+                         CONFIG_MQTT_UART_RXD,
+                         on_stm32_data_received))
+    {
+        ESP_LOGE(TAG, "Failed to initialize STM32 UART, restarting...");
+        esp_restart();
+    }
+    ESP_LOGI(TAG, "STM32 UART initialized successfully");
+
     // Initialize and connect WiFi using custom WiFi Manager
     ESP_LOGI(TAG, "=== Initializing WiFi Manager ===");
     wifi_manager_config_t wifi_config = wifi_manager_get_default_config();
@@ -674,21 +654,28 @@ void app_main(void)
         esp_restart();
     }
 
-    // Start WiFi connection
+    // Start WiFi connection (non-blocking)
     if (wifi_manager_connect() != ESP_OK)
     {
-        ESP_LOGE(TAG, "Failed to start WiFi connection, restarting...");
-        esp_restart();
+        ESP_LOGE(TAG, "Failed to start WiFi connection");
+        // Don't restart, will retry in main loop
     }
-
-    // Wait for WiFi connection
-    if (wifi_manager_wait_connected(CONFIG_WIFI_CONNECTION_TIMEOUT_MS) != ESP_OK)
+    else
     {
-        ESP_LOGE(TAG, "WiFi connection failed, restarting...");
-        esp_restart();
+        ESP_LOGI(TAG, "WiFi connection started, waiting for connection...");
+        // Try to wait, but don't fail if timeout
+        if (wifi_manager_wait_connected(CONFIG_WIFI_CONNECTION_TIMEOUT_MS) == ESP_OK)
+        {
+            ESP_LOGI(TAG, "WiFi connected successfully!");
+            // Mark WiFi connect time for 2-second MQTT stabilization delay (same as reconnect logic)
+            g_wifi_reconnect_time_ms = esp_timer_get_time() / 1000;
+            ESP_LOGI(TAG, "MQTT will start after 2s network stabilization delay");
+        }
+        else
+        {
+            ESP_LOGW(TAG, "WiFi initial connection timeout, will retry in background");
+        }
     }
-
-    ESP_LOGI(TAG, "WiFi connected successfully!");
 
     // Initialize all components
     if (!initialize_components())
@@ -698,18 +685,13 @@ void app_main(void)
     }
     ESP_LOGI(TAG, "All components initialized successfully");
 
-    // Start all services
+    // Start all services (but NOT MQTT yet - will start in main loop when network stable)
     if (!start_services())
     {
         ESP_LOGE(TAG, "Failed to start services, restarting...");
         esp_restart();
     }
-    ESP_LOGI(TAG, "All services started successfully");
-
-#if CONFIG_ENABLE_MQTT
-    // Subscribe to MQTT topics (runs in background)
-    xTaskCreate(mqtt_subscribe_task, "mqtt_subscribe", 10240, NULL, 3, NULL);
-#endif
+    ESP_LOGI(TAG, "All services started successfully (MQTT will start when network stable)");
 
     // Log wifi configuration details
     ESP_LOGI(TAG, "WiFi Configuration:");
@@ -781,10 +763,64 @@ void app_main(void)
         bool relay_now = g_device_on;
         bool periodic_now = g_periodic_active;
         bool wifi_now = wifi_manager_is_connected();
+        wifi_state_t wifi_state = wifi_manager_get_state();
+        uint32_t now_ms = esp_timer_get_time() / 1000; // Convert to milliseconds
+
+        // WiFi reconnection logic - ONLY retry if WiFi has FAILED (exhausted all retries)
+        // Don't interfere while WiFi Manager is doing its own retries (CONNECTING state)
+        if (wifi_state == WIFI_STATE_FAILED)
+        {
+            // Try to reconnect every 5 seconds (after WiFi Manager's 5 retries are exhausted)
+            if ((now_ms - g_last_wifi_retry_ms) >= 5000)
+            {
+                ESP_LOGI(TAG, "Retrying WiFi connection...");
+                wifi_manager_connect();
+                g_last_wifi_retry_ms = now_ms;
+            }
+        }
+        else if (wifi_now)
+        {
+            // WiFi is connected, reset retry timer
+            g_last_wifi_retry_ms = now_ms;
+        }
 
 #ifdef CONFIG_ENABLE_MQTT
         bool mqtt_now = MQTT_Handler_IsConnected(&mqtt_handler);
 
+        // WiFi state changed from connected to disconnected - STOP MQTT immediately
+        if (!wifi_now && last_wifi)
+        {
+            ESP_LOGI(TAG, "Stopping MQTT (WiFi lost)");
+            MQTT_Handler_Stop(&mqtt_handler);
+            g_wifi_reconnect_time_ms = 0; // Reset reconnect timer
+        }
+
+        // WiFi state changed from disconnected to connected - Wait before starting MQTT
+        if (wifi_now && !last_wifi)
+        {
+            ESP_LOGI(TAG, "WiFi restored, network stabilizing...");
+            g_wifi_reconnect_time_ms = now_ms; // Mark reconnect time
+        }
+
+        // Start MQTT after 2 seconds of WiFi being stable (both on boot and reconnect)
+        if (wifi_now && g_wifi_reconnect_time_ms > 0 && 
+            (now_ms - g_wifi_reconnect_time_ms) >= 2000 && !mqtt_now)
+        {
+            uint32_t elapsed = now_ms - g_wifi_reconnect_time_ms;
+            ESP_LOGI(TAG, "Starting MQTT (network stable after %u ms delay)", elapsed);
+            MQTT_Handler_Start(&mqtt_handler);
+            g_wifi_reconnect_time_ms = 0; // Clear timer
+            g_mqtt_started = true;
+        }
+
+        // MQTT state changed from disconnected to connected - SUBSCRIBE to topics
+        if (mqtt_now && !last_mqtt)
+        {
+            ESP_LOGI(TAG, "MQTT connected, subscribing...");
+            subscribe_mqtt_topics();
+        }
+
+        // Log status changes only
         if (relay_now != last_relay || periodic_now != last_periodic ||
             mqtt_now != last_mqtt || wifi_now != last_wifi)
         {

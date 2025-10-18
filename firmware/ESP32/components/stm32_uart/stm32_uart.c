@@ -262,7 +262,7 @@ bool STM32_UART_SendCommand(stm32_uart_t *uart, const char *command)
 
     if (sent == len)
     {
-        ESP_LOGI(TAG, "→ STM32: %s", command);
+        ESP_LOGI(TAG, "-> STM32: %s", command);
         return true;
     }
     else

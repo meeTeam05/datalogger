@@ -109,7 +109,7 @@ static void update_state(wifi_state_t new_state)
     if (s_wifi_manager.state != new_state)
     {
         s_wifi_manager.state = new_state;
-        ESP_LOGI(TAG, "WiFi state changed: %d", new_state);
+        // Don't log here - let callback handle logging to avoid duplicate logs
 
         if (s_wifi_manager.config.event_callback)
         {
@@ -138,7 +138,6 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
         switch (event_id)
         {
         case WIFI_EVENT_STA_START:
-            ESP_LOGI(TAG, "WiFi station started");
             update_state(WIFI_STATE_CONNECTING);
             esp_wifi_connect();
             break;
@@ -147,20 +146,26 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
         {
             wifi_event_sta_disconnected_t *disconnected =
                 (wifi_event_sta_disconnected_t *)event_data;
-            ESP_LOGW(TAG, "WiFi disconnected, reason: %d", disconnected->reason);
+
+            // Only update to DISCONNECTED state on first disconnect (not during retries)
+            if (s_wifi_manager.retry_count == 0)
+            {
+                ESP_LOGW(TAG, "Disconnected (reason: %d)", disconnected->reason);
+                update_state(WIFI_STATE_DISCONNECTED);
+            }
 
             if (s_wifi_manager.retry_count < s_wifi_manager.config.maximum_retry)
             {
                 esp_wifi_connect();
                 s_wifi_manager.retry_count++;
-                ESP_LOGI(TAG, "Retry connecting to AP, attempt %d/%d",
+                ESP_LOGI(TAG, "Retry %d/%d",
                          s_wifi_manager.retry_count,
                          s_wifi_manager.config.maximum_retry);
                 update_state(WIFI_STATE_CONNECTING);
             }
             else
             {
-                ESP_LOGE(TAG, "Failed to connect to AP after %d attempts",
+                ESP_LOGE(TAG, "Connection failed after %d attempts",
                          s_wifi_manager.config.maximum_retry);
                 xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
                 update_state(WIFI_STATE_FAILED);
@@ -169,7 +174,6 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
         }
 
         case WIFI_EVENT_STA_CONNECTED:
-            ESP_LOGI(TAG, "WiFi connected to AP");
             s_wifi_manager.retry_count = 0;
             break;
 
@@ -199,14 +203,14 @@ static void ip_event_handler(void *arg, esp_event_base_t event_base,
         case IP_EVENT_STA_GOT_IP:
         {
             ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
-            ESP_LOGI(TAG, "Got IPv4 address: " IPSTR, IP2STR(&event->ip_info.ip));
+            ESP_LOGI(TAG, "IP: " IPSTR, IP2STR(&event->ip_info.ip));
             xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
             update_state(WIFI_STATE_CONNECTED);
             break;
         }
 
         case IP_EVENT_STA_LOST_IP:
-            ESP_LOGW(TAG, "Lost IP address");
+            ESP_LOGW(TAG, "IP lost");
             update_state(WIFI_STATE_DISCONNECTED);
             break;
 
@@ -388,12 +392,32 @@ esp_err_t wifi_manager_connect(void)
     // Clear event bits
     xEventGroupClearBits(s_wifi_event_group, WIFI_BOTH_BITS);
 
-    // Start WiFi
+    // If WiFi is in FAILED state, stop it first to reset state machine
+    if (s_wifi_manager.state == WIFI_STATE_FAILED)
+    {
+        ESP_LOGI(TAG, "Resetting WiFi...");
+        esp_wifi_stop();
+        vTaskDelay(pdMS_TO_TICKS(100)); // Small delay for clean stop
+    }
+
+    // Start WiFi (will succeed even if already started)
     esp_err_t ret = esp_wifi_start();
-    if (ret != ESP_OK)
+    if (ret != ESP_OK && ret != ESP_ERR_WIFI_STATE)
     {
         ESP_LOGE(TAG, "Failed to start WiFi: %s", esp_err_to_name(ret));
         return ret;
+    }
+
+    // If WiFi is already started but disconnected, manually trigger connect
+    if (ret == ESP_ERR_WIFI_STATE)
+    {
+        ESP_LOGI(TAG, "WiFi already started, triggering reconnect...");
+        ret = esp_wifi_connect();
+        if (ret != ESP_OK)
+        {
+            ESP_LOGE(TAG, "Failed to connect WiFi: %s", esp_err_to_name(ret));
+            return ret;
+        }
     }
 
     return ESP_OK;
