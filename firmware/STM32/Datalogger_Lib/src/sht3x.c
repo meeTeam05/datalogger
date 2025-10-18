@@ -395,7 +395,14 @@ SHT3X_StatusTypeDef SHT3X_Single(sht3x_t *dev, sht3x_repeat_t *modeRepeat, float
 		{
 			return SHT3X_ERROR;
 		}
+		// Critical: Sensor needs minimum 10ms to stop periodic mode completely
+		// per SHT3X datasheet. Shorter delay causes unreliable single measurements.
+		HAL_Delay(10);
+		
+		// Clear any pending status to ensure clean state
+		SHT3X_Send_Command(dev, SHT3X_COMMAND_CLEAR_STATUS);
 		HAL_Delay(1);
+		
 		dev->currentState = SHT3X_IDLE;
 	}
 
@@ -436,14 +443,54 @@ SHT3X_StatusTypeDef SHT3X_Single(sht3x_t *dev, sht3x_repeat_t *modeRepeat, float
 
 	// sensor_json_output_send("SINGLE", g_sht3x.temperature, g_sht3x.humidity);
 
+	// Restore periodic mode if it was active before single measurement
 	if (SHT3X_IS_PERIODIC_STATE(savedMode))
 	{
-		if (SHT3X_Periodic(dev, &savedMode, &savedRepeat, NULL, NULL) != SHT3X_OK)
+		// Add delay after single measurement before restarting periodic
+		// This prevents race condition where sensor hasn't finished processing
+		HAL_Delay(5);
+		
+		// Clear status register before restarting periodic mode
+		// This ensures sensor is in clean state after single measurement
+		SHT3X_Send_Command(dev, SHT3X_COMMAND_CLEAR_STATUS);
+		HAL_Delay(1);
+		
+		// Restart periodic mode manually to avoid fetching stale data
+		// Don't use SHT3X_Periodic() which calls FetchData immediately
+		uint8_t row;
+		switch (savedMode)
 		{
-			return SHT3X_ERROR;
+		case SHT3X_PERIODIC_05MPS:
+			row = 1;
+			break;
+		case SHT3X_PERIODIC_1MPS:
+			row = 2;
+			break;
+		case SHT3X_PERIODIC_2MPS:
+			row = 3;
+			break;
+		case SHT3X_PERIODIC_4MPS:
+			row = 4;
+			break;
+		case SHT3X_PERIODIC_10MPS:
+			row = 5;
+			break;
+		default:
+			dev->currentState = SHT3X_IDLE;
+			return SHT3X_OK; // Single measurement succeeded, just can't restart periodic
 		}
-		dev->currentState = savedMode;
-		dev->modeRepeat = savedRepeat;
+		
+		// Send periodic command and update state
+		if (SHT3X_Send_Command(dev, SHT3X_MEASURE_CMD[row][savedRepeat]) == HAL_OK)
+		{
+			dev->currentState = savedMode;
+			dev->modeRepeat = savedRepeat;
+		}
+		else
+		{
+			// Periodic restart failed, but single measurement succeeded
+			dev->currentState = SHT3X_IDLE;
+		}
 		// PRINT_CLI("currentState: %d, modeRepeat: %d\r\n", dev->currentState, dev->modeRepeat);
 	}
 	else
