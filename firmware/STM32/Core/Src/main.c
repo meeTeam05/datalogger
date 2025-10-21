@@ -22,10 +22,16 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
+#include <stdio.h>
+#include <time.h>
 #include "uart.h"
 #include "sht3x.h"
 #include "ds3231.h"
 #include "data_manager.h"
+#include "wifi_manager.h"
+#include "sd_card_manager.h"
+#include "sensor_json_output.h"
+#include "print_cli.h"
 
 /* USER CODE END Includes */
 
@@ -49,18 +55,26 @@
 /* Private variables ---------------------------------------------------------*/
 I2C_HandleTypeDef hi2c1;
 
+SPI_HandleTypeDef hspi1;
+
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
 
-static float outT = 0.0f;
-static float outRH = 0.0f;
+// Periodic fetch variables
 static uint32_t last_fetch_ms = 0;                          // Track last fetch time to prevent duplicates
 uint32_t next_fetch_ms = 0;                                 // Exposed for cmd_parser to reset timing
 uint32_t periodic_interval_ms = PERIODIC_PRINT_INTERVAL_MS; // Interval to print periodic data (5 seconds)
 
-sht3x_t g_sht3x;
+// MQTT state tracking - Default to DISCONNECTED (ESP32 will notify if connected)
+mqtt_state_t mqtt_current_state = MQTT_STATE_DISCONNECTED;
 
+// SHT3X device instance
+sht3x_t g_sht3x;
+static float outT = 0.0f;
+static float outRH = 0.0f;
+
+// DS3231 device instance
 ds3231_t g_ds3231;
 struct tm time_to_set;
 struct tm time_to_get;
@@ -72,6 +86,7 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_USART1_UART_Init(void);
+static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -112,6 +127,7 @@ int main(void)
   MX_GPIO_Init();
   MX_I2C1_Init();
   MX_USART1_UART_Init();
+  MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
 
   UART_Init(&huart1);
@@ -125,6 +141,15 @@ int main(void)
   /* Initialize DataManager */
   DataManager_Init();
 
+  /* Initialize SD Card Manager - Continue even if SD fails */
+
+  /* CRITICAL: Wait for SD card power stabilization */
+  HAL_Delay(200); // 200ms power-up delay for SD card (some cards need more time)
+
+  if (!SDCardManager_Init())
+  {
+    PRINT_CLI("[WARN] SD Card NOT available! Data will be lost when WiFi disconnected.\r\n");
+  }
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -137,8 +162,7 @@ int main(void)
 
     UART_Handle();
 
-    DataManager_Print();
-
+    /* Handle periodic sensor data fetch */
     if (SHT3X_IS_PERIODIC_STATE(g_sht3x.currentState))
     {
       uint32_t now = HAL_GetTick();
@@ -162,7 +186,74 @@ int main(void)
       }
     }
 
-    __WFI(); // Wait For Interrupt
+    /* MQTT-aware data routing logic */
+    if (mqtt_current_state == MQTT_STATE_CONNECTED)
+    {
+      /* MQTT CONNECTED - Send live data + buffered data */
+
+      // 1. Print current live data if ready (uses centralized DataManager_Print)
+      //    DataManager_Print() will automatically clear data_ready flag
+      DataManager_Print();
+
+      // 2. Send buffered data from SD (non-blocking, one record per loop)
+      static uint32_t last_sd_send_ms = 0;
+      uint32_t now_ms = HAL_GetTick();
+
+      if (SDCardManager_GetBufferedCount() > 0 && (now_ms - last_sd_send_ms) >= 100) // 100ms delay between SD records
+      {
+        static sd_data_record_t buffered_record;
+        if (SDCardManager_ReadData(&buffered_record))
+        {
+          // Format buffered record as JSON using the same function DataManager uses
+          char json_buffer[128];
+          int len = sensor_json_format(json_buffer, sizeof(json_buffer),
+                                       buffered_record.mode,
+                                       buffered_record.temperature,
+                                       buffered_record.humidity,
+                                       buffered_record.timestamp);
+
+          // Send to ESP32 via UART
+          if (len > 0)
+          {
+            PRINT_CLI(json_buffer); // Send the JSON string
+
+            // Remove record after successful send
+            SDCardManager_RemoveRecord();
+            last_sd_send_ms = now_ms;
+          }
+        }
+      }
+    }
+    else
+    {
+      /* MQTT DISCONNECTED - Buffer data to SD card (don't print to UART) */
+
+      if (DataManager_IsDataReady())
+      {
+        const data_manager_state_t *state = DataManager_GetState();
+
+        // Get timestamp from RTC (if available)
+        uint32_t timestamp = 0;
+        struct tm time;
+        if (DS3231_Get_Time(&g_ds3231, &time) == HAL_OK)
+        {
+          timestamp = (uint32_t)mktime(&time);
+        }
+        else
+        {
+          timestamp = HAL_GetTick() / 1000; // Use systick as fallback
+        }
+
+        // Determine mode string
+        const char *mode_str = (state->mode == DATA_MANAGER_MODE_SINGLE) ? "SINGLE" : "PERIODIC";
+
+        // Write to SD card buffer
+        SDCardManager_WriteData(timestamp, state->sht3x.temperature, state->sht3x.humidity, mode_str);
+
+        // Clear flag to allow next data
+        DataManager_ClearDataReady();
+      }
+    }
   }
   /* USER CODE END 3 */
 }
@@ -238,6 +329,43 @@ static void MX_I2C1_Init(void)
 }
 
 /**
+ * @brief SPI1 Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_SPI1_Init(void)
+{
+
+  /* USER CODE BEGIN SPI1_Init 0 */
+
+  /* USER CODE END SPI1_Init 0 */
+
+  /* USER CODE BEGIN SPI1_Init 1 */
+
+  /* USER CODE END SPI1_Init 1 */
+  /* SPI1 parameter configuration*/
+  hspi1.Instance = SPI1;
+  hspi1.Init.Mode = SPI_MODE_MASTER;
+  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
+  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi1.Init.NSS = SPI_NSS_SOFT;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
+  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi1.Init.CRCPolynomial = 10;
+  if (HAL_SPI_Init(&hspi1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN SPI1_Init 2 */
+
+  /* USER CODE END SPI1_Init 2 */
+}
+
+/**
  * @brief USART1 Initialization Function
  * @param None
  * @retval None
@@ -290,12 +418,22 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(SD_CS_GPIO_Port, SD_CS_Pin, GPIO_PIN_SET); /* CS must start HIGH (deselected) */
+
   /*Configure GPIO pin : PC13 */
   GPIO_InitStruct.Pin = GPIO_PIN_13;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : SD_CS_Pin */
+  GPIO_InitStruct.Pin = SD_CS_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(SD_CS_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 

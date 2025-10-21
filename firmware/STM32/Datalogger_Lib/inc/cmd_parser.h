@@ -107,4 +107,34 @@ void SET_TIME_PARSER(uint8_t argc, char **argv);
  */
 void SET_PERIODIC_INTERVAL_PARSER(uint8_t argc, char **argv);
 
+/**
+ * @brief Command parser for MQTT CONNECTED notification
+ *
+ * @param argc Argument count
+ * @param argv Argument vector
+ *
+ * @note argv[0] is the command itself
+ */
+void MQTT_CONNECTED_PARSER(uint8_t argc, char **argv);
+
+/**
+ * @brief Command parser for MQTT DISCONNECTED notification
+ *
+ * @param argc Argument count
+ * @param argv Argument vector
+ *
+ * @note argv[0] is the command itself
+ */
+void MQTT_DISCONNECTED_PARSER(uint8_t argc, char **argv);
+
+/**
+ * @brief Command parser for SD CLEAR command
+ *
+ * @param argc Argument count
+ * @param argv Argument vector
+ *
+ * @note argv[0] is the command itself. Clears all buffered data on SD card.
+ */
+void SD_CLEAR_PARSER(uint8_t argc, char **argv);
+
 #endif /* CMD_PARSER_H */

@@ -48,6 +48,15 @@ command_function_t cmdTable[] = {
 	{.cmdString = "SET PERIODIC INTERVAL", // Set Periodic Print Interval Command
 	 .func = SET_PERIODIC_INTERVAL_PARSER},
 
-	{NULL, NULL}
+	{.cmdString = "MQTT CONNECTED", // MQTT Connected Notification
+	 .func = MQTT_CONNECTED_PARSER},
+
+	{.cmdString = "MQTT DISCONNECTED", // MQTT Disconnected Notification
+	 .func = MQTT_DISCONNECTED_PARSER},
+
+	{.cmdString = "SD CLEAR", // Clear SD card buffer
+	 .func = SD_CLEAR_PARSER},
+
+	{.cmdString = NULL, .func = NULL}, // Table terminator
 
 };

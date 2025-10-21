@@ -12,16 +12,24 @@
 #include "ds3231.h"
 #include "data_manager.h"
 #include "print_cli.h"
+#include "wifi_manager.h"
 #include "sht3x.h"
-#include "stm32f1xx_hal.h" // For HAL_Delay and HAL_GetTick
+#include "sd_card_manager.h"
+#include "stm32f1xx_hal.h"
 
 /* DEFINES -------------------------------------------------------------------*/
 
 #define SHT3X_MODE_REPEAT_DEFAULT SHT3X_HIGH
 #define SHT3X_MODE_PERIODIC_DEFAULT SHT3X_PERIODIC_1MPS
 
+// External variables for timing and state control
+extern mqtt_state_t mqtt_current_state;
+
 /* PUBLIC API ----------------------------------------------------------------*/
 
+/**
+ * @brief Command parser for SHT3X heater commands
+ */
 void SHT3X_Heater_Parser(uint8_t argc, char **argv)
 {
 	if (argc == 3 && strcmp(argv[2], "ENABLE") == 0)
@@ -51,6 +59,9 @@ void SHT3X_Heater_Parser(uint8_t argc, char **argv)
 	}
 }
 
+/**
+ * @brief Command parser for SHT3X ART (Accelerated Response Time) commands
+ */
 void SHT3X_ART_Parser(uint8_t argc, char **argv)
 {
 	if (SHT3X_ART(&g_sht3x) == SHT3X_OK)
@@ -63,6 +74,9 @@ void SHT3X_ART_Parser(uint8_t argc, char **argv)
 	}
 }
 
+/**
+ * @brief Command parser for DS3231 set time input commands
+ */
 void DS3231_Set_Time_Parser(uint8_t argc, char **argv)
 {
 	if (argc != 10)
@@ -111,12 +125,17 @@ void DS3231_Set_Time_Parser(uint8_t argc, char **argv)
 	}
 }
 
+/**
+ * @brief Command parser for SINGLE measurement command
+ */
 void SINGLE_PARSER(uint8_t argc, char **argv)
 {
 	if (argc != 1)
 	{
 		return;
 	}
+
+	PRINT_CLI("[CMD] SINGLE\r\n");
 
 	float temp = 0.0f, hum = 0.0f;
 	sht3x_repeat_t repeat = SHT3X_MODE_REPEAT_DEFAULT; // Create variable for pointer
@@ -127,21 +146,28 @@ void SINGLE_PARSER(uint8_t argc, char **argv)
 	// Update data manager with measurement (0.0 if sensor failed)
 	if (status == SHT3X_OK)
 	{
+		PRINT_CLI("[CMD] T=%.2f H=%.2f\r\n", temp, hum);
 		DataManager_UpdateSingle(temp, hum);
 	}
 	else
 	{
+		PRINT_CLI("[CMD] Sensor FAIL\r\n");
 		// Sensor read failed, report 0.0 values
 		DataManager_UpdateSingle(0.0f, 0.0f);
 	}
 }
 
+/**
+ * @brief Command parser for PERIODIC ON command
+ */
 void PERIODIC_ON_PARSER(uint8_t argc, char **argv)
 {
 	if (argc != 2)
 	{
 		return;
 	}
+
+	PRINT_CLI("[CMD] PERIODIC ON\r\n");
 
 	float temp = 0.0f, hum = 0.0f;
 
@@ -154,10 +180,12 @@ void PERIODIC_ON_PARSER(uint8_t argc, char **argv)
 	// Update data manager with first measurement
 	if (status == SHT3X_OK)
 	{
+		PRINT_CLI("[CMD] T=%.2f H=%.2f\r\n", temp, hum);
 		DataManager_UpdatePeriodic(temp, hum);
 	}
 	else
 	{
+		PRINT_CLI("[CMD] Sensor FAIL\r\n");
 		// Sensor failed to start, report 0.0 values
 		DataManager_UpdatePeriodic(0.0f, 0.0f);
 	}
@@ -166,6 +194,9 @@ void PERIODIC_ON_PARSER(uint8_t argc, char **argv)
 	next_fetch_ms = HAL_GetTick() + periodic_interval_ms;
 }
 
+/**
+ * @brief Command parser for PERIODIC OFF command
+ */
 void PERIODIC_OFF_PARSER(uint8_t argc, char **argv)
 {
 	if (argc != 2)
@@ -176,34 +207,40 @@ void PERIODIC_OFF_PARSER(uint8_t argc, char **argv)
 	SHT3X_Stop_Periodic(&g_sht3x);
 }
 
+/**
+ * @brief Command parser for DS3231 set time input commands
+ */
 void SET_TIME_PARSER(uint8_t argc, char **argv)
 {
-    // SET TIME <unix_timestamp>
-    if (argc != 3)
-    {
-        return;
-    }
+	// SET TIME <unix_timestamp>
+	if (argc != 3)
+	{
+		return;
+	}
 
-    // Parse Unix timestamp
-    time_t timestamp = (time_t)atol(argv[2]);
+	// Parse Unix timestamp
+	time_t timestamp = (time_t)atol(argv[2]);
 
-    // Convert to struct tm
-    struct tm *time = localtime(&timestamp);
+	// Convert to struct tm
+	struct tm *time = localtime(&timestamp);
 
-    if (time == NULL)
-    {
-        return;
-    }
+	if (time == NULL)
+	{
+		return;
+	}
 
-    // Call DS3231_Set_Time with struct tm pointer
-    DS3231_Set_Time(&g_ds3231, time);
+	// Call DS3231_Set_Time with struct tm pointer
+	DS3231_Set_Time(&g_ds3231, time);
 }
 
+/**
+ * @brief Command parser for SET PERIODIC INTERVAL command
+ */
 void SET_PERIODIC_INTERVAL_PARSER(uint8_t argc, char **argv)
 {
 	// SET PERIODIC INTERVAL <SECONDS>
 	uint32_t interval;
-	
+
 	if (argc != 4)
 	{
 		return;
@@ -212,4 +249,51 @@ void SET_PERIODIC_INTERVAL_PARSER(uint8_t argc, char **argv)
 
 	// Validate interval (minimum 1 second)
 	periodic_interval_ms = interval * 1000; // Convert seconds to milliseconds
+}
+
+/**
+ * @brief Command parser for MQTT CONNECTED notification
+ */
+void MQTT_CONNECTED_PARSER(uint8_t argc, char **argv)
+{
+	if (argc != 2) // "MQTT CONNECTED" = 2 words
+	{
+		return;
+	}
+
+	mqtt_current_state = MQTT_STATE_CONNECTED;
+}
+
+/**
+ * @brief Command parser for MQTT DISCONNECTED notification
+ */
+void MQTT_DISCONNECTED_PARSER(uint8_t argc, char **argv)
+{
+	if (argc != 2) // "MQTT DISCONNECTED" = 2 words
+	{
+		return;
+	}
+
+	mqtt_current_state = MQTT_STATE_DISCONNECTED;
+}
+
+/**
+ * @brief Command parser for SD CLEAR command
+ */
+void SD_CLEAR_PARSER(uint8_t argc, char **argv)
+{
+	if (argc != 2) // "SD CLEAR" = 2 words
+	{
+		return;
+	}
+
+	// Clear SD card buffer
+	if (SDCardManager_ClearBuffer())
+	{
+		PRINT_CLI("SD buffer cleared successfully! All buffered data deleted.\r\n");
+	}
+	else
+	{
+		PRINT_CLI("FAILED to clear SD buffer!\r\n");
+	}
 }
