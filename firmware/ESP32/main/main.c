@@ -1,5 +1,7 @@
 /**
  * @file app_main.c
+ *
+ * @brief Main Application for ESP32 IoT Bridge
  */
 
 /* INCLUDES ------------------------------------------------------------------*/
@@ -18,7 +20,8 @@
 #include "stm32_uart.h"
 #include "relay_control.h"
 #include "json_sensor_parser.h"
-#include "json_utils.h" // JSON utility library
+#include "json_utils.h"  // JSON utility library
+#include "driver/gpio.h" // For WiFi LED indicator
 
 #ifdef CONFIG_ENABLE_MQTT
 #include "mqtt_handler.h"
@@ -30,17 +33,11 @@
 
 /* DEFINES ------------------------------------------------------------------*/
 
+// Status LED indicators
+#define WIFI_LED_GPIO 22
+#define MQTT_LED_GPIO 23
+
 #ifdef CONFIG_ENABLE_MQTT
-/**
- * MQTT Topic Naming Convention:
- * Format: {organization}/{device-type}/{component}/{action}/{attribute}
- *
- * Benefits:
- * - Clear hierarchy for access control (ACL)
- * - Easy to add new sensors/devices
- * - Wildcard subscription support
- * - Industry standard compliance
- */
 
 // Command topics
 #define TOPIC_STM32_COMMAND "datalogger/stm32/command"
@@ -191,7 +188,7 @@ static void on_single_sensor_data(const sensor_data_t *data)
     // Publish immediately, MQTT_Handler will queue if not connected
     MQTT_Handler_Publish(&mqtt_handler, TOPIC_STM32_DATA_SINGLE, json_msg, 0, 0, 0);
 
-    ESP_LOGI(TAG, "SINGLE: %.2f°C, %.2f%%",
+    ESP_LOGI(TAG, "SINGLE: T=%.1f°C H=%.1f%%",
              data->has_temperature ? data->temperature : 0.0f,
              data->has_humidity ? data->humidity : 0.0f);
 #endif
@@ -225,7 +222,7 @@ static void on_periodic_sensor_data(const sensor_data_t *data)
     // Publish immediately, MQTT_Handler will queue if not connected
     MQTT_Handler_Publish(&mqtt_handler, TOPIC_STM32_DATA_PERIODIC, json_msg, 0, 0, 0);
 
-    ESP_LOGI(TAG, "PERIODIC: %.2f°C, %.2f%%",
+    ESP_LOGI(TAG, "PERIODIC: T=%.1f°C H=%.1f%%",
              data->has_temperature ? data->temperature : 0.0f,
              data->has_humidity ? data->humidity : 0.0f);
 #endif
@@ -261,21 +258,42 @@ static void on_stm32_data_received(const char *line)
  *          to avoid infinite loops.
  *
  *          When device turns OFF, periodic MUST also stop.
+ *
+ *          When relay toggles, STM32 gets reset, so we resend WiFi status
+ *          after a delay to ensure STM32 receives it.
  */
 static void on_relay_state_changed(bool state)
 {
-    ESP_LOGI(TAG, "Relay hardware state changed: %s", state ? "ON" : "OFF");
+    ESP_LOGI(TAG, "Relay: %s", state ? "ON" : "OFF");
 
     // If device turned OFF, force periodic OFF
     bool new_periodic_state = state ? g_periodic_active : false;
 
     if (!state && g_periodic_active)
     {
-        ESP_LOGI(TAG, "Device OFF detected - periodic mode will be stopped");
+        ESP_LOGI(TAG, "Device OFF - Periodic stopped");
     }
 
     // Update and publish state (this notifies web)
     update_and_publish_state(state, new_periodic_state);
+
+#ifdef CONFIG_ENABLE_MQTT
+    // CRITICAL: When relay toggles, STM32 gets reset and misses MQTT status
+    // Wait 500ms for STM32 to boot, then resend current MQTT status
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    bool mqtt_connected = MQTT_Handler_IsConnected(&mqtt_handler);
+    if (mqtt_connected)
+    {
+        STM32_UART_SendCommand(&stm32_uart, "MQTT CONNECTED");
+        ESP_LOGI(TAG, "TX STM32: MQTT CONNECTED (relay toggled)");
+    }
+    else
+    {
+        STM32_UART_SendCommand(&stm32_uart, "MQTT DISCONNECTED");
+        ESP_LOGI(TAG, "TX STM32: MQTT DISCONNECTED (relay toggled)");
+    }
+#endif
 }
 
 #ifdef CONFIG_ENABLE_MQTT
@@ -341,63 +359,9 @@ static void on_mqtt_data_received(const char *topic, const char *data, int data_
             ESP_LOGD(TAG, "Ignoring state sync request (no reconnect event)");
         }
     }
-    // Handle state updates from web - sync ESP32 hardware with web UI
-    else if (strcmp(topic, TOPIC_SYSTEM_STATE) == 0 &&
-             strchr(data, '{') != NULL)
-    {
-        // Parse JSON state: {"device":"ON/OFF","periodic":"ON/OFF"}
-        bool new_device_state = (strstr(data, "\"device\":\"ON\"") != NULL);
-        bool new_periodic_state = (strstr(data, "\"periodic\":\"ON\"") != NULL);
-
-        // CRITICAL: Check if states actually changed before doing anything
-        bool device_changed = (new_device_state != g_device_on);
-        bool periodic_changed = (new_periodic_state != g_periodic_active);
-
-        if (!device_changed && !periodic_changed)
-        {
-            // State unchanged - this is likely a retained message or echo
-            // Don't log or process to avoid spam
-            return;
-        }
-
-        ESP_LOGI(TAG, "State sync from web: device=%s, periodic=%s",
-                 new_device_state ? "ON" : "OFF",
-                 new_periodic_state ? "ON" : "OFF");
-
-        // CRITICAL FIX: Update global state FIRST to prevent callback loop
-        // When Relay_SetState() triggers callback, g_device_on will already match
-        // new state, so callback won't publish (no change detected)
-        bool old_device_state = g_device_on;
-        bool old_periodic_state = g_periodic_active;
-
-        g_device_on = new_device_state;
-        g_periodic_active = new_periodic_state;
-
-        // Sync relay hardware if device state changed
-        if (device_changed)
-        {
-            Relay_SetState(&relay_control, new_device_state);
-            ESP_LOGI(TAG, "Relay synced: %s → %s",
-                     old_device_state ? "ON" : "OFF",
-                     new_device_state ? "ON" : "OFF");
-            // Callback will NOT publish because g_device_on already updated
-        }
-
-        // Sync periodic state with STM32 if changed and device is ON
-        if (periodic_changed && new_device_state)
-        {
-            const char *cmd = new_periodic_state ? "PERIODIC ON" : "PERIODIC OFF";
-            STM32_UART_SendCommand(&stm32_uart, cmd);
-            ESP_LOGI(TAG, "Periodic: %s", cmd);
-        }
-
-        // If device is OFF, ensure periodic is also OFF
-        if (!new_device_state && old_periodic_state)
-        {
-            STM32_UART_SendCommand(&stm32_uart, "PERIODIC OFF");
-            ESP_LOGI(TAG, "Periodic forced OFF (device OFF)");
-        }
-    }
+    // REMOVED: State synchronization from web to ESP32
+    // Let web handle state synchronization to avoid relay bouncing
+    // Web will sync its UI based on ESP32's published state
 }
 #endif
 
@@ -414,7 +378,7 @@ static void on_mqtt_data_received(const char *topic, const char *data, int data_
  * @param arg User argument (not used)
  *
  * @details Logs WiFi state changes, retrieves IP/RSSI on connection,
- *          and sends WiFi status to STM32 (only once per state change).
+ *          sends WiFi status to STM32, and controls WiFi LED indicator.
  */
 static void on_wifi_event(wifi_state_t state, void *arg)
 {
@@ -422,10 +386,15 @@ static void on_wifi_event(wifi_state_t state, void *arg)
     {
     case WIFI_STATE_CONNECTING:
         ESP_LOGI(TAG, "WiFi: Connecting...");
+        // Turn off LED while connecting
+        gpio_set_level(WIFI_LED_GPIO, 0);
         break;
 
     case WIFI_STATE_CONNECTED:
         ESP_LOGI(TAG, "WiFi: Connected");
+
+        // Turn on WiFi LED indicator
+        gpio_set_level(WIFI_LED_GPIO, 1);
 
         // Get and display IP address
         char ip_addr[16];
@@ -441,31 +410,26 @@ static void on_wifi_event(wifi_state_t state, void *arg)
             ESP_LOGI(TAG, "  RSSI: %d dBm", rssi);
         }
 
-        // Send WiFi CONNECTED status to STM32 (only once)
-        STM32_UART_SendCommand(&stm32_uart, "WIFI CONNECTED\n");
+        // Don't send WiFi status to STM32 - will send MQTT status instead
         g_wifi_disconnected_notified = false; // Reset disconnect flag
         break;
 
     case WIFI_STATE_DISCONNECTED:
         ESP_LOGW(TAG, "WiFi: Disconnected");
 
-        // Send WiFi DISCONNECTED status to STM32 (only once, not on every retry)
-        if (!g_wifi_disconnected_notified)
-        {
-            STM32_UART_SendCommand(&stm32_uart, "WIFI DISCONNECTED\n");
-            g_wifi_disconnected_notified = true;
-        }
+        // Turn off WiFi LED indicator
+        gpio_set_level(WIFI_LED_GPIO, 0);
+
+        // Don't send WiFi status to STM32 - will send MQTT status instead
         break;
 
     case WIFI_STATE_FAILED:
         ESP_LOGE(TAG, "WiFi: Failed (all retries exhausted)");
 
-        // Send WiFi DISCONNECTED status to STM32 (only if not already sent)
-        if (!g_wifi_disconnected_notified)
-        {
-            STM32_UART_SendCommand(&stm32_uart, "WIFI DISCONNECTED");
-            g_wifi_disconnected_notified = true;
-        }
+        // Turn off WiFi LED indicator
+        gpio_set_level(WIFI_LED_GPIO, 0);
+
+        // Don't send WiFi status to STM32 - will send MQTT status instead
         break;
 
     default:
@@ -590,15 +554,43 @@ static void subscribe_mqtt_topics(void)
 }
 #endif
 
-
-
 /* MAIN APPLICATION ----------------------------------------------------------*/
 
 void app_main(void)
 {
+// Disable brownout detector
+// TODO: comment it if you want to enable brownout detector
+#include "soc/soc.h"
+#include "soc/rtc_cntl_reg.h"
+    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); // Disable Brownout
+
     ESP_LOGI(TAG, "=== IoT Bridge Starting ===");
     ESP_LOGI(TAG, "Free heap: %lu bytes", esp_get_free_heap_size());
     ESP_LOGI(TAG, "IDF version: %s", esp_get_idf_version());
+
+    // Initialize WiFi LED indicator GPIO
+    gpio_config_t io_conf = {
+        .pin_bit_mask = (1ULL << WIFI_LED_GPIO),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE};
+    gpio_config(&io_conf);
+    gpio_set_level(WIFI_LED_GPIO, 0); // Initially off
+    ESP_LOGI(TAG, "WiFi LED indicator initialized on GPIO %d", WIFI_LED_GPIO);
+
+#ifdef CONFIG_ENABLE_MQTT
+    // Initialize MQTT LED indicator GPIO
+    gpio_config_t mqtt_io_conf = {
+        .pin_bit_mask = (1ULL << MQTT_LED_GPIO),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE};
+    gpio_config(&mqtt_io_conf);
+    gpio_set_level(MQTT_LED_GPIO, 0); // Initially off
+    ESP_LOGI(TAG, "MQTT LED indicator initialized on GPIO %d", MQTT_LED_GPIO);
+#endif
 
 #if (CONFIG_ENABLE_MQTT || CONFIG_ENABLE_COAP)
     // Display enabled protocols
@@ -792,7 +784,8 @@ void app_main(void)
         {
             ESP_LOGI(TAG, "Stopping MQTT (WiFi lost)");
             MQTT_Handler_Stop(&mqtt_handler);
-            g_wifi_reconnect_time_ms = 0; // Reset reconnect timer
+            gpio_set_level(MQTT_LED_GPIO, 0); // Turn off MQTT LED
+            g_wifi_reconnect_time_ms = 0;     // Reset reconnect timer
         }
 
         // WiFi state changed from disconnected to connected - Wait before starting MQTT
@@ -807,7 +800,7 @@ void app_main(void)
         // - DHCP assignment is complete
         // - DNS resolver is ready
         // - Network stack is fully initialized
-        if (wifi_now && g_wifi_reconnect_time_ms > 0 && 
+        if (wifi_now && g_wifi_reconnect_time_ms > 0 &&
             (now_ms - g_wifi_reconnect_time_ms) >= 4000 && !mqtt_now)
         {
             uint32_t elapsed = now_ms - g_wifi_reconnect_time_ms;
@@ -830,8 +823,24 @@ void app_main(void)
         // MQTT state changed from disconnected to connected - SUBSCRIBE to topics
         if (mqtt_now && !last_mqtt)
         {
-            ESP_LOGI(TAG, "MQTT connected, subscribing...");
+            ESP_LOGI(TAG, "MQTT connected - Subscribing...");
+            gpio_set_level(MQTT_LED_GPIO, 1); // Turn on MQTT LED
             subscribe_mqtt_topics();
+
+            // Send MQTT CONNECTED status to STM32
+            STM32_UART_SendCommand(&stm32_uart, "MQTT CONNECTED");
+            ESP_LOGI(TAG, "TX STM32: MQTT CONNECTED");
+        }
+
+        // MQTT state changed from connected to disconnected - Turn off LED
+        if (!mqtt_now && last_mqtt)
+        {
+            ESP_LOGI(TAG, "MQTT disconnected");
+            gpio_set_level(MQTT_LED_GPIO, 0); // Turn off MQTT LED
+
+            // Send MQTT DISCONNECTED status to STM32
+            STM32_UART_SendCommand(&stm32_uart, "MQTT DISCONNECTED");
+            ESP_LOGI(TAG, "TX STM32: MQTT DISCONNECTED");
         }
 
         // Log status changes only
