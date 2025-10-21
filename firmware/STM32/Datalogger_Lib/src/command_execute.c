@@ -11,6 +11,8 @@
 #include "command_execute.h"
 #include "cmd_func.h"
 #include "cmd_parser.h"
+#include <stm32f1xx_hal.h>
+#include <stdio.h>
 
 /* VARIABLES -----------------------------------------------------------------*/
 

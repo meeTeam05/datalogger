@@ -59,18 +59,39 @@ static const int days_per_month_leap[] = {31, 29, 31, 30, 31, 30, 31, 31, 30, 31
 
 /* STATIC FUNCTIONs ----------------------------------------------------------*/
 
-// BCD conversion functions
+/**
+ * @brief Convert BCD to decimal
+ *
+ * @param val BCD value
+ *
+ * @return Decimal value
+ */
 static uint8_t bcd2dec(uint8_t val)
 {
     return (val >> 4) * 10 + (val & 0x0F);
 }
 
+/**
+ * @brief Convert decimal to BCD
+ *
+ * @param val Decimal value
+ *
+ * @return BCD value
+ */
 static uint8_t dec2bcd(uint8_t val)
 {
     return ((val / 10) << 4) + (val % 10);
 }
 
-// Calculate days since January 1st
+/**
+ * @brief Calculate days since January 1st of the year
+ *
+ * @param year Year since 1900
+ * @param month Month (0-11)
+ * @param day Day of month (1-31)
+ *
+ * @return Number of days since January 1st
+ */
 static int days_since_january_1st(int year, int month, int day)
 {
     int days = day - 1;
@@ -87,19 +108,46 @@ static int days_since_january_1st(int year, int month, int day)
     return days;
 }
 
-// Write register
+/**
+ * @brief Write to register
+ *
+ * @param dev Pointer to DS3231 device structure
+ * @param reg Register address
+ * @param data Pointer to data buffer
+ * @param len Length of data
+ *
+ * @return HAL status
+ */
 static HAL_StatusTypeDef DS3231_Write_Reg(ds3231_t *dev, uint8_t reg, uint8_t *data, uint8_t len)
 {
     return HAL_I2C_Mem_Write(dev->hi2c, DS3231_ADDR, reg, I2C_MEMADD_SIZE_8BIT, data, len, DS3231_TIMEOUT);
 }
 
-// Read register
+/**
+ * @brief Read from register
+ *
+ * @param dev Pointer to DS3231 device structure
+ * @param reg Register address
+ * @param data Pointer to data buffer
+ * @param len Length of data
+ *
+ * @return HAL status
+ */
 static HAL_StatusTypeDef DS3231_Read_Reg(ds3231_t *dev, uint8_t reg, uint8_t *data, uint8_t len)
 {
     return HAL_I2C_Mem_Read(dev->hi2c, DS3231_ADDR, reg, I2C_MEMADD_SIZE_8BIT, data, len, DS3231_TIMEOUT);
 }
 
-// Get flag from register
+/**
+ * @brief Get flag from register
+ *
+ * @param dev Pointer to DS3231 device structure
+ * @param addr Register address
+ * @param mask Bit mask
+ * @param flag Pointer to store flag value
+ *
+ * @return HAL status
+ */
 static HAL_StatusTypeDef DS3231_Get_Flag(ds3231_t *dev, uint8_t addr, uint8_t mask, uint8_t *flag)
 {
     uint8_t data;
@@ -109,7 +157,16 @@ static HAL_StatusTypeDef DS3231_Get_Flag(ds3231_t *dev, uint8_t addr, uint8_t ma
     return res;
 }
 
-// Set/clear/replace flag in register
+/**
+ * @brief Set/Clear/Replace flag in register
+ *
+ * @param dev Pointer to DS3231 device structure
+ * @param addr Register address
+ * @param bits Bits to set/clear/replace
+ * @param mode Operation mode (DS3231_SET, DS3231_CLEAR, DS3231_REPLACE)
+ *
+ * @return HAL status
+ */
 static HAL_StatusTypeDef DS3231_Set_Flag(ds3231_t *dev, uint8_t addr, uint8_t bits, uint8_t mode)
 {
     uint8_t data;
@@ -129,6 +186,9 @@ static HAL_StatusTypeDef DS3231_Set_Flag(ds3231_t *dev, uint8_t addr, uint8_t bi
 
 /* PUBLIC API ----------------------------------------------------------------*/
 
+/**
+ * @brief Initialize DS3231 device structure
+ */
 void DS3231_Init(ds3231_t *dev, I2C_HandleTypeDef *hi2c)
 {
     if (!dev || !hi2c)
@@ -139,6 +199,9 @@ void DS3231_Init(ds3231_t *dev, I2C_HandleTypeDef *hi2c)
     dev->hi2c = hi2c;
 }
 
+/**
+ * @brief Deinitialize DS3231 device structure
+ */
 void DS3231_DeInit(ds3231_t *dev)
 {
     if (!dev)
@@ -149,6 +212,9 @@ void DS3231_DeInit(ds3231_t *dev)
     dev->hi2c = NULL;
 }
 
+/**
+ * @brief Set the time on the RTC
+ */
 HAL_StatusTypeDef DS3231_Set_Time(ds3231_t *dev, struct tm *time)
 {
     if (!dev || !time)
@@ -167,6 +233,9 @@ HAL_StatusTypeDef DS3231_Set_Time(ds3231_t *dev, struct tm *time)
     return DS3231_Write_Reg(dev, DS3231_ADDR_TIME, data, 7);
 }
 
+/**
+ * @brief Get the time from the RTC
+ */
 HAL_StatusTypeDef DS3231_Get_Time(ds3231_t *dev, struct tm *time)
 {
     if (!dev || !time)
@@ -203,6 +272,9 @@ HAL_StatusTypeDef DS3231_Get_Time(ds3231_t *dev, struct tm *time)
     return HAL_OK;
 }
 
+/**
+ * @brief Set alarms
+ */
 HAL_StatusTypeDef DS3231_Set_Alarm(ds3231_t *dev, ds3231_alarm_t alarms,
                                    struct tm *time1, ds3231_alarm1_rate_t option1,
                                    struct tm *time2, ds3231_alarm2_rate_t option2)
@@ -240,6 +312,9 @@ HAL_StatusTypeDef DS3231_Set_Alarm(ds3231_t *dev, ds3231_alarm_t alarms,
     return DS3231_Write_Reg(dev, addr, data, i);
 }
 
+/**
+ * @brief Get oscillator stop flag
+ */
 HAL_StatusTypeDef DS3231_Get_Oscillator_Stop_Flag(ds3231_t *dev, bool *flag)
 {
     if (!dev || !flag)
@@ -253,6 +328,9 @@ HAL_StatusTypeDef DS3231_Get_Oscillator_Stop_Flag(ds3231_t *dev, bool *flag)
     return res;
 }
 
+/**
+ * @brief Clear oscillator stop flag
+ */
 HAL_StatusTypeDef DS3231_Clear_Oscillator_Stop_Flag(ds3231_t *dev)
 {
     if (!dev)
@@ -261,6 +339,9 @@ HAL_StatusTypeDef DS3231_Clear_Oscillator_Stop_Flag(ds3231_t *dev)
     return DS3231_Set_Flag(dev, DS3231_ADDR_STATUS, DS3231_STAT_OSCILLATOR, DS3231_CLEAR);
 }
 
+/**
+ * @brief Get alarm flags
+ */
 HAL_StatusTypeDef DS3231_Get_Alarm_Flags(ds3231_t *dev, ds3231_alarm_t *alarms)
 {
     if (!dev || !alarms)
@@ -269,6 +350,9 @@ HAL_StatusTypeDef DS3231_Get_Alarm_Flags(ds3231_t *dev, ds3231_alarm_t *alarms)
     return DS3231_Get_Flag(dev, DS3231_ADDR_STATUS, DS3231_ALARM_BOTH, (uint8_t *)alarms);
 }
 
+/**
+ * @brief Clear alarm flags
+ */
 HAL_StatusTypeDef DS3231_Clear_Alarm_Flags(ds3231_t *dev, ds3231_alarm_t alarms)
 {
     if (!dev)
@@ -277,6 +361,9 @@ HAL_StatusTypeDef DS3231_Clear_Alarm_Flags(ds3231_t *dev, ds3231_alarm_t alarms)
     return DS3231_Set_Flag(dev, DS3231_ADDR_STATUS, alarms, DS3231_CLEAR);
 }
 
+/**
+ * @brief Enable alarm interrupts
+ */
 HAL_StatusTypeDef DS3231_Enable_Alarm_Ints(ds3231_t *dev, ds3231_alarm_t alarms)
 {
     if (!dev)
@@ -286,6 +373,9 @@ HAL_StatusTypeDef DS3231_Enable_Alarm_Ints(ds3231_t *dev, ds3231_alarm_t alarms)
                            DS3231_CTRL_ALARM_INTS | alarms, DS3231_SET);
 }
 
+/**
+ * @brief Disable alarm interrupts
+ */
 HAL_StatusTypeDef DS3231_Disable_Alarm_Ints(ds3231_t *dev, ds3231_alarm_t alarms)
 {
     if (!dev)
@@ -294,6 +384,9 @@ HAL_StatusTypeDef DS3231_Disable_Alarm_Ints(ds3231_t *dev, ds3231_alarm_t alarms
     return DS3231_Set_Flag(dev, DS3231_ADDR_CONTROL, alarms, DS3231_CLEAR);
 }
 
+/**
+ * @brief Enable 32kHz output
+ */
 HAL_StatusTypeDef DS3231_Enable_32khz(ds3231_t *dev)
 {
     if (!dev)
@@ -302,6 +395,9 @@ HAL_StatusTypeDef DS3231_Enable_32khz(ds3231_t *dev)
     return DS3231_Set_Flag(dev, DS3231_ADDR_STATUS, DS3231_STAT_32KHZ, DS3231_SET);
 }
 
+/**
+ * @brief Disable 32kHz output
+ */
 HAL_StatusTypeDef DS3231_Disable_32khz(ds3231_t *dev)
 {
     if (!dev)
@@ -310,6 +406,9 @@ HAL_StatusTypeDef DS3231_Disable_32khz(ds3231_t *dev)
     return DS3231_Set_Flag(dev, DS3231_ADDR_STATUS, DS3231_STAT_32KHZ, DS3231_CLEAR);
 }
 
+/**
+ * @brief Enable squarewave output
+ */
 HAL_StatusTypeDef DS3231_Enable_Squarewave(ds3231_t *dev)
 {
     if (!dev)
@@ -318,6 +417,9 @@ HAL_StatusTypeDef DS3231_Enable_Squarewave(ds3231_t *dev)
     return DS3231_Set_Flag(dev, DS3231_ADDR_CONTROL, DS3231_CTRL_ALARM_INTS, DS3231_CLEAR);
 }
 
+/**
+ * @brief Disable squarewave output
+ */
 HAL_StatusTypeDef DS3231_Disable_Squarewave(ds3231_t *dev)
 {
     if (!dev)
@@ -326,6 +428,9 @@ HAL_StatusTypeDef DS3231_Disable_Squarewave(ds3231_t *dev)
     return DS3231_Set_Flag(dev, DS3231_ADDR_CONTROL, DS3231_CTRL_ALARM_INTS, DS3231_SET);
 }
 
+/**
+ * @brief Set squarewave frequency
+ */
 HAL_StatusTypeDef DS3231_Set_Squarewave_Freq(ds3231_t *dev, ds3231_sqwave_freq_t freq)
 {
     if (!dev)
@@ -342,6 +447,9 @@ HAL_StatusTypeDef DS3231_Set_Squarewave_Freq(ds3231_t *dev, ds3231_sqwave_freq_t
     return DS3231_Set_Flag(dev, DS3231_ADDR_CONTROL, flag, DS3231_REPLACE);
 }
 
+/**
+ * @brief Get squarewave frequency
+ */
 HAL_StatusTypeDef DS3231_Get_Squarewave_Freq(ds3231_t *dev, ds3231_sqwave_freq_t *freq)
 {
     if (!dev || !freq)
@@ -358,6 +466,9 @@ HAL_StatusTypeDef DS3231_Get_Squarewave_Freq(ds3231_t *dev, ds3231_sqwave_freq_t
     return res;
 }
 
+/**
+ * @brief Get raw temperature value
+ */
 HAL_StatusTypeDef DS3231_Get_Raw_Temp(ds3231_t *dev, int16_t *temp)
 {
     if (!dev || !temp)
@@ -371,6 +482,9 @@ HAL_StatusTypeDef DS3231_Get_Raw_Temp(ds3231_t *dev, int16_t *temp)
     return res;
 }
 
+/**
+ * @brief Get temperature as integer
+ */
 HAL_StatusTypeDef DS3231_Get_Temp_Integer(ds3231_t *dev, int8_t *temp)
 {
     if (!temp)
@@ -384,6 +498,9 @@ HAL_StatusTypeDef DS3231_Get_Temp_Integer(ds3231_t *dev, int8_t *temp)
     return res;
 }
 
+/**
+ * @brief Get temperature as float
+ */
 HAL_StatusTypeDef DS3231_Get_Temp_Float(ds3231_t *dev, float *temp)
 {
     if (!temp)
@@ -397,6 +514,9 @@ HAL_StatusTypeDef DS3231_Get_Temp_Float(ds3231_t *dev, float *temp)
     return res;
 }
 
+/**
+ * @brief Set aging offset
+ */
 HAL_StatusTypeDef DS3231_Set_Aging_Offset(ds3231_t *dev, int8_t age)
 {
     if (!dev)
@@ -411,6 +531,9 @@ HAL_StatusTypeDef DS3231_Set_Aging_Offset(ds3231_t *dev, int8_t age)
     return DS3231_Set_Flag(dev, DS3231_ADDR_CONTROL, DS3231_CTRL_TEMPCONV, DS3231_SET);
 }
 
+/**
+ * @brief Get aging offset
+ */
 HAL_StatusTypeDef DS3231_Get_Aging_Offset(ds3231_t *dev, int8_t *age)
 {
     if (!dev || !age)

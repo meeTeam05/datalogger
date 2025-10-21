@@ -4,8 +4,8 @@
  * @brief Header file for DS3231 RTC driver for STM32 using HAL
  */
 
-#ifndef __DS3231_H__
-#define __DS3231_H__
+#ifndef DS3231_H
+#define DS3231_H
 
 /* INCLUDES ------------------------------------------------------------------*/
 
@@ -45,12 +45,12 @@ typedef enum
  */
 typedef enum
 {
-    DS3231_ALARM1_EVERY_SECOND = 0,
-    DS3231_ALARM1_MATCH_SEC,
-    DS3231_ALARM1_MATCH_SECMIN,
-    DS3231_ALARM1_MATCH_SECMINHOUR,
-    DS3231_ALARM1_MATCH_SECMINHOURDAY,
-    DS3231_ALARM1_MATCH_SECMINHOURDATE
+    DS3231_ALARM1_EVERY_SECOND = 0,    // Every second
+    DS3231_ALARM1_MATCH_SEC,           // Match seconds
+    DS3231_ALARM1_MATCH_SECMIN,        // Match seconds and minutes
+    DS3231_ALARM1_MATCH_SECMINHOUR,    // Match seconds, minutes, and hours
+    DS3231_ALARM1_MATCH_SECMINHOURDAY, // Match seconds, minutes, hours, and day
+    DS3231_ALARM1_MATCH_SECMINHOURDATE // Match seconds, minutes, hours, and date
 } ds3231_alarm1_rate_t;
 
 /**
@@ -58,11 +58,11 @@ typedef enum
  */
 typedef enum
 {
-    DS3231_ALARM2_EVERY_MIN = 0,
-    DS3231_ALARM2_MATCH_MIN,
-    DS3231_ALARM2_MATCH_MINHOUR,
-    DS3231_ALARM2_MATCH_MINHOURDAY,
-    DS3231_ALARM2_MATCH_MINHOURDATE
+    DS3231_ALARM2_EVERY_MIN = 0,    // Every minute
+    DS3231_ALARM2_MATCH_MIN,        // Match minutes
+    DS3231_ALARM2_MATCH_MINHOUR,    // Match minutes and hours
+    DS3231_ALARM2_MATCH_MINHOURDAY, // Match minutes, hours, and day
+    DS3231_ALARM2_MATCH_MINHOURDATE // Match minutes, hours, and date
 } ds3231_alarm2_rate_t;
 
 /**
@@ -70,10 +70,10 @@ typedef enum
  */
 typedef enum
 {
-    DS3231_SQWAVE_1HZ = 0x00,
-    DS3231_SQWAVE_1024HZ = 0x08,
-    DS3231_SQWAVE_4096HZ = 0x10,
-    DS3231_SQWAVE_8192HZ = 0x18
+    DS3231_SQWAVE_1HZ = 0x00,    // 1 Hz
+    DS3231_SQWAVE_1024HZ = 0x08, // 1024 Hz
+    DS3231_SQWAVE_4096HZ = 0x10, // 4096 Hz
+    DS3231_SQWAVE_8192HZ = 0x18  // 8192 Hz
 } ds3231_sqwave_freq_t;
 
 /* VARIABLES -----------------------------------------------------------------*/
@@ -303,4 +303,4 @@ HAL_StatusTypeDef DS3231_Set_Aging_Offset(ds3231_t *dev, int8_t age);
  */
 HAL_StatusTypeDef DS3231_Get_Aging_Offset(ds3231_t *dev, int8_t *age);
 
-#endif /* __DS3231_H__ */
+#endif /* DS3231_H */

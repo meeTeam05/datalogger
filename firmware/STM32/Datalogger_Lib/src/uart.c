@@ -13,6 +13,7 @@
 
 /* VARIABLES -----------------------------------------------------------------*/
 
+// UART reception variables
 uint8_t data_rx;
 uint8_t buff[BUFFER_UART];
 uint8_t index_uart = 0;
@@ -21,6 +22,9 @@ ring_buffer_t uart_rx_rb; // Ring buffer for UART reception
 
 /* PUBLIC API ----------------------------------------------------------------*/
 
+/**
+ * @brief Initialize UART reception with interrupt and ring buffer
+ */
 void UART_Init(UART_HandleTypeDef *huart)
 {
 	index_uart = 0;
@@ -32,6 +36,9 @@ void UART_Init(UART_HandleTypeDef *huart)
 	HAL_UART_Receive_IT(huart, &data_rx, sizeof(data_rx));
 }
 
+/**
+ * @brief UART receive complete callback (called from HAL)
+ */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 	if (huart->Instance == huart1.Instance)
@@ -42,6 +49,9 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	}
 }
 
+/**
+ * @brief Handle UART data processing
+ */
 void UART_Handle(void)
 {
 	uint8_t received_byte;

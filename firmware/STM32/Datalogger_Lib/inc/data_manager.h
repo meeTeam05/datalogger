@@ -39,7 +39,7 @@ typedef struct
  */
 typedef struct
 {
-    data_manager_mode_t mode;    // Current measurement mode
+    data_manager_mode_t mode;  // Current measurement mode
     uint32_t timestamp;        // Unix timestamp from RTC
     sensor_data_sht3x_t sht3x; // SHT3X sensor data
     /* ... */                  // Placeholder for future sensors

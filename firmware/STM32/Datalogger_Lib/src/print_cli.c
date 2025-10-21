@@ -12,6 +12,9 @@
 
 /* PUBLIC API ----------------------------------------------------------------*/
 
+/**
+ * @brief Formatted print function over UART
+ */
 void PRINT_CLI(char *fmt, ...)
 {
 	char stringBuffer[BUFFER_PRINT];

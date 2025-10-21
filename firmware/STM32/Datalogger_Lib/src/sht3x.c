@@ -233,6 +233,9 @@ static SHT3X_StatusTypeDef SHT3X_ReadStatus(sht3x_t *dev, uint16_t *state_word)
 
 /* PUBLIC API ----------------------------------------------------------------*/
 
+/**
+ * @brief Initialize SHT3x device structure
+ */
 void SHT3X_Init(sht3x_t *dev, I2C_HandleTypeDef *hi2c, uint8_t addr7bit)
 {
 
@@ -284,6 +287,9 @@ void SHT3X_Init(sht3x_t *dev, I2C_HandleTypeDef *hi2c, uint8_t addr7bit)
 	HAL_Delay(1);
 }
 
+/**
+ * @brief De-initialize SHT3x device structure
+ */
 void SHT3X_DeInit(sht3x_t *dev)
 {
 	if (!dev || !dev->hi2c)
@@ -326,6 +332,9 @@ void SHT3X_DeInit(sht3x_t *dev)
 	dev->modeRepeat = SHT3X_HIGH;
 }
 
+/**
+ * @brief Enable or disable the heater on the SHT3x sensor
+ */
 SHT3X_StatusTypeDef SHT3X_Heater(sht3x_t *dev, const sht3x_heater_mode_t *modeHeater)
 {
 	if (!dev || !dev->hi2c || !modeHeater)
@@ -373,6 +382,9 @@ SHT3X_StatusTypeDef SHT3X_Heater(sht3x_t *dev, const sht3x_heater_mode_t *modeHe
 	return SHT3X_OK;
 }
 
+/**
+ * @brief Perform a single measurement on the SHT3x sensor
+ */
 SHT3X_StatusTypeDef SHT3X_Single(sht3x_t *dev, sht3x_repeat_t *modeRepeat, float *outT, float *outRH)
 {
 	// Initialize output to 0.0 (default for sensor failure)
@@ -398,11 +410,11 @@ SHT3X_StatusTypeDef SHT3X_Single(sht3x_t *dev, sht3x_repeat_t *modeRepeat, float
 		// Critical: Sensor needs minimum 10ms to stop periodic mode completely
 		// per SHT3X datasheet. Shorter delay causes unreliable single measurements.
 		HAL_Delay(10);
-		
+
 		// Clear any pending status to ensure clean state
 		SHT3X_Send_Command(dev, SHT3X_COMMAND_CLEAR_STATUS);
 		HAL_Delay(1);
-		
+
 		dev->currentState = SHT3X_IDLE;
 	}
 
@@ -449,12 +461,12 @@ SHT3X_StatusTypeDef SHT3X_Single(sht3x_t *dev, sht3x_repeat_t *modeRepeat, float
 		// Add delay after single measurement before restarting periodic
 		// This prevents race condition where sensor hasn't finished processing
 		HAL_Delay(5);
-		
+
 		// Clear status register before restarting periodic mode
 		// This ensures sensor is in clean state after single measurement
 		SHT3X_Send_Command(dev, SHT3X_COMMAND_CLEAR_STATUS);
 		HAL_Delay(1);
-		
+
 		// Restart periodic mode manually to avoid fetching stale data
 		// Don't use SHT3X_Periodic() which calls FetchData immediately
 		uint8_t row;
@@ -479,7 +491,7 @@ SHT3X_StatusTypeDef SHT3X_Single(sht3x_t *dev, sht3x_repeat_t *modeRepeat, float
 			dev->currentState = SHT3X_IDLE;
 			return SHT3X_OK; // Single measurement succeeded, just can't restart periodic
 		}
-		
+
 		// Send periodic command and update state
 		if (SHT3X_Send_Command(dev, SHT3X_MEASURE_CMD[row][savedRepeat]) == HAL_OK)
 		{
@@ -503,6 +515,9 @@ SHT3X_StatusTypeDef SHT3X_Single(sht3x_t *dev, sht3x_repeat_t *modeRepeat, float
 	return SHT3X_OK;
 }
 
+/**
+ * @brief Start periodic measurements on the SHT3x sensor
+ */
 SHT3X_StatusTypeDef SHT3X_Periodic(sht3x_t *dev, sht3x_mode_t *modePeriodic, sht3x_repeat_t *modeRepeat,
 								   float *outT, float *outRH)
 {
@@ -565,6 +580,9 @@ SHT3X_StatusTypeDef SHT3X_Periodic(sht3x_t *dev, sht3x_mode_t *modePeriodic, sht
 	return SHT3X_OK;
 }
 
+/**
+ * @brief Start ART mode on the SHT3x sensor
+ */
 SHT3X_StatusTypeDef SHT3X_ART(sht3x_t *dev)
 {
 	if (!dev || !dev->hi2c)
@@ -592,6 +610,9 @@ SHT3X_StatusTypeDef SHT3X_ART(sht3x_t *dev)
 	return SHT3X_OK;
 }
 
+/**
+ * @brief Stop periodic measurements on the SHT3x sensor
+ */
 SHT3X_StatusTypeDef SHT3X_Stop_Periodic(sht3x_t *dev)
 {
 	if (!dev || !dev->hi2c)
@@ -615,6 +636,9 @@ SHT3X_StatusTypeDef SHT3X_Stop_Periodic(sht3x_t *dev)
 	return SHT3X_OK;
 }
 
+/**
+ * @brief Fetch the latest measurement data from the SHT3x sensor in periodic mode
+ */
 void SHT3X_FetchData(sht3x_t *dev, float *outT, float *outRH)
 {
 	// Initialize output to 0.0 (default for sensor failure)

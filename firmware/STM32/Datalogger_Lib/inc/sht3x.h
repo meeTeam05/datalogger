@@ -4,8 +4,8 @@
  * @brief Header file for the SHT3x sensor driver
  */
 
-#ifndef __SHT3X_H
-#define __SHT3X_H
+#ifndef SHT3X_H
+#define SHT3X_H
 
 /* INCLUDES ------------------------------------------------------------------*/
 
@@ -180,4 +180,4 @@ SHT3X_StatusTypeDef SHT3X_Stop_Periodic(sht3x_t *dev);
  */
 void SHT3X_FetchData(sht3x_t *dev, float *outT, float *outRH);
 
-#endif /* __SHT3X_H__ */
+#endif /* SHT3X_H */

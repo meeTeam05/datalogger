@@ -44,15 +44,26 @@ static time_t get_unix_timestamp(void)
 
 /* PUBLIC API ----------------------------------------------------------------*/
 
-void sensor_json_output_send(const char *mode, float temperature, float humidity)
+/**
+ * @brief Formats sensor data into a JSON string and writes to provided buffer
+ */
+int sensor_json_format(char *buffer, size_t buffer_size,
+                       const char *mode, float temperature, float humidity,
+                       uint32_t timestamp)
 {
-    static char json_buffer[JSON_BUFFER_SIZE];
+    if (buffer == NULL || buffer_size == 0)
+    {
+        return -1;
+    }
 
-    // Get Unix timestamp from RTC
-    time_t timestamp = get_unix_timestamp();
+    // If timestamp is 0, get it from RTC
+    if (timestamp == 0)
+    {
+        timestamp = (uint32_t)get_unix_timestamp();
+    }
 
     // Format JSON string with strict format (no spaces, single line, \r\n at end)
-    int written = snprintf(json_buffer, JSON_BUFFER_SIZE,
+    int written = snprintf(buffer, buffer_size,
                            "{\"mode\":\"%s\",\"timestamp\":%lu,\"temperature\":%.2f,\"humidity\":%.2f}\r\n",
                            mode,
                            (unsigned long)timestamp,
@@ -60,7 +71,27 @@ void sensor_json_output_send(const char *mode, float temperature, float humidity
                            humidity);
 
     // Check for buffer overflow
-    if (written < 0 || written >= JSON_BUFFER_SIZE)
+    if (written < 0 || written >= (int)buffer_size)
+    {
+        return -1; // Buffer overflow
+    }
+
+    return written;
+}
+
+/**
+ * @brief Formats sensor data into a JSON string and prints it via UART
+ */
+void sensor_json_output_send(const char *mode, float temperature, float humidity)
+{
+    static char json_buffer[JSON_BUFFER_SIZE];
+
+    // Use the new format function
+    int written = sensor_json_format(json_buffer, JSON_BUFFER_SIZE,
+                                     mode, temperature, humidity, 0);
+
+    // Check for errors
+    if (written < 0)
     {
         // Buffer overflow detected, send error JSON instead
         PRINT_CLI((char *)ERROR_JSON);

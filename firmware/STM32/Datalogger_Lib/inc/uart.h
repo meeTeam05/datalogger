@@ -19,9 +19,13 @@
 
 /* EXTERNAL VARIABLES --------------------------------------------------------*/
 
+// Global UART handle (to be defined in main.c)
 extern UART_HandleTypeDef huart1;
 
+// Received data byte
 extern uint8_t data_rx;
+
+// Ring buffer for UART reception
 extern uint8_t buff[BUFFER_UART];
 extern uint8_t index_uart;
 extern uint8_t Flag_UART;
