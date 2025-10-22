@@ -16,4 +16,10 @@ menu "Hardware Pin Configuration"
     # Relay Control Configuration
     rsource "../components/relay_control/Kconfig"
 
+    # Button Handler Configuration
+    rsource "../components/button_handler/Kconfig"
+
+    # Status LED Configuration
+    rsource "../components/wifi_manager/Kconfig"
+
 endmenu

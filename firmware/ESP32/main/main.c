@@ -20,8 +20,13 @@
 #include "stm32_uart.h"
 #include "relay_control.h"
 #include "json_sensor_parser.h"
-#include "json_utils.h"  // JSON utility library
-#include "driver/gpio.h" // For WiFi LED indicator
+#include "json_utils.h"
+#include "button_handler.h"
+#include "driver/gpio.h"
+
+// Include hardware configuration from Kconfig
+#include "button_config.h"
+#include "led_config.h"
 
 #ifdef CONFIG_ENABLE_MQTT
 #include "mqtt_handler.h"
@@ -32,10 +37,6 @@
 #endif
 
 /* DEFINES ------------------------------------------------------------------*/
-
-// Status LED indicators
-#define WIFI_LED_GPIO 22
-#define MQTT_LED_GPIO 23
 
 #ifdef CONFIG_ENABLE_MQTT
 
@@ -73,11 +74,18 @@ static bool g_periodic_active = false;
 static bool g_device_on = false;
 static bool g_mqtt_reconnected = false; // Track MQTT reconnection events
 
+// Button state tracking
+static uint8_t g_interval_index = 0; // Current interval index (0-5)
+
 // WiFi/MQTT reconnection tracking
 static uint32_t g_last_wifi_retry_ms = 0;
 static bool g_wifi_disconnected_notified = false; // Track if STM32 was notified about disconnect
 static uint32_t g_wifi_reconnect_time_ms = 0;     // Track when WiFi reconnected
 static bool g_mqtt_started = false;               // Track if MQTT has been started (for boot stabilization)
+
+// Periodic interval values (in seconds)
+static const uint16_t INTERVAL_VALUES[] = {5, 30, 60, 600, 1800, 3600};
+static const uint8_t INTERVAL_COUNT = sizeof(INTERVAL_VALUES) / sizeof(INTERVAL_VALUES[0]);
 
 /* STATE SYNCHRONIZATION FUNCTIONS -------------------------------------------*/
 
@@ -437,6 +445,99 @@ static void on_wifi_event(wifi_state_t state, void *arg)
     }
 }
 
+/* BUTTON CALLBACK FUNCTIONS -------------------------------------------------*/
+
+/**
+ * @brief Button callback: Toggle relay ON/OFF
+ *
+ * @details GPIO_5: Toggles relay state and publishes system state to MQTT
+ */
+static void on_button_relay_pressed(gpio_num_t gpio_num)
+{
+    ESP_LOGI(TAG, "Button: Relay toggle");
+
+    // Toggle relay
+    bool new_state = !Relay_GetState(&relay_control);
+    Relay_SetState(&relay_control, new_state);
+
+    // Update global state immediately for button handlers
+    g_device_on = new_state;
+    if (!new_state)
+    {
+        g_periodic_active = false; // Force periodic OFF when device OFF
+    }
+
+    // State will be updated and published by on_relay_state_changed callback
+}
+
+/**
+ * @brief Button callback: Send SINGLE command
+ *
+ * @details GPIO_17: Sends SINGLE measurement command to STM32
+ */
+static void on_button_single_pressed(gpio_num_t gpio_num)
+{
+    // Only send if device is ON (relay active)
+    if (!g_device_on)
+    {
+        ESP_LOGW(TAG, "Button: SINGLE ignored (device OFF)");
+        return;
+    }
+
+    ESP_LOGI(TAG, "Button: SINGLE");
+    STM32_UART_SendCommand(&stm32_uart, "SINGLE");
+}
+
+/**
+ * @brief Button callback: Toggle PERIODIC ON/OFF
+ *
+ * @details GPIO_16: Toggles periodic mode and publishes system state to MQTT
+ */
+static void on_button_periodic_pressed(gpio_num_t gpio_num)
+{
+    // Only allow if device is ON (relay active)
+    if (!g_device_on)
+    {
+        ESP_LOGW(TAG, "Button: PERIODIC ignored (device OFF)");
+        return;
+    }
+
+    // Toggle periodic state (calculate new state WITHOUT modifying global yet)
+    bool new_periodic_state = !g_periodic_active;
+
+    const char *cmd = new_periodic_state ? "PERIODIC ON" : "PERIODIC OFF";
+    ESP_LOGI(TAG, "Button: %s", cmd);
+    STM32_UART_SendCommand(&stm32_uart, cmd);
+
+    // Update and publish state to MQTT (this will update g_periodic_active)
+    update_and_publish_state(g_device_on, new_periodic_state);
+}
+
+/**
+ * @brief Button callback: Cycle through interval values
+ *
+ * @details GPIO_4: Cycles through intervals: 5s -> 30s -> 60s -> 600s -> 1800s -> 3600s -> back to 5s
+ */
+static void on_button_interval_pressed(gpio_num_t gpio_num)
+{
+    // Only allow if device is ON (relay active)
+    if (!g_device_on)
+    {
+        ESP_LOGW(TAG, "Button: INTERVAL ignored (device OFF)");
+        return;
+    }
+
+    // Cycle to next interval
+    g_interval_index = (g_interval_index + 1) % INTERVAL_COUNT;
+    uint16_t interval = INTERVAL_VALUES[g_interval_index];
+
+    char cmd[32];
+    snprintf(cmd, sizeof(cmd), "SET PERIODIC INTERVAL %d", interval);
+
+    ESP_LOGI(TAG, "Button: Interval %ds", interval);
+    STM32_UART_SendCommand(&stm32_uart, cmd);
+}
+
 /* INITIALIZATION FUNCTIONS --------------------------------------------------*/
 
 /**
@@ -495,6 +596,38 @@ static bool initialize_components(void)
     g_device_on = Relay_GetState(&relay_control);
     g_periodic_active = false;
 
+    // Initialize button handlers
+    ESP_LOGI(TAG, "Initializing button handlers...");
+
+    if (!Button_Init(BUTTON_RELAY_GPIO, on_button_relay_pressed))
+    {
+        ESP_LOGE(TAG, "Failed to initialize relay button");
+        success = false;
+    }
+
+    if (!Button_Init(BUTTON_SINGLE_GPIO, on_button_single_pressed))
+    {
+        ESP_LOGE(TAG, "Failed to initialize single button");
+        success = false;
+    }
+
+    if (!Button_Init(BUTTON_PERIODIC_GPIO, on_button_periodic_pressed))
+    {
+        ESP_LOGE(TAG, "Failed to initialize periodic button");
+        success = false;
+    }
+
+    if (!Button_Init(BUTTON_INTERVAL_GPIO, on_button_interval_pressed))
+    {
+        ESP_LOGE(TAG, "Failed to initialize interval button");
+        success = false;
+    }
+
+    if (success)
+    {
+        ESP_LOGI(TAG, "All button handlers initialized");
+    }
+
     return success;
 }
 
@@ -513,6 +646,13 @@ static bool start_services(void)
     if (!STM32_UART_StartTask(&stm32_uart))
     {
         ESP_LOGE(TAG, "Failed to start STM32 UART task");
+        success = false;
+    }
+
+    // Start button handler task
+    if (!Button_StartTask())
+    {
+        ESP_LOGE(TAG, "Failed to start button handler task");
         success = false;
     }
 
