@@ -535,9 +535,12 @@
             padding: 0.75rem;
             text-align: center;
             font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--text-primary);
             cursor: pointer;
             transition: all 0.2s ease;
             border-radius: 0.25rem;
+            user-select: none;
         }
         
         .picker-item:hover {
@@ -3301,14 +3304,21 @@
             const minutePicker = document.getElementById('minutePicker');
             const secondPicker = document.getElementById('secondPicker');
             
-            if (!minutePicker || !secondPicker) return;
+            console.log('🔧 Initializing time picker...', { minutePicker, secondPicker, pickerInitialized });
+            
+            if (!minutePicker || !secondPicker) {
+                console.error('❌ Picker elements not found!');
+                return;
+            }
             
             if (pickerInitialized) {
+                console.log('✅ Picker already initialized, just scrolling...');
                 scrollToValue(minutePicker, selectedMinute);
                 scrollToValue(secondPicker, selectedSecond);
                 return;
             }
             
+            console.log('📝 Populating pickers...');
             minutePicker.innerHTML = "";
             secondPicker.innerHTML = "";
             
@@ -3339,11 +3349,17 @@
             secondPicker.addEventListener('scroll', handlePickerScroll);
             
             pickerInitialized = true;
+            console.log('✅ Pickers populated!', { 
+                minuteItems: minutePicker.children.length, 
+                secondItems: secondPicker.children.length 
+            });
             
             setTimeout(() => {
                 scrollToValue(minutePicker, selectedMinute);
                 scrollToValue(secondPicker, selectedSecond);
-            }, 50);
+                updatePickerSelection();
+                console.log('✅ Scrolled to initial values:', { selectedMinute, selectedSecond });
+            }, 150);
         }
         
         function createPickerItem(value, isPadding, type) {
