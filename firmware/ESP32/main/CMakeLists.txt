@@ -11,6 +11,7 @@ idf_component_register(
         relay_control
         json_sensor_parser
         json_utils
+        button_handler
         esp_wifi
         esp_netif
         nvs_flash
