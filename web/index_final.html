@@ -935,12 +935,168 @@
             
             <!-- Data Management Page -->
             <section class="page-section" id="page-data">
+                <!-- Statistics Summary -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <div class="card-header">
+                        <i data-feather="bar-chart-2"></i>
+                        Data Statistics
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-top: 1rem;">
+                        <div style="text-align: center;">
+                            <div style="font-size: 0.875rem; color: var(--text-muted);">Total Readings</div>
+                            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary);" id="statsTotal">0</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 0.875rem; color: var(--text-muted);">Success Rate</div>
+                            <div style="font-size: 1.5rem; font-weight: 700; color: var(--success);" id="statsSuccess">--</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 0.875rem; color: var(--text-muted);">Avg Temperature</div>
+                            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary);" id="statsAvgTemp">--</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 0.875rem; color: var(--text-muted);">Avg Humidity</div>
+                            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary);" id="statsAvgHumi">--</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Advanced Filters -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <div class="card-header">
+                        <i data-feather="filter"></i>
+                        Advanced Filters
+                    </div>
+                    
+                    <!-- Row 1: Date Range -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">From Date:</label>
+                            <input type="date" class="form-input" id="filterDateFrom">
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">To Date:</label>
+                            <input type="date" class="form-input" id="filterDateTo">
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; align-items: end;">
+                            <button class="btn btn-secondary" onclick="setQuickFilter('today')">Today</button>
+                            <button class="btn btn-secondary" onclick="setQuickFilter('week')">This Week</button>
+                            <button class="btn btn-secondary" onclick="setQuickFilter('month')">This Month</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Row 2: Filters -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Mode:</label>
+                            <select class="form-input" id="filterMode">
+                                <option value="">All Modes</option>
+                                <option value="periodic">Periodic</option>
+                                <option value="single">Single</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Status:</label>
+                            <select class="form-input" id="filterStatus">
+                                <option value="">All Status</option>
+                                <option value="success">Success Only</option>
+                                <option value="error">Error Only</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Sort By:</label>
+                            <select class="form-input" id="filterSort">
+                                <option value="time-desc">Time (Newest First)</option>
+                                <option value="time-asc">Time (Oldest First)</option>
+                                <option value="temp-desc">Temperature (High to Low)</option>
+                                <option value="temp-asc">Temperature (Low to High)</option>
+                                <option value="humi-desc">Humidity (High to Low)</option>
+                                <option value="humi-asc">Humidity (Low to High)</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Row 3: Value Ranges -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div style="display: flex; gap: 0.5rem; align-items: end;">
+                            <div class="form-group" style="margin: 0; flex: 1;">
+                                <label class="form-label">Temp Min (°C):</label>
+                                <input type="number" class="form-input" id="filterTempMin" placeholder="Min" step="0.1">
+                            </div>
+                            <span style="padding-bottom: 0.75rem;">to</span>
+                            <div class="form-group" style="margin: 0; flex: 1;">
+                                <label class="form-label">Temp Max (°C):</label>
+                                <input type="number" class="form-input" id="filterTempMax" placeholder="Max" step="0.1">
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; align-items: end;">
+                            <div class="form-group" style="margin: 0; flex: 1;">
+                                <label class="form-label">Humidity Min (%):</label>
+                                <input type="number" class="form-input" id="filterHumiMin" placeholder="Min" step="0.1">
+                            </div>
+                            <span style="padding-bottom: 0.75rem;">to</span>
+                            <div class="form-group" style="margin: 0; flex: 1;">
+                                <label class="form-label">Humidity Max (%):</label>
+                                <input type="number" class="form-input" id="filterHumiMax" placeholder="Max" step="0.1">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div style="display: flex; gap: 1rem;">
+                        <button class="btn btn-primary" id="applyFiltersBtn">
+                            <i data-feather="search"></i>
+                            Apply Filters
+                        </button>
+                        <button class="btn btn-secondary" id="resetFiltersBtn">
+                            <i data-feather="refresh-cw"></i>
+                            Reset
+                        </button>
+                        <div style="flex: 1;"></div>
+                        <button class="btn btn-secondary" id="exportDataBtn">
+                            <i data-feather="download"></i>
+                            Export Filtered Data
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Data Table -->
                 <div class="card">
                     <div class="card-header">
                         <i data-feather="database"></i>
-                        Data Management
+                        Data Records
                     </div>
-                    <p style="color: var(--text-muted); margin-bottom: 1rem;">Advanced filtering and export will be implemented here</p>
+                    
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="background-color: var(--bg-tertiary); border-bottom: 2px solid var(--primary);">
+                                    <th style="padding: 0.75rem; text-align: left; font-weight: 600;">#</th>
+                                    <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Date & Time</th>
+                                    <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Temp (°C)</th>
+                                    <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Humidity (%)</th>
+                                    <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Mode</th>
+                                    <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dataManagementTable">
+                                <tr>
+                                    <td colspan="6" style="padding: 2rem; text-align: center; color: var(--text-muted);">
+                                        No data loaded. Click "Apply Filters" to load data from Firebase.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div style="margin-top: 1rem; display: flex; justify-content: space-between; align-items: center;">
+                        <div style="color: var(--text-muted); font-size: 0.875rem;">
+                            Showing <span id="dataManagementCount">0</span> entries
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-secondary" id="loadMoreBtn" style="display: none;">Load More</button>
+                        </div>
+                    </div>
                 </div>
             </section>
             
@@ -2172,6 +2328,254 @@
         
         // Update time display every second
         setInterval(updateTimeDisplay, 1000);
+        
+        // ====================================================================
+        // DATA MANAGEMENT
+        // ====================================================================
+        let filteredDataCache = [];
+        
+        function setQuickFilter(type) {
+            const today = new Date();
+            const to = today.toISOString().split('T')[0];
+            let from;
+            
+            if (type === 'today') {
+                from = to;
+            } else if (type === 'week') {
+                const weekAgo = new Date(today);
+                weekAgo.setDate(weekAgo.getDate() - 7);
+                from = weekAgo.toISOString().split('T')[0];
+            } else if (type === 'month') {
+                const monthAgo = new Date(today);
+                monthAgo.setMonth(monthAgo.getMonth() - 1);
+                from = monthAgo.toISOString().split('T')[0];
+            }
+            
+            document.getElementById('filterDateFrom').value = from;
+            document.getElementById('filterDateTo').value = to;
+        }
+        
+        function getDateRange(startDate, endDate) {
+            const dates = [];
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            
+            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                dates.push(d.toISOString().split('T')[0]);
+            }
+            
+            return dates;
+        }
+        
+        function applyDataFilters() {
+            if (!isFirebaseConnected || !firebaseDb) {
+                addStatus('Firebase not connected', 'ERROR');
+                return;
+            }
+            
+            const filters = {
+                dateFrom: document.getElementById('filterDateFrom').value || '2024-01-01',
+                dateTo: document.getElementById('filterDateTo').value || new Date().toISOString().split('T')[0],
+                mode: document.getElementById('filterMode').value,
+                status: document.getElementById('filterStatus').value,
+                tempMin: parseFloat(document.getElementById('filterTempMin').value) || -Infinity,
+                tempMax: parseFloat(document.getElementById('filterTempMax').value) || Infinity,
+                humiMin: parseFloat(document.getElementById('filterHumiMin').value) || -Infinity,
+                humiMax: parseFloat(document.getElementById('filterHumiMax').value) || Infinity,
+                sortBy: document.getElementById('filterSort').value
+            };
+            
+            addStatus('Loading filtered data from Firebase...', 'INFO');
+            
+            const dateRange = getDateRange(filters.dateFrom, filters.dateTo);
+            let allData = [];
+            
+            const promises = dateRange.map(date => {
+                return firebaseDb.ref(`readings/${date}`)
+                    .once('value')
+                    .then(snapshot => {
+                        const dayData = snapshot.val() || {};
+                        return Object.entries(dayData).map(([id, record]) => ({
+                            id,
+                            date,
+                            ...record
+                        }));
+                    })
+                    .catch(err => {
+                        console.error(`Error loading ${date}:`, err);
+                        return [];
+                    });
+            });
+            
+            Promise.all(promises).then(results => {
+                allData = results.flat();
+                
+                // Apply filters
+                let filtered = allData.filter(record => {
+                    if (filters.mode && record.mode !== filters.mode) return false;
+                    if (filters.status && record.status !== filters.status) return false;
+                    if (record.temp < filters.tempMin || record.temp > filters.tempMax) return false;
+                    if (record.humi < filters.humiMin || record.humi > filters.humiMax) return false;
+                    return true;
+                });
+                
+                // Apply sorting
+                filtered = applySorting(filtered, filters.sortBy);
+                
+                // Cache and render
+                filteredDataCache = filtered;
+                renderDataManagementTable(filtered);
+                updateDataStatistics(filtered);
+                
+                addStatus(`Loaded ${filtered.length} records from ${allData.length} total`, 'INFO');
+            }).catch(err => {
+                addStatus(`Load error: ${err.message}`, 'ERROR');
+            });
+        }
+        
+        function applySorting(data, sortBy) {
+            const [field, order] = sortBy.split('-');
+            
+            return data.sort((a, b) => {
+                let valA, valB;
+                
+                if (field === 'time') {
+                    valA = a.created_at;
+                    valB = b.created_at;
+                } else if (field === 'temp') {
+                    valA = a.temp;
+                    valB = b.temp;
+                } else if (field === 'humi') {
+                    valA = a.humi;
+                    valB = b.humi;
+                }
+                
+                return order === 'asc' ? valA - valB : valB - valA;
+            });
+        }
+        
+        function renderDataManagementTable(data) {
+            const tbody = document.getElementById('dataManagementTable');
+            
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="padding: 2rem; text-align: center; color: var(--text-muted);">No matching data found</td></tr>';
+                document.getElementById('dataManagementCount').textContent = '0';
+                return;
+            }
+            
+            tbody.innerHTML = data.map((record, idx) => {
+                const date = new Date(record.created_at);
+                const dateStr = date.toLocaleDateString();
+                const timeStr = date.toLocaleTimeString('en-US', {hour12: false});
+                const statusClass = record.status === 'success' ? 'connected' : 'disconnected';
+                const statusText = record.status === 'success' ? '✅ Success' : '❌ Error';
+                
+                return `
+                    <tr style="border-bottom: 1px solid var(--border-color);">
+                        <td style="padding: 0.75rem;">${idx + 1}</td>
+                        <td style="padding: 0.75rem;">${dateStr} ${timeStr}</td>
+                        <td style="padding: 0.75rem;">${record.temp?.toFixed(1) || '--'}</td>
+                        <td style="padding: 0.75rem;">${record.humi?.toFixed(1) || '--'}</td>
+                        <td style="padding: 0.75rem; text-transform: capitalize;">${record.mode || '--'}</td>
+                        <td style="padding: 0.75rem;">
+                            <span class="status-badge ${statusClass}" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">
+                                ${statusText}
+                            </span>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            
+            document.getElementById('dataManagementCount').textContent = data.length;
+            
+            if (typeof feather !== 'undefined') feather.replace();
+        }
+        
+        function updateDataStatistics(data) {
+            if (!data || data.length === 0) {
+                document.getElementById('statsTotal').textContent = '0';
+                document.getElementById('statsSuccess').textContent = '--';
+                document.getElementById('statsAvgTemp').textContent = '--';
+                document.getElementById('statsAvgHumi').textContent = '--';
+                return;
+            }
+            
+            const successCount = data.filter(d => d.status === 'success').length;
+            const successRate = ((successCount / data.length) * 100).toFixed(1);
+            
+            const temps = data.filter(d => d.temp !== null && d.temp !== 0).map(d => d.temp);
+            const humis = data.filter(d => d.humi !== null && d.humi !== 0).map(d => d.humi);
+            
+            const avgTemp = temps.length > 0 ? (temps.reduce((a, b) => a + b, 0) / temps.length).toFixed(1) : '--';
+            const avgHumi = humis.length > 0 ? (humis.reduce((a, b) => a + b, 0) / humis.length).toFixed(1) : '--';
+            
+            document.getElementById('statsTotal').textContent = data.length;
+            document.getElementById('statsSuccess').textContent = successRate + '%';
+            document.getElementById('statsAvgTemp').textContent = avgTemp + (avgTemp !== '--' ? '°C' : '');
+            document.getElementById('statsAvgHumi').textContent = avgHumi + (avgHumi !== '--' ? '%' : '');
+        }
+        
+        function exportFilteredData() {
+            if (!filteredDataCache || filteredDataCache.length === 0) {
+                addStatus('No data to export. Apply filters first.', 'WARNING');
+                return;
+            }
+            
+            const headers = ['#', 'Date', 'Time', 'Temperature (°C)', 'Humidity (%)', 'Mode', 'Status', 'Sensor', 'Device'];
+            const rows = filteredDataCache.map((record, idx) => {
+                const date = new Date(record.created_at);
+                return [
+                    idx + 1,
+                    date.toLocaleDateString(),
+                    date.toLocaleTimeString('en-US', {hour12: false}),
+                    record.temp,
+                    record.humi,
+                    record.mode,
+                    record.status,
+                    record.sensor || 'SHT31',
+                    record.device || 'ESP32_01'
+                ];
+            });
+            
+            const csv = [
+                headers.join(','),
+                ...rows.map(row => row.join(','))
+            ].join('\n');
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `datalogger_export_${Date.now()}.csv`;
+            a.click();
+            
+            addStatus(`Exported ${filteredDataCache.length} records to CSV`, 'INFO');
+        }
+        
+        function resetDataFilters() {
+            document.getElementById('filterDateFrom').value = '';
+            document.getElementById('filterDateTo').value = '';
+            document.getElementById('filterMode').value = '';
+            document.getElementById('filterStatus').value = '';
+            document.getElementById('filterTempMin').value = '';
+            document.getElementById('filterTempMax').value = '';
+            document.getElementById('filterHumiMin').value = '';
+            document.getElementById('filterHumiMax').value = '';
+            document.getElementById('filterSort').value = 'time-desc';
+            
+            filteredDataCache = [];
+            
+            document.getElementById('dataManagementTable').innerHTML = '<tr><td colspan="6" style="padding: 2rem; text-align: center; color: var(--text-muted);">No data loaded. Click "Apply Filters" to load data from Firebase.</td></tr>';
+            document.getElementById('dataManagementCount').textContent = '0';
+            
+            updateDataStatistics([]);
+            
+            addStatus('Filters reset', 'INFO');
+        }
+        
+        document.getElementById('applyFiltersBtn')?.addEventListener('click', applyDataFilters);
+        document.getElementById('resetFiltersBtn')?.addEventListener('click', resetDataFilters);
+        document.getElementById('exportDataBtn')?.addEventListener('click', exportFilteredData);
         
         // ====================================================================
         // INTERVAL PICKER
