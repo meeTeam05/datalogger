@@ -12,7 +12,7 @@
 #include <inttypes.h>
 #include <math.h>
 
-/* PUBLIC API IMPLEMENTATION -------------------------------------------------*/
+/* PUBLIC API  ---------------------------------------------------------------*/
 
 /**
  * @brief Create JSON sensor data message
