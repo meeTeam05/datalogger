@@ -1,0 +1,1929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DataLogger Monitor - Final</title>
+    
+    <!-- TailwindCSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Feather Icons -->
+    <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    
+    <!-- MQTT & Firebase -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        /* Cyan/Aqua & White Theme */
+        :root {
+            /* Primary Colors */
+            --primary: #06B6D4;
+            --primary-light: #22D3EE;
+            --primary-dark: #0891B2;
+            
+            /* Backgrounds */
+            --bg-primary: #F0F9FF;
+            --bg-secondary: #FFFFFF;
+            --bg-tertiary: #ECFEFF;
+            
+            /* Text */
+            --text-primary: #0C4A6E;
+            --text-secondary: #164E63;
+            --text-muted: #0E7490;
+            
+            /* Status Colors */
+            --success: #10B981;
+            --error: #EF4444;
+            --warning: #F59E0B;
+            --info: #3B82F6;
+            
+            /* Neutrals */
+            --gray-50: #F8FAFC;
+            --gray-200: #E2E8F0;
+            --gray-400: #94A3B8;
+            --gray-600: #475569;
+            --gray-900: #0F172A;
+            
+            --border-color: #BAE6FD;
+            --shadow-color: rgba(6, 182, 212, 0.1);
+        }
+        
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-primary: #0F172A;
+                --bg-secondary: #1E293B;
+                --bg-tertiary: #334155;
+                --text-primary: #F1F5F9;
+                --text-secondary: #E2E8F0;
+                --text-muted: #CBD5E1;
+                --border-color: #334155;
+                --shadow-color: rgba(6, 182, 212, 0.2);
+            }
+        }
+        
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 260px;
+            background-color: var(--bg-secondary);
+            border-right: 2px solid var(--primary);
+            overflow-y: auto;
+            z-index: 50;
+            box-shadow: 2px 0 10px var(--shadow-color);
+        }
+        
+        .sidebar-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            background: linear-gradient(135deg, var(--primary-light), var(--primary));
+        }
+        
+        .sidebar-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .menu-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.875rem 1.5rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-left: 3px solid transparent;
+        }
+        
+        .menu-item:hover {
+            background-color: var(--bg-tertiary);
+            color: var(--primary);
+        }
+        
+        .menu-item.active {
+            background-color: var(--bg-tertiary);
+            color: var(--primary);
+            border-left-color: var(--primary);
+            font-weight: 600;
+        }
+        
+        .menu-icon {
+            width: 20px;
+            height: 20px;
+            stroke: currentColor;
+        }
+        
+        /* Main Content */
+        .content-area {
+            margin-left: 260px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--bg-tertiary), var(--bg-secondary));
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 8px var(--shadow-color);
+            position: sticky;
+            top: 0;
+            z-index: 40;
+        }
+        
+        .header-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        
+        .header-status {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            border: 1px solid var(--border-color);
+        }
+        
+        .status-badge.connected {
+            background-color: #DCFCE7;
+            color: #166534;
+            border-color: #86EFAC;
+        }
+        
+        .status-badge.disconnected {
+            background-color: #FEE2E2;
+            color: #991B1B;
+            border-color: #FCA5A5;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-dot.connected {
+            background-color: #22C55E;
+        }
+        
+        .status-dot.disconnected {
+            background-color: #EF4444;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* Main Content Area */
+        .main-content {
+            flex: 1;
+            padding: 2rem;
+        }
+        
+        .page-section {
+            display: none;
+        }
+        
+        .page-section.active {
+            display: block;
+        }
+        
+        /* Card Styles */
+        .card {
+            background-color: var(--bg-secondary);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: 0 4px 12px var(--shadow-color);
+            border: 1px solid var(--border-color);
+        }
+        
+        .card-header {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        /* Button Styles */
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px var(--shadow-color);
+        }
+        
+        .btn-secondary {
+            background-color: var(--bg-tertiary);
+            color: var(--primary);
+            border: 1px solid var(--primary);
+        }
+        
+        .btn-secondary:hover {
+            background-color: var(--primary);
+            color: white;
+        }
+        
+        .btn-danger {
+            background-color: var(--error);
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background-color: #DC2626;
+        }
+        
+        .btn-success {
+            background-color: var(--success);
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background-color: #059669;
+        }
+        
+        /* Dashboard Grid */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .action-buttons {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+        }
+        
+        /* Current Reading */
+        .current-reading {
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .reading-values {
+            display: flex;
+            justify-content: center;
+            gap: 3rem;
+            margin-top: 1rem;
+        }
+        
+        .reading-value {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .reading-number {
+            font-size: 3rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        
+        .reading-unit {
+            font-size: 1rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+        
+        .reading-time {
+            margin-top: 1rem;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+        
+        /* Console */
+        .console {
+            background-color: var(--gray-900);
+            color: #22C55E;
+            font-family: 'Courier New', monospace;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 0.875rem;
+        }
+        
+        .log-line {
+            margin-bottom: 0.25rem;
+        }
+        
+        .log-info { color: #3B82F6; }
+        .log-warning { color: #F59E0B; }
+        .log-error { color: #EF4444; }
+        .log-mqtt { color: #8B5CF6; }
+        .log-firebase { color: #F97316; }
+        .log-sync { color: #06B6D4; }
+        
+        /* Charts */
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-top: 1rem;
+        }
+        
+        .chart-stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-color);
+        }
+        
+        .chart-stat {
+            text-align: center;
+        }
+        
+        .chart-stat-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        
+        .chart-stat-value {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--primary);
+        }
+        
+        /* Footer */
+        .footer {
+            background-color: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+            padding: 0.75rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+            position: sticky;
+            bottom: 0;
+            z-index: 30;
+        }
+        
+        .footer-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background-color: var(--bg-secondary);
+            border-radius: 0.75rem;
+            padding: 2rem;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        
+        .modal-header {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        .form-label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: var(--text-secondary);
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--shadow-color);
+        }
+        
+        .modal-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            margin-top: 1.5rem;
+        }
+        
+        /* Picker Styles */
+        .picker-scroll {
+            scrollbar-width: thin;
+            scrollbar-color: var(--primary) var(--bg-primary);
+        }
+        
+        .picker-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .picker-scroll::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+        
+        .picker-scroll::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 3px;
+        }
+        
+        .picker-item {
+            padding: 0.75rem;
+            text-align: center;
+            font-size: 1.125rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-radius: 0.25rem;
+        }
+        
+        .picker-item:hover {
+            background-color: var(--bg-tertiary);
+        }
+        
+        .picker-item.selected {
+            background-color: var(--primary);
+            color: white;
+            font-weight: 700;
+            transform: scale(1.1);
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 60px;
+            }
+            
+            .sidebar-header {
+                padding: 1rem;
+            }
+            
+            .sidebar-title {
+                font-size: 0;
+            }
+            
+            .menu-text {
+                display: none;
+            }
+            
+            .content-area {
+                margin-left: 60px;
+            }
+            
+            .action-buttons {
+                grid-template-columns: 1fr;
+            }
+            
+            .reading-values {
+                flex-direction: column;
+                gap: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar Navigation -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-title">
+                <i data-feather="activity"></i>
+                <span>DataLogger</span>
+            </div>
+        </div>
+        
+        <nav class="menu">
+            <div class="menu-item active" data-page="dashboard">
+                <i data-feather="grid" class="menu-icon"></i>
+                <span class="menu-text">Dashboard</span>
+            </div>
+            <div class="menu-item" data-page="livedata">
+                <i data-feather="radio" class="menu-icon"></i>
+                <span class="menu-text">Live Data</span>
+            </div>
+            <div class="menu-item" data-page="settings">
+                <i data-feather="sliders" class="menu-icon"></i>
+                <span class="menu-text">Device Settings</span>
+            </div>
+            <div class="menu-item" data-page="time">
+                <i data-feather="clock" class="menu-icon"></i>
+                <span class="menu-text">Time Settings</span>
+            </div>
+            <div class="menu-item" data-page="data">
+                <i data-feather="database" class="menu-icon"></i>
+                <span class="menu-text">Data Management</span>
+            </div>
+            <div class="menu-item" data-page="logs">
+                <i data-feather="file-text" class="menu-icon"></i>
+                <span class="menu-text">Logs</span>
+            </div>
+            <div class="menu-item" data-page="config">
+                <i data-feather="settings" class="menu-icon"></i>
+                <span class="menu-text">Settings</span>
+            </div>
+        </nav>
+    </div>
+    
+    <!-- Main Content Area -->
+    <div class="content-area">
+        <!-- Header -->
+        <header class="header">
+            <h1 class="header-title">DataLogger Monitor</h1>
+            <div class="header-status">
+                <div class="status-badge disconnected" id="mqttStatus">
+                    <span class="status-dot disconnected" id="mqttDot"></span>
+                    <span id="mqttText">MQTT Disconnected</span>
+                </div>
+                <div class="status-badge disconnected" id="firebaseStatus">
+                    <span class="status-dot disconnected" id="firebaseDot"></span>
+                    <span id="firebaseText">Firebase Disconnected</span>
+                </div>
+                <button class="btn btn-secondary" id="settingsBtn">
+                    <i data-feather="settings"></i>
+                </button>
+            </div>
+        </header>
+        
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Dashboard Page -->
+            <section class="page-section active" id="page-dashboard">
+                <!-- Quick Action Buttons -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <div class="card-header">
+                        <i data-feather="zap"></i>
+                        Quick Actions
+                    </div>
+                    <div class="action-buttons">
+                        <button class="btn btn-primary" id="deviceBtn">
+                            <i data-feather="power"></i>
+                            <span id="deviceBtnText">Device ON</span>
+                        </button>
+                        <button class="btn btn-success" id="periodicBtn">
+                            <i data-feather="repeat"></i>
+                            <span id="periodicBtnText">Start Periodic</span>
+                        </button>
+                        <button class="btn btn-primary" id="singleBtn">
+                            <i data-feather="thermometer"></i>
+                            Single Read
+                        </button>
+                        <button class="btn btn-secondary" id="intervalBtn">
+                            <i data-feather="clock"></i>
+                            Interval
+                        </button>
+                        <button class="btn btn-secondary" id="loadHistoryBtn">
+                            <i data-feather="download"></i>
+                            Load History
+                        </button>
+                        <button class="btn btn-secondary" id="clearChartsBtn">
+                            <i data-feather="trash-2"></i>
+                            Clear Charts
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Current Reading Card -->
+                <div class="card current-reading" style="margin-bottom: 1.5rem;">
+                    <div class="card-header">
+                        <i data-feather="activity"></i>
+                        Current Reading
+                    </div>
+                    <div class="reading-time" id="lastUpdate">
+                        Updated at --:--:--
+                    </div>
+                    <div class="reading-values">
+                        <div class="reading-value">
+                            <div class="reading-number" id="currentTemp">--</div>
+                            <div class="reading-unit">°C</div>
+                        </div>
+                        <div class="reading-value">
+                            <div class="reading-number" id="currentHumi">--</div>
+                            <div class="reading-unit">%</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- System Console -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <div class="card-header">
+                        <i data-feather="terminal"></i>
+                        System Console (Last 5 logs)
+                    </div>
+                    <div class="console" id="consolePreview"></div>
+                </div>
+                
+                <!-- Charts -->
+                <div class="dashboard-grid">
+                    <div class="card">
+                        <div class="card-header">
+                            <i data-feather="trending-up"></i>
+                            Temperature (°C)
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="tempChart"></canvas>
+                        </div>
+                        <div class="chart-stats">
+                            <div class="chart-stat">
+                                <div class="chart-stat-label">Min</div>
+                                <div class="chart-stat-value" id="tempMin">--</div>
+                            </div>
+                            <div class="chart-stat">
+                                <div class="chart-stat-label">Max</div>
+                                <div class="chart-stat-value" id="tempMax">--</div>
+                            </div>
+                            <div class="chart-stat">
+                                <div class="chart-stat-label">Avg</div>
+                                <div class="chart-stat-value" id="tempAvg">--</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <i data-feather="droplet"></i>
+                            Humidity (%)
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="humiChart"></canvas>
+                        </div>
+                        <div class="chart-stats">
+                            <div class="chart-stat">
+                                <div class="chart-stat-label">Min</div>
+                                <div class="chart-stat-value" id="humiMin">--</div>
+                            </div>
+                            <div class="chart-stat">
+                                <div class="chart-stat-label">Max</div>
+                                <div class="chart-stat-value" id="humiMax">--</div>
+                            </div>
+                            <div class="chart-stat">
+                                <div class="chart-stat-label">Avg</div>
+                                <div class="chart-stat-value" id="humiAvg">--</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Live Data Page -->
+            <section class="page-section" id="page-livedata">
+                <div class="card">
+                    <div class="card-header">
+                        <i data-feather="radio"></i>
+                        Live Data Stream
+                    </div>
+                    <p style="color: var(--text-muted); margin-bottom: 1rem;">Real-time data table will be implemented here</p>
+                </div>
+            </section>
+            
+            <!-- Device Settings Page -->
+            <section class="page-section" id="page-settings">
+                <div class="card">
+                    <div class="card-header">
+                        <i data-feather="sliders"></i>
+                        Device Component Health
+                    </div>
+                    <p style="color: var(--text-muted); margin-bottom: 1rem;">Component health monitoring will be implemented here</p>
+                </div>
+            </section>
+            
+            <!-- Time Settings Page -->
+            <section class="page-section" id="page-time">
+                <div class="card">
+                    <div class="card-header">
+                        <i data-feather="clock"></i>
+                        Time Configuration
+                    </div>
+                    <p style="color: var(--text-muted); margin-bottom: 1rem;">Time picker will be implemented here</p>
+                </div>
+            </section>
+            
+            <!-- Data Management Page -->
+            <section class="page-section" id="page-data">
+                <div class="card">
+                    <div class="card-header">
+                        <i data-feather="database"></i>
+                        Data Management
+                    </div>
+                    <p style="color: var(--text-muted); margin-bottom: 1rem;">Advanced filtering and export will be implemented here</p>
+                </div>
+            </section>
+            
+            <!-- Logs Page -->
+            <section class="page-section" id="page-logs">
+                <div class="card">
+                    <div class="card-header">
+                        <i data-feather="file-text"></i>
+                        System Logs
+                    </div>
+                    <div class="console" id="consoleFull" style="max-height: 600px;"></div>
+                </div>
+            </section>
+            
+            <!-- Config/Settings Page -->
+            <section class="page-section" id="page-config">
+                <div class="card">
+                    <div class="card-header">
+                        <i data-feather="settings"></i>
+                        System Configuration
+                    </div>
+                    <p style="color: var(--text-muted); margin-bottom: 1rem;">Settings page will be implemented here</p>
+                </div>
+            </section>
+        </main>
+        
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-item">
+                <i data-feather="clock" style="width: 16px; height: 16px;"></i>
+                System Time: <strong id="footerTime">--:--:--</strong>
+            </div>
+            <div class="footer-item">
+                © 2025 DataLogger System
+            </div>
+        </footer>
+    </div>
+    
+    <!-- Interval Modal -->
+    <div class="modal" id="intervalModal">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">Set Periodic Interval</div>
+            <p style="text-align: center; color: var(--text-muted); margin-bottom: 1.5rem;">Select measurement interval</p>
+            
+            <div style="display: flex; gap: 2rem; justify-content: center; margin-bottom: 2rem;">
+                <div style="text-align: center;">
+                    <div style="font-weight: 600; margin-bottom: 0.5rem; color: var(--text-secondary);">Minutes</div>
+                    <div class="picker-scroll" id="minutePicker" style="height: 200px; overflow-y: auto; border: 2px solid var(--primary); border-radius: 0.5rem; padding: 0.5rem; background: var(--bg-primary);"></div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-weight: 600; margin-bottom: 0.5rem; color: var(--text-secondary);">Seconds</div>
+                    <div class="picker-scroll" id="secondPicker" style="height: 200px; overflow-y: auto; border: 2px solid var(--primary); border-radius: 0.5rem; padding: 0.5rem; background: var(--bg-primary);"></div>
+                </div>
+            </div>
+            
+            <div class="modal-buttons">
+                <button class="btn btn-secondary" id="intervalCancelBtn">Cancel</button>
+                <button class="btn btn-primary" id="intervalSetBtn">Set Interval</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Configuration Modal -->
+    <div class="modal" id="configModal">
+        <div class="modal-content">
+            <div class="modal-header">Configuration Settings</div>
+            
+            <h3 style="font-size: 1.125rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 1rem; color: var(--primary);">MQTT Broker Configuration</h3>
+            
+            <div class="form-group">
+                <label class="form-label">IP Address:</label>
+                <input type="text" class="form-input" id="mqttIp" value="127.0.0.1" placeholder="192.168.1.100">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">WebSocket Port:</label>
+                <input type="text" class="form-input" id="mqttPort" value="8083" placeholder="8083">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">WebSocket Path:</label>
+                <input type="text" class="form-input" id="mqttPath" value="/mqtt" placeholder="/mqtt">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Username:</label>
+                <input type="text" class="form-input" id="mqttUser" value="DataLogger" placeholder="Required by broker">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Password (optional):</label>
+                <input type="password" class="form-input" id="mqttPass" placeholder="Leave empty if no password">
+            </div>
+            
+            <h3 style="font-size: 1.125rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 1rem; color: var(--primary);">Firebase Configuration</h3>
+            
+            <div class="form-group">
+                <label class="form-label">Database URL:</label>
+                <input type="text" class="form-input" id="firebaseUrl" placeholder="https://your-project.firebaseio.com">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">API Key:</label>
+                <input type="text" class="form-input" id="firebaseApiKey" placeholder="Your Firebase API Key">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Project ID:</label>
+                <input type="text" class="form-input" id="firebaseProject" placeholder="your-project-id">
+            </div>
+            
+            <div class="modal-buttons">
+                <button class="btn btn-secondary" id="cancelBtn">Cancel</button>
+                <button class="btn btn-primary" id="saveBtn">Save & Connect</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Initialize Feather Icons
+        feather.replace();
+        
+        // ====================================================================
+        // GLOBAL VARIABLES (from script.js)
+        // ====================================================================
+        let isPeriodic = false;
+        let isDeviceOn = false;
+        let isMqttConnected = false;
+        let isFirebaseConnected = false;
+        let temperatureData = [];
+        let humidityData = [];
+        let logBuffer = [];
+        let maxDataPoints = 50;
+        let maxLogsInMemory = 100;
+        let mqttClient = null;
+        let firebaseDb = null;
+        let currentTemp = null;
+        let currentHumi = null;
+        
+        // State synchronization management
+        let stateSync = {
+            lastKnownState: null,
+            syncInProgress: false,
+            syncRequested: false,
+            syncRetryCount: 0,
+            maxSyncRetries: 1,
+            deviceOffLock: false,
+            deviceOffLockTimeout: null,
+            lastSyncMessage: "",
+            ignoreNextPeriodicSync: false,
+        };
+        
+        // Firebase Configuration
+        let FIREBASE_CONFIG = {
+            apiKey: "AIzaSyAxEhTb1cNHTwmVWh4vbpA5MZSF0Vf0l0U",
+            databaseURL: "https://datalogger-8c5d5-default-rtdb.firebaseio.com/",
+            projectId: "datalogger-8c5d5",
+        };
+        
+        // MQTT Configuration
+        const MQTT_CONFIG = {
+            host: "127.0.0.1",
+            port: 8083,
+            path: "/mqtt",
+            username: "DataLogger",
+            password: "datalogger",
+            url: "ws://127.0.0.1:8083/mqtt",
+            topics: {
+                stm32Command: "datalogger/stm32/command",
+                relayControl: "datalogger/esp32/relay/control",
+                systemState: "datalogger/esp32/system/state",
+                singleData: "datalogger/stm32/single/data",
+                periodicData: "datalogger/stm32/periodic/data",
+            },
+        };
+        
+        // Charts
+        let tempChart, humiChart;
+        
+        // ====================================================================
+        // NAVIGATION
+        // ====================================================================
+        document.querySelectorAll('.menu-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const page = this.dataset.page;
+                
+                // Update active menu
+                document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
+                this.classList.add('active');
+                
+                // Update active page
+                document.querySelectorAll('.page-section').forEach(p => p.classList.remove('active'));
+                document.getElementById('page-' + page).classList.add('active');
+            });
+        });
+        
+        // ====================================================================
+        // LOGGING SYSTEM
+        // ====================================================================
+        function addStatus(message, type = "INFO") {
+            const timestamp = Date.now();
+            const logEntry = {
+                type: type,
+                message: message,
+                timestamp: timestamp,
+                date_iso: new Date(timestamp).toISOString()
+            };
+            
+            // Add to buffer (FIFO)
+            logBuffer.unshift(logEntry);
+            if (logBuffer.length > maxLogsInMemory) {
+                logBuffer.pop();
+            }
+            
+            // Update console displays
+            updateConsoleDisplay(logEntry);
+            
+            console.log(`[${type}] ${message}`);
+        }
+        
+        function updateConsoleDisplay(logEntry) {
+            const time = new Date(logEntry.timestamp).toLocaleTimeString('en-US', {hour12: false});
+            const line = `<div class="log-line log-${logEntry.type.toLowerCase()}">[${logEntry.type}] ${time}: ${logEntry.message}</div>`;
+            
+            // Update preview (last 5)
+            const preview = document.getElementById('consolePreview');
+            if (preview) {
+                preview.innerHTML = line + preview.innerHTML;
+                const lines = preview.querySelectorAll('.log-line');
+                if (lines.length > 5) {
+                    lines[lines.length - 1].remove();
+                }
+            }
+            
+            // Update full logs
+            const full = document.getElementById('consoleFull');
+            if (full) {
+                full.innerHTML = line + full.innerHTML;
+            }
+        }
+        
+        // ====================================================================
+        // FIREBASE INITIALIZATION
+        // ====================================================================
+        function initializeFirebase() {
+            if (!FIREBASE_CONFIG.apiKey || !FIREBASE_CONFIG.databaseURL || !FIREBASE_CONFIG.projectId) {
+                addStatus("Firebase configuration incomplete", "WARNING");
+                return false;
+            }
+            
+            try {
+                if (firebase.apps.length === 0) {
+                    firebase.initializeApp(FIREBASE_CONFIG);
+                }
+                firebaseDb = firebase.database();
+                
+                firebaseDb.ref('.info/connected').on('value', function(snapshot) {
+                    if (snapshot.val() === true) {
+                        firebaseDb.ref('test/connection').set({
+                            timestamp: Date.now(),
+                            message: 'Connection test'
+                        })
+                        .then(() => {
+                            updateFirebaseStatus(true);
+                            addStatus("Firebase write permissions verified", "FIREBASE");
+                            firebaseDb.ref('test').remove();
+                        })
+                        .catch((error) => {
+                            updateFirebaseStatus(false);
+                            addStatus(`Firebase permission error: ${error.code}`, "ERROR");
+                        });
+                    } else {
+                        updateFirebaseStatus(false);
+                    }
+                });
+                
+                return true;
+            } catch (error) {
+                addStatus(`Firebase init error: ${error.message}`, "ERROR");
+                return false;
+            }
+        }
+        
+        function updateFirebaseStatus(connected) {
+            isFirebaseConnected = connected;
+            const badge = document.getElementById('firebaseStatus');
+            const dot = document.getElementById('firebaseDot');
+            const text = document.getElementById('firebaseText');
+            
+            if (connected) {
+                badge.className = 'status-badge connected';
+                dot.className = 'status-dot connected';
+                text.textContent = 'Firebase Connected';
+                addStatus("Firebase database connected", "FIREBASE");
+            } else {
+                badge.className = 'status-badge disconnected';
+                dot.className = 'status-dot disconnected';
+                text.textContent = 'Firebase Disconnected';
+                addStatus("Firebase database disconnected", "FIREBASE");
+            }
+        }
+        
+        // ====================================================================
+        // MQTT INITIALIZATION
+        // ====================================================================
+        function initializeMQTT() {
+            const url = `ws://${MQTT_CONFIG.host}:${MQTT_CONFIG.port}${MQTT_CONFIG.path}`;
+            
+            addStatus(`Connecting to MQTT broker: ${url}`, "MQTT");
+            
+            try {
+                mqttClient = mqtt.connect(url, {
+                    username: MQTT_CONFIG.username,
+                    password: MQTT_CONFIG.password,
+                    clean: true,
+                    connectTimeout: 4000,
+                    reconnectPeriod: 2000
+                });
+                
+                mqttClient.on('connect', function() {
+                    updateMQTTStatus(true);
+                    addStatus("MQTT broker connected", "MQTT");
+                    
+                    // Subscribe to topics
+                    mqttClient.subscribe(MQTT_CONFIG.topics.systemState, {qos: 1});
+                    mqttClient.subscribe(MQTT_CONFIG.topics.singleData, {qos: 1});
+                    mqttClient.subscribe(MQTT_CONFIG.topics.periodicData, {qos: 1});
+                    
+                    addStatus("Subscribed to data topics", "MQTT");
+                    
+                    // Request state sync
+                    setTimeout(() => {
+                        requestStateSync();
+                    }, 500);
+                });
+                
+                mqttClient.on('message', handleMQTTMessage);
+                
+                mqttClient.on('error', function(error) {
+                    addStatus(`MQTT error: ${error.message}`, "ERROR");
+                    updateMQTTStatus(false);
+                });
+                
+                mqttClient.on('close', function() {
+                    updateMQTTStatus(false);
+                    addStatus("MQTT connection closed", "MQTT");
+                });
+                
+            } catch (error) {
+                addStatus(`MQTT init error: ${error.message}`, "ERROR");
+            }
+        }
+        
+        function updateMQTTStatus(connected) {
+            isMqttConnected = connected;
+            const badge = document.getElementById('mqttStatus');
+            const dot = document.getElementById('mqttDot');
+            const text = document.getElementById('mqttText');
+            
+            if (connected) {
+                badge.className = 'status-badge connected';
+                dot.className = 'status-dot connected';
+                text.textContent = 'MQTT Connected';
+            } else {
+                badge.className = 'status-badge disconnected';
+                dot.className = 'status-dot disconnected';
+                text.textContent = 'MQTT Disconnected';
+            }
+        }
+        
+        function handleMQTTMessage(topic, payload) {
+            const text = payload.toString();
+            
+            // System state sync
+            if (topic === MQTT_CONFIG.topics.systemState) {
+                const parsedState = parseStateMessage(text);
+                if (parsedState) {
+                    syncUIWithHardwareState(parsedState);
+                }
+                return;
+            }
+            
+            // Data topics
+            if (topic === MQTT_CONFIG.topics.singleData || topic === MQTT_CONFIG.topics.periodicData) {
+                try {
+                    const jsonData = JSON.parse(text);
+                    const timestamp = jsonData.timestamp * 1000 || Date.now();
+                    const mode = jsonData.mode === "PERIODIC" ? "periodic" : "single";
+                    
+                    // Check for sensor/RTC failures
+                    const sensorFailed = (jsonData.temperature === 0.0 && jsonData.humidity === 0.0);
+                    const rtcFailed = (jsonData.timestamp === 0);
+                    
+                    if (sensorFailed) {
+                        addStatus('⚠️ Sensor hardware failed (disconnected)', 'WARNING');
+                    }
+                    if (rtcFailed) {
+                        addStatus('⚠️ RTC failed (using local time)', 'WARNING');
+                    }
+                    
+                    // Update current values
+                    currentTemp = jsonData.temperature;
+                    currentHumi = jsonData.humidity;
+                    updateCurrentDisplay();
+                    
+                    // Save to Firebase
+                    saveToFirebaseSimple({
+                        temp: jsonData.temperature,
+                        humi: jsonData.humidity,
+                        mode: mode,
+                        sensor: "SHT31",
+                        time: jsonData.timestamp || 0,
+                        device: "ESP32_01"
+                    });
+                    
+                    // Update charts (only if periodic and not error)
+                    if (mode === "periodic" && isPeriodic) {
+                        pushTemperature(jsonData.temperature, true, timestamp);
+                        pushHumidity(jsonData.humidity, true, timestamp);
+                    }
+                    
+                } catch (e) {
+                    addStatus(`JSON parse error: ${e.message}`, 'ERROR');
+                }
+            }
+        }
+        
+        // ====================================================================
+        // STATE SYNCHRONIZATION (Keep original logic)
+        // ====================================================================
+        function requestStateSync() {
+            if (!isMqttConnected || !mqttClient) return;
+            
+            addStatus("Requesting state sync...", "SYNC");
+            mqttClient.publish(MQTT_CONFIG.topics.systemState, "REQUEST", {qos: 1});
+        }
+        
+        function parseStateMessage(message) {
+            const deviceMatch = message.match(/device[:\s]+(ON|OFF)/i);
+            const periodicMatch = message.match(/periodic[:\s]+(ON|OFF)/i);
+            
+            if (deviceMatch || periodicMatch) {
+                return {
+                    device: deviceMatch ? (deviceMatch[1].toUpperCase() === "ON") : isDeviceOn,
+                    periodic: periodicMatch ? (periodicMatch[1].toUpperCase() === "ON") : isPeriodic
+                };
+            }
+            
+            return null;
+        }
+        
+        function syncUIWithHardwareState(state) {
+            isDeviceOn = state.device;
+            isPeriodic = state.periodic;
+            
+            // Update Device button
+            const deviceBtn = document.getElementById('deviceBtn');
+            const deviceBtnText = document.getElementById('deviceBtnText');
+            if (isDeviceOn) {
+                deviceBtn.className = 'btn btn-danger';
+                deviceBtnText.textContent = 'Device OFF';
+            } else {
+                deviceBtn.className = 'btn btn-primary';
+                deviceBtnText.textContent = 'Device ON';
+            }
+            
+            // Update Periodic button
+            const periodicBtn = document.getElementById('periodicBtn');
+            const periodicBtnText = document.getElementById('periodicBtnText');
+            if (isPeriodic) {
+                periodicBtn.className = 'btn btn-danger';
+                periodicBtnText.textContent = 'Stop Periodic';
+            } else {
+                periodicBtn.className = 'btn btn-success';
+                periodicBtnText.textContent = 'Start Periodic';
+            }
+            
+            addStatus(`State synced: Device=${state.device?'ON':'OFF'}, Periodic=${state.periodic?'ON':'OFF'}`, "SYNC");
+        }
+        
+        // ====================================================================
+        // CURRENT DISPLAY
+        // ====================================================================
+        function updateCurrentDisplay() {
+            document.getElementById('currentTemp').textContent = currentTemp !== null ? currentTemp.toFixed(1) : '--';
+            document.getElementById('currentHumi').textContent = currentHumi !== null ? currentHumi.toFixed(1) : '--';
+            
+            const now = new Date().toLocaleTimeString('en-US', {hour12: false});
+            document.getElementById('lastUpdate').textContent = `Updated at ${now}`;
+        }
+        
+        // ====================================================================
+        // FIREBASE SAVE (New structure)
+        // ====================================================================
+        function saveToFirebaseSimple(data) {
+            if (!isFirebaseConnected || !firebaseDb) return;
+            
+            const dateStr = new Date().toISOString().split("T")[0];
+            const id = Date.now().toString();
+            
+            const record = {
+                temp: data.temp ?? null,
+                humi: data.humi ?? null,
+                mode: data.mode ?? "single",
+                sensor: data.sensor ?? "SHT31",
+                status: (data.temp === 0 || data.humi === 0) ? "error" : "success",
+                error: 
+                    (data.temp === 0 && data.humi === 0) ? "sensor_fail" :
+                    (data.time === 0) ? "rtc_fail" : null,
+                time: data.time ?? Math.floor(Date.now() / 1000),
+                device: data.device ?? "ESP32_01",
+                created_at: Date.now()
+            };
+            
+            firebaseDb.ref(`readings/${dateStr}/${id}`).set(record)
+                .then(() => {
+                    addStatus(`Firebase saved: ${record.sensor} (${record.status})`, "FIREBASE");
+                })
+                .catch(err => {
+                    addStatus(`Firebase error: ${err.message}`, "ERROR");
+                });
+        }
+        
+        // ====================================================================
+        // CHARTS
+        // ====================================================================
+        function initializeCharts() {
+            const tempCtx = document.getElementById('tempChart').getContext('2d');
+            const humiCtx = document.getElementById('humiChart').getContext('2d');
+            
+            tempChart = new Chart(tempCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Temperature (°C)',
+                        data: [],
+                        borderColor: '#06B6D4',
+                        backgroundColor: 'rgba(6, 182, 212, 0.1)',
+                        tension: 0.4,
+                        pointRadius: 4,
+                        pointHoverRadius: 8,
+                        borderWidth: 3,
+                        fill: true,
+                        pointBackgroundColor: '#06B6D4',
+                        pointBorderColor: 'white',
+                        pointBorderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(6, 182, 212, 0.9)',
+                            titleColor: 'white',
+                            bodyColor: 'white',
+                            cornerRadius: 8,
+                            displayColors: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return `Temperature: ${context.parsed.y.toFixed(1)}°C`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            grid: {
+                                color: 'rgba(6, 182, 212, 0.1)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toFixed(1) + '°C';
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: 'rgba(6, 182, 212, 0.1)'
+                            },
+                            ticks: {
+                                maxTicksLimit: 8
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 750,
+                        easing: 'easeInOutQuart'
+                    }
+                }
+            });
+            
+            humiChart = new Chart(humiCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Humidity (%)',
+                        data: [],
+                        borderColor: '#22D3EE',
+                        backgroundColor: 'rgba(34, 211, 238, 0.1)',
+                        tension: 0.4,
+                        pointRadius: 4,
+                        pointHoverRadius: 8,
+                        borderWidth: 3,
+                        fill: true,
+                        pointBackgroundColor: '#22D3EE',
+                        pointBorderColor: 'white',
+                        pointBorderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(34, 211, 238, 0.9)',
+                            titleColor: 'white',
+                            bodyColor: 'white',
+                            cornerRadius: 8,
+                            displayColors: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return `Humidity: ${context.parsed.y.toFixed(1)}%`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            grid: {
+                                color: 'rgba(34, 211, 238, 0.1)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toFixed(1) + '%';
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: 'rgba(34, 211, 238, 0.1)'
+                            },
+                            ticks: {
+                                maxTicksLimit: 8
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 750,
+                        easing: 'easeInOutQuart'
+                    }
+                }
+            });
+        }
+        
+        function pushTemperature(value, update = true, timestamp = null) {
+            const time = timestamp ? new Date(timestamp).toLocaleTimeString('en-US', {hour12: false}) : 
+                         new Date().toLocaleTimeString('en-US', {hour12: false});
+            
+            temperatureData.push({value, time});
+            
+            if (temperatureData.length > maxDataPoints) {
+                temperatureData.shift();
+            }
+            
+            if (update && tempChart) {
+                tempChart.data.labels = temperatureData.map(d => d.time);
+                tempChart.data.datasets[0].data = temperatureData.map(d => d.value);
+                tempChart.update('none');
+                updateChartStats('temp');
+            }
+        }
+        
+        function pushHumidity(value, update = true, timestamp = null) {
+            const time = timestamp ? new Date(timestamp).toLocaleTimeString('en-US', {hour12: false}) : 
+                         new Date().toLocaleTimeString('en-US', {hour12: false});
+            
+            humidityData.push({value, time});
+            
+            if (humidityData.length > maxDataPoints) {
+                humidityData.shift();
+            }
+            
+            if (update && humiChart) {
+                humiChart.data.labels = humidityData.map(d => d.time);
+                humiChart.data.datasets[0].data = humidityData.map(d => d.value);
+                humiChart.update('none');
+                updateChartStats('humi');
+            }
+        }
+        
+        function updateChartStats(type) {
+            const data = type === 'temp' ? temperatureData : humidityData;
+            if (data.length === 0) return;
+            
+            const values = data.map(d => d.value);
+            const min = Math.min(...values);
+            const max = Math.max(...values);
+            const avg = values.reduce((a, b) => a + b, 0) / values.length;
+            
+            document.getElementById(`${type}Min`).textContent = min.toFixed(1);
+            document.getElementById(`${type}Max`).textContent = max.toFixed(1);
+            document.getElementById(`${type}Avg`).textContent = avg.toFixed(1);
+        }
+        
+        function clearChartData() {
+            temperatureData = [];
+            humidityData = [];
+            
+            if (tempChart) {
+                tempChart.data.labels = [];
+                tempChart.data.datasets[0].data = [];
+                tempChart.update();
+            }
+            
+            if (humiChart) {
+                humiChart.data.labels = [];
+                humiChart.data.datasets[0].data = [];
+                humiChart.update();
+            }
+            
+            document.getElementById('tempMin').textContent = '--';
+            document.getElementById('tempMax').textContent = '--';
+            document.getElementById('tempAvg').textContent = '--';
+            document.getElementById('humiMin').textContent = '--';
+            document.getElementById('humiMax').textContent = '--';
+            document.getElementById('humiAvg').textContent = '--';
+            
+            addStatus("Charts cleared", "INFO");
+        }
+        
+        // ====================================================================
+        // BUTTON HANDLERS
+        // ====================================================================
+        document.getElementById('deviceBtn').addEventListener('click', function() {
+            if (!isMqttConnected) {
+                addStatus("MQTT not connected", "ERROR");
+                return;
+            }
+            
+            const newState = isDeviceOn ? "OFF" : "ON";
+            mqttClient.publish(MQTT_CONFIG.topics.relayControl, newState, {qos: 1});
+            addStatus(`Device ${newState} command sent`, "MQTT");
+        });
+        
+        document.getElementById('periodicBtn').addEventListener('click', function() {
+            if (!isMqttConnected) {
+                addStatus("MQTT not connected", "ERROR");
+                return;
+            }
+            
+            if (!isDeviceOn) {
+                addStatus("Device must be ON first", "WARNING");
+                return;
+            }
+            
+            const newState = isPeriodic ? "OFF" : "ON";
+            const command = `PERIODIC ${newState}`;
+            mqttClient.publish(MQTT_CONFIG.topics.stm32Command, command, {qos: 1});
+            addStatus(`Periodic ${newState} command sent`, "MQTT");
+        });
+        
+        document.getElementById('singleBtn').addEventListener('click', function() {
+            if (!isMqttConnected) {
+                addStatus("MQTT not connected", "ERROR");
+                return;
+            }
+            
+            if (!isDeviceOn) {
+                addStatus("Device must be ON first", "WARNING");
+                return;
+            }
+            
+            mqttClient.publish(MQTT_CONFIG.topics.stm32Command, "SINGLE", {qos: 1});
+            addStatus("Single read command sent", "MQTT");
+        });
+        
+        document.getElementById('intervalBtn').addEventListener('click', function() {
+            if (!isMqttConnected) {
+                addStatus("MQTT not connected", "ERROR");
+                return;
+            }
+            
+            if (!isDeviceOn) {
+                addStatus("Device must be ON first", "WARNING");
+                return;
+            }
+            
+            openIntervalModal();
+        });
+        
+        document.getElementById('loadHistoryBtn').addEventListener('click', function() {
+            addStatus("Load history will be implemented", "INFO");
+        });
+        
+        document.getElementById('clearChartsBtn').addEventListener('click', function() {
+            clearChartData();
+        });
+        
+        // ====================================================================
+        // SETTINGS MODAL
+        // ====================================================================
+        document.getElementById('settingsBtn').addEventListener('click', function() {
+            document.getElementById('configModal').classList.add('active');
+        });
+        
+        document.getElementById('cancelBtn').addEventListener('click', function() {
+            document.getElementById('configModal').classList.remove('active');
+        });
+        
+        document.getElementById('saveBtn').addEventListener('click', function() {
+            // Save MQTT config
+            MQTT_CONFIG.host = document.getElementById('mqttIp').value;
+            MQTT_CONFIG.port = parseInt(document.getElementById('mqttPort').value);
+            MQTT_CONFIG.path = document.getElementById('mqttPath').value;
+            MQTT_CONFIG.username = document.getElementById('mqttUser').value;
+            MQTT_CONFIG.password = document.getElementById('mqttPass').value;
+            MQTT_CONFIG.url = `ws://${MQTT_CONFIG.host}:${MQTT_CONFIG.port}${MQTT_CONFIG.path}`;
+            
+            // Save Firebase config
+            FIREBASE_CONFIG.databaseURL = document.getElementById('firebaseUrl').value;
+            FIREBASE_CONFIG.apiKey = document.getElementById('firebaseApiKey').value;
+            FIREBASE_CONFIG.projectId = document.getElementById('firebaseProject').value;
+            
+            // Save to localStorage
+            localStorage.setItem('datalogger_mqtt_config', JSON.stringify(MQTT_CONFIG));
+            localStorage.setItem('datalogger_firebase_config', JSON.stringify(FIREBASE_CONFIG));
+            
+            addStatus("Configuration saved", "INFO");
+            
+            // Close modal
+            document.getElementById('configModal').classList.remove('active');
+            
+            // Reconnect
+            if (mqttClient) {
+                mqttClient.end();
+            }
+            initializeMQTT();
+            initializeFirebase();
+        });
+        
+        // ====================================================================
+        // INTERVAL PICKER
+        // ====================================================================
+        let selectedMinute = 0;
+        let selectedSecond = 5;
+        let pickerInitialized = false;
+        
+        function openIntervalModal() {
+            document.getElementById('intervalModal').classList.add('active');
+            initializeTimePicker();
+            
+            if (!pickerInitialized) {
+                selectedMinute = 0;
+                selectedSecond = 5;
+            }
+            updatePickerSelection();
+        }
+        
+        function closeIntervalModal() {
+            document.getElementById('intervalModal').classList.remove('active');
+        }
+        
+        function initializeTimePicker() {
+            const minutePicker = document.getElementById('minutePicker');
+            const secondPicker = document.getElementById('secondPicker');
+            
+            if (!minutePicker || !secondPicker) return;
+            
+            if (pickerInitialized) {
+                scrollToValue(minutePicker, selectedMinute);
+                scrollToValue(secondPicker, selectedSecond);
+                return;
+            }
+            
+            minutePicker.innerHTML = "";
+            secondPicker.innerHTML = "";
+            
+            // Add padding
+            for (let i = 0; i < 3; i++) {
+                minutePicker.appendChild(createPickerItem("", true));
+                secondPicker.appendChild(createPickerItem("", true));
+            }
+            
+            // Populate minutes (0-60)
+            for (let i = 0; i <= 60; i++) {
+                minutePicker.appendChild(createPickerItem(i, false, "minute"));
+            }
+            
+            // Populate seconds (0-59)
+            for (let i = 0; i <= 59; i++) {
+                secondPicker.appendChild(createPickerItem(i, false, "second"));
+            }
+            
+            // Add bottom padding
+            for (let i = 0; i < 3; i++) {
+                minutePicker.appendChild(createPickerItem("", true));
+                secondPicker.appendChild(createPickerItem("", true));
+            }
+            
+            // Add scroll listeners
+            minutePicker.addEventListener('scroll', handlePickerScroll);
+            secondPicker.addEventListener('scroll', handlePickerScroll);
+            
+            pickerInitialized = true;
+            
+            setTimeout(() => {
+                scrollToValue(minutePicker, selectedMinute);
+                scrollToValue(secondPicker, selectedSecond);
+            }, 50);
+        }
+        
+        function createPickerItem(value, isPadding, type) {
+            const div = document.createElement('div');
+            div.className = 'picker-item';
+            
+            if (!isPadding) {
+                div.textContent = String(value).padStart(2, '0');
+                div.dataset.value = value;
+                div.dataset.type = type;
+                
+                div.addEventListener('click', function() {
+                    if (type === 'minute') {
+                        selectedMinute = parseInt(value);
+                        scrollToValue(document.getElementById('minutePicker'), selectedMinute);
+                    } else {
+                        selectedSecond = parseInt(value);
+                        scrollToValue(document.getElementById('secondPicker'), selectedSecond);
+                    }
+                    
+                    setTimeout(() => updatePickerSelection(), 100);
+                });
+            }
+            
+            return div;
+        }
+        
+        function scrollToValue(picker, value) {
+            if (!picker) return;
+            
+            const items = picker.querySelectorAll('.picker-item[data-value]');
+            const targetItem = Array.from(items).find(item => parseInt(item.dataset.value) === value);
+            
+            if (targetItem) {
+                const scrollTop = targetItem.offsetTop - picker.offsetHeight / 2 + targetItem.offsetHeight / 2;
+                picker.scrollTo({ top: scrollTop, behavior: 'smooth' });
+            }
+        }
+        
+        function handlePickerScroll(event) {
+            const picker = event.currentTarget;
+            if (!picker) return;
+            
+            clearTimeout(picker.scrollTimeout);
+            picker.scrollTimeout = setTimeout(() => {
+                updatePickerSelection();
+                snapToClosest(picker);
+            }, 50);
+        }
+        
+        function snapToClosest(picker) {
+            if (!picker) return;
+            
+            const items = picker.querySelectorAll('.picker-item[data-value]');
+            if (items.length === 0) return;
+            
+            const pickerCenter = picker.scrollTop + picker.offsetHeight / 2;
+            let closestItem = null;
+            let closestDistance = Infinity;
+            
+            items.forEach(item => {
+                const itemCenter = item.offsetTop + item.offsetHeight / 2;
+                const distance = Math.abs(itemCenter - pickerCenter);
+                
+                if (distance < closestDistance) {
+                    closestDistance = distance;
+                    closestItem = item;
+                }
+            });
+            
+            if (closestItem && closestDistance > 3) {
+                const scrollTop = closestItem.offsetTop - picker.offsetHeight / 2 + closestItem.offsetHeight / 2;
+                picker.scrollTo({ top: scrollTop, behavior: 'smooth' });
+            }
+        }
+        
+        function updatePickerSelection() {
+            updatePickerHighlight('minutePicker', selectedMinute);
+            updatePickerHighlight('secondPicker', selectedSecond);
+        }
+        
+        function updatePickerHighlight(pickerId, selectedValue) {
+            const picker = document.getElementById(pickerId);
+            if (!picker) return;
+            
+            const items = picker.querySelectorAll('.picker-item[data-value]');
+            if (items.length === 0) return;
+            
+            const pickerCenter = picker.scrollTop + picker.offsetHeight / 2;
+            let closestItem = null;
+            let closestDistance = Infinity;
+            
+            items.forEach(item => {
+                item.classList.remove('selected');
+                const itemCenter = item.offsetTop + item.offsetHeight / 2;
+                const distance = Math.abs(itemCenter - pickerCenter);
+                
+                if (distance < closestDistance) {
+                    closestDistance = distance;
+                    closestItem = item;
+                }
+            });
+            
+            if (closestItem) {
+                closestItem.classList.add('selected');
+                const value = parseInt(closestItem.dataset.value);
+                
+                if (pickerId === 'minutePicker') {
+                    selectedMinute = value;
+                } else {
+                    selectedSecond = value;
+                }
+            }
+        }
+        
+        function setPeriodicInterval() {
+            const totalSeconds = selectedMinute * 60 + selectedSecond;
+            
+            if (totalSeconds < 1) {
+                addStatus("Interval must be at least 1 second", "ERROR");
+                return;
+            }
+            
+            if (!isMqttConnected) {
+                addStatus("MQTT not connected", "ERROR");
+                return;
+            }
+            
+            const command = `SET PERIODIC INTERVAL ${totalSeconds}`;
+            mqttClient.publish(MQTT_CONFIG.topics.stm32Command, command, {qos: 1});
+            
+            addStatus(`Interval set to ${selectedMinute}m ${selectedSecond}s (${totalSeconds}s)`, "SETTING");
+            closeIntervalModal();
+        }
+        
+        // Interval modal button handlers
+        document.getElementById('intervalCancelBtn').addEventListener('click', closeIntervalModal);
+        document.getElementById('intervalSetBtn').addEventListener('click', setPeriodicInterval);
+        
+        // ====================================================================
+        // FOOTER CLOCK
+        // ====================================================================
+        function updateFooterClock() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('en-US', {hour12: false});
+            document.getElementById('footerTime').textContent = timeStr;
+        }
+        
+        setInterval(updateFooterClock, 1000);
+        
+        // ====================================================================
+        // INITIALIZATION
+        // ====================================================================
+        window.addEventListener('DOMContentLoaded', function() {
+            addStatus("DataLogger Monitor starting...", "INFO");
+            
+            // Load saved config from localStorage
+            const savedMQTT = localStorage.getItem('datalogger_mqtt_config');
+            const savedFirebase = localStorage.getItem('datalogger_firebase_config');
+            
+            if (savedMQTT) {
+                const config = JSON.parse(savedMQTT);
+                MQTT_CONFIG.host = config.host || MQTT_CONFIG.host;
+                MQTT_CONFIG.port = config.port || MQTT_CONFIG.port;
+                MQTT_CONFIG.path = config.path || MQTT_CONFIG.path;
+                MQTT_CONFIG.username = config.username || MQTT_CONFIG.username;
+                MQTT_CONFIG.password = config.password || MQTT_CONFIG.password;
+                MQTT_CONFIG.url = `ws://${MQTT_CONFIG.host}:${MQTT_CONFIG.port}${MQTT_CONFIG.path}`;
+                
+                // Update form fields
+                document.getElementById('mqttIp').value = MQTT_CONFIG.host;
+                document.getElementById('mqttPort').value = MQTT_CONFIG.port;
+                document.getElementById('mqttPath').value = MQTT_CONFIG.path;
+                document.getElementById('mqttUser').value = MQTT_CONFIG.username;
+                document.getElementById('mqttPass').value = MQTT_CONFIG.password;
+            }
+            
+            if (savedFirebase) {
+                const config = JSON.parse(savedFirebase);
+                FIREBASE_CONFIG.databaseURL = config.databaseURL || FIREBASE_CONFIG.databaseURL;
+                FIREBASE_CONFIG.apiKey = config.apiKey || FIREBASE_CONFIG.apiKey;
+                FIREBASE_CONFIG.projectId = config.projectId || FIREBASE_CONFIG.projectId;
+                
+                // Update form fields
+                document.getElementById('firebaseUrl').value = FIREBASE_CONFIG.databaseURL;
+                document.getElementById('firebaseApiKey').value = FIREBASE_CONFIG.apiKey;
+                document.getElementById('firebaseProject').value = FIREBASE_CONFIG.projectId;
+            }
+            
+            // Initialize charts
+            initializeCharts();
+            addStatus("Charts initialized", "INFO");
+            
+            // Initialize Firebase
+            initializeFirebase();
+            
+            // Initialize MQTT
+            initializeMQTT();
+            
+            // Update footer clock immediately
+            updateFooterClock();
+            
+            addStatus("System ready", "INFO");
+        });
+    </script>
+</body>
+</html>
