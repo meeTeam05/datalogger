@@ -758,7 +758,50 @@
                         <i data-feather="radio"></i>
                         Live Data Stream
                     </div>
-                    <p style="color: var(--text-muted); margin-bottom: 1rem;">Real-time data table will be implemented here</p>
+                    
+                    <!-- Filter Bar -->
+                    <div style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center;">
+                        <select id="liveDataFilter" class="form-input" style="width: auto;">
+                            <option value="all">All Status</option>
+                            <option value="success">Success Only</option>
+                            <option value="error">Error Only</option>
+                        </select>
+                        <button class="btn btn-secondary" id="clearLiveDataBtn">
+                            <i data-feather="trash-2"></i>
+                            Clear Table
+                        </button>
+                        <button class="btn btn-secondary" id="exportLiveDataBtn">
+                            <i data-feather="download"></i>
+                            Export CSV
+                        </button>
+                    </div>
+                    
+                    <!-- Data Table -->
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="background-color: var(--bg-tertiary); border-bottom: 2px solid var(--primary);">
+                                    <th style="padding: 0.75rem; text-align: left; font-weight: 600;">#</th>
+                                    <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Time</th>
+                                    <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Temp (°C)</th>
+                                    <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Humidity (%)</th>
+                                    <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Mode</th>
+                                    <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="liveDataTable">
+                                <tr>
+                                    <td colspan="6" style="padding: 2rem; text-align: center; color: var(--text-muted);">
+                                        No data received yet. Waiting for sensor readings...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div style="margin-top: 1rem; text-align: right; color: var(--text-muted); font-size: 0.875rem;">
+                        Showing <span id="liveDataCount">0</span> entries
+                    </div>
                 </div>
             </section>
             
@@ -769,7 +812,55 @@
                         <i data-feather="sliders"></i>
                         Device Component Health
                     </div>
-                    <p style="color: var(--text-muted); margin-bottom: 1rem;">Component health monitoring will be implemented here</p>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-top: 1rem;">
+                        <!-- SHT31 Component Card -->
+                        <div class="card" id="component-SHT31" style="background-color: var(--bg-tertiary);">
+                            <div style="text-align: center; margin-bottom: 1rem;">
+                                <i data-feather="thermometer" style="width: 48px; height: 48px; color: var(--primary);"></i>
+                            </div>
+                            <h3 style="text-align: center; font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem;">SHT31 Sensor</h3>
+                            <p style="text-align: center; font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1rem;">Temperature & Humidity</p>
+                            
+                            <div class="status-badge disconnected" style="margin: 0 auto 1rem; width: fit-content;">
+                                <span class="status-dot disconnected"></span>
+                                <span>Waiting...</span>
+                            </div>
+                            
+                            <div class="component-details" style="font-size: 0.875rem; color: var(--text-secondary);">
+                                <p>Temperature: <strong id="sht31-temp">--</strong></p>
+                                <p>Humidity: <strong id="sht31-humi">--</strong></p>
+                                <p>Last Update: <strong id="sht31-time">Never</strong></p>
+                            </div>
+                        </div>
+                        
+                        <!-- DS3231 Component Card -->
+                        <div class="card" id="component-DS3231" style="background-color: var(--bg-tertiary);">
+                            <div style="text-align: center; margin-bottom: 1rem;">
+                                <i data-feather="clock" style="width: 48px; height: 48px; color: var(--primary);"></i>
+                            </div>
+                            <h3 style="text-align: center; font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem;">DS3231 RTC</h3>
+                            <p style="text-align: center; font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1rem;">Real-Time Clock</p>
+                            
+                            <div class="status-badge disconnected" style="margin: 0 auto 1rem; width: fit-content;">
+                                <span class="status-dot disconnected"></span>
+                                <span>Waiting...</span>
+                            </div>
+                            
+                            <div class="component-details" style="font-size: 0.875rem; color: var(--text-secondary);">
+                                <p>Last Sync: <strong id="rtc-time">Never</strong></p>
+                                <p>Status: <strong id="rtc-status">Unknown</strong></p>
+                            </div>
+                        </div>
+                        
+                        <!-- Reserved Slot -->
+                        <div class="card" style="background-color: var(--bg-tertiary); opacity: 0.5;">
+                            <div style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                                <i data-feather="cpu" style="width: 48px; height: 48px; opacity: 0.5;"></i>
+                                <p style="margin-top: 1rem;">Reserved for future component</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </section>
             
@@ -778,9 +869,67 @@
                 <div class="card">
                     <div class="card-header">
                         <i data-feather="clock"></i>
-                        Time Configuration
+                        System Time Configuration
                     </div>
-                    <p style="color: var(--text-muted); margin-bottom: 1rem;">Time picker will be implemented here</p>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 1.5rem;">
+                        <!-- Date Picker Section -->
+                        <div>
+                            <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 1rem; text-align: center; color: var(--primary);">Date Selection</h3>
+                            <div style="background-color: var(--bg-tertiary); padding: 1.5rem; border-radius: 0.5rem;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                    <button class="btn btn-secondary" style="padding: 0.5rem 1rem;" id="prevMonth">◀</button>
+                                    <h4 style="font-weight: 600; font-size: 1.125rem;" id="monthYear">January 2025</h4>
+                                    <button class="btn btn-secondary" style="padding: 0.5rem 1rem;" id="nextMonth">▶</button>
+                                </div>
+                                
+                                <div id="calendar" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.5rem; text-align: center;"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Time Picker Section -->
+                        <div>
+                            <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 1rem; text-align: center; color: var(--primary);">Time Selection</h3>
+                            <div style="background-color: var(--bg-tertiary); padding: 1.5rem; border-radius: 0.5rem;">
+                                <div style="text-align: center; margin-bottom: 2rem;">
+                                    <div style="font-size: 3rem; font-weight: 700; color: var(--primary); font-family: monospace;">
+                                        <span id="displayHour">14</span>:<span id="displayMin">23</span>:<span id="displaySec">45</span>
+                                    </div>
+                                    <div style="font-size: 0.875rem; color: var(--text-muted); margin-top: 0.5rem;">24-hour format</div>
+                                </div>
+                                
+                                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+                                    <div style="text-align: center;">
+                                        <button class="btn btn-secondary" style="width: 100%; margin-bottom: 0.5rem;" onclick="adjustTime('hour', 1)">▲</button>
+                                        <div style="font-weight: 600; margin-bottom: 0.5rem;">Hour</div>
+                                        <button class="btn btn-secondary" style="width: 100%;" onclick="adjustTime('hour', -1)">▼</button>
+                                    </div>
+                                    <div style="text-align: center;">
+                                        <button class="btn btn-secondary" style="width: 100%; margin-bottom: 0.5rem;" onclick="adjustTime('min', 1)">▲</button>
+                                        <div style="font-weight: 600; margin-bottom: 0.5rem;">Min</div>
+                                        <button class="btn btn-secondary" style="width: 100%;" onclick="adjustTime('min', -1)">▼</button>
+                                    </div>
+                                    <div style="text-align: center;">
+                                        <button class="btn btn-secondary" style="width: 100%; margin-bottom: 0.5rem;" onclick="adjustTime('sec', 1)">▲</button>
+                                        <div style="font-weight: 600; margin-bottom: 0.5rem;">Sec</div>
+                                        <button class="btn btn-secondary" style="width: 100%;" onclick="adjustTime('sec', -1)">▼</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div style="display: flex; gap: 1rem; justify-content: center; margin-top: 2rem;">
+                        <button class="btn btn-primary" id="syncTimeBtn">
+                            <i data-feather="wifi"></i>
+                            Sync from Internet
+                        </button>
+                        <button class="btn btn-success" id="setManualTimeBtn">
+                            <i data-feather="check"></i>
+                            Set Time Manually
+                        </button>
+                    </div>
                 </div>
             </section>
             
@@ -931,6 +1080,34 @@
         let currentTemp = null;
         let currentHumi = null;
         
+        // Live Data table
+        let liveDataBuffer = [];
+        const maxLiveDataEntries = 100;
+        
+        // Component health tracking
+        const componentHealth = {
+            SHT31: {
+                healthy: false,
+                lastUpdate: null,
+                lastTemp: null,
+                lastHumi: null,
+                errorCount: 0
+            },
+            DS3231: {
+                healthy: false,
+                lastSync: null,
+                failCount: 0
+            }
+        };
+        
+        // Time picker state
+        let timePickerYear = new Date().getFullYear();
+        let timePickerMonth = new Date().getMonth();
+        let timePickerDay = new Date().getDate();
+        let timePickerHour = new Date().getHours();
+        let timePickerMinute = new Date().getMinutes();
+        let timePickerSecond = new Date().getSeconds();
+        
         // State synchronization management
         let stateSync = {
             lastKnownState: null,
@@ -985,6 +1162,17 @@
                 // Update active page
                 document.querySelectorAll('.page-section').forEach(p => p.classList.remove('active'));
                 document.getElementById('page-' + page).classList.add('active');
+                
+                // Initialize page-specific components
+                if (page === 'time') {
+                    renderCalendar();
+                    updateTimeDisplay();
+                } else if (page === 'livedata') {
+                    renderLiveDataTable();
+                }
+                
+                // Re-initialize feather icons
+                if (typeof feather !== 'undefined') feather.replace();
             });
         });
         
@@ -1212,6 +1400,19 @@
                         pushTemperature(jsonData.temperature, true, timestamp);
                         pushHumidity(jsonData.humidity, true, timestamp);
                     }
+                    
+                    // Update component health
+                    updateComponentHealth('SHT31', !sensorFailed);
+                    updateComponentHealth('DS3231', !rtcFailed);
+                    
+                    // Add to Live Data table
+                    addToLiveDataTable({
+                        time: timestamp,
+                        temp: jsonData.temperature,
+                        humi: jsonData.humidity,
+                        mode: mode,
+                        status: (sensorFailed || rtcFailed) ? 'error' : 'success'
+                    });
                     
                 } catch (e) {
                     addStatus(`JSON parse error: ${e.message}`, 'ERROR');
@@ -1650,6 +1851,327 @@
             initializeMQTT();
             initializeFirebase();
         });
+        
+        // ====================================================================
+        // LIVE DATA TABLE
+        // ====================================================================
+        function addToLiveDataTable(data) {
+            liveDataBuffer.unshift(data);
+            
+            if (liveDataBuffer.length > maxLiveDataEntries) {
+                liveDataBuffer.pop();
+            }
+            
+            renderLiveDataTable();
+        }
+        
+        function renderLiveDataTable() {
+            const tbody = document.getElementById('liveDataTable');
+            const filter = document.getElementById('liveDataFilter')?.value || 'all';
+            
+            let filtered = liveDataBuffer;
+            if (filter === 'success') {
+                filtered = liveDataBuffer.filter(d => d.status === 'success');
+            } else if (filter === 'error') {
+                filtered = liveDataBuffer.filter(d => d.status === 'error');
+            }
+            
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="padding: 2rem; text-align: center; color: var(--text-muted);">No data available</td></tr>';
+                document.getElementById('liveDataCount').textContent = '0';
+                return;
+            }
+            
+            tbody.innerHTML = filtered.map((data, idx) => {
+                const time = new Date(data.time).toLocaleTimeString('en-US', {hour12: false});
+                const statusClass = data.status === 'success' ? 'connected' : 'disconnected';
+                const statusText = data.status === 'success' ? '✅ Success' : '❌ Error';
+                
+                return `
+                    <tr style="border-bottom: 1px solid var(--border-color);">
+                        <td style="padding: 0.75rem;">${idx + 1}</td>
+                        <td style="padding: 0.75rem;">${time}</td>
+                        <td style="padding: 0.75rem;">${data.temp.toFixed(1)}</td>
+                        <td style="padding: 0.75rem;">${data.humi.toFixed(1)}</td>
+                        <td style="padding: 0.75rem; text-transform: capitalize;">${data.mode}</td>
+                        <td style="padding: 0.75rem;">
+                            <span class="status-badge ${statusClass}" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">
+                                ${statusText}
+                            </span>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            
+            document.getElementById('liveDataCount').textContent = filtered.length;
+            
+            // Re-initialize feather icons
+            if (typeof feather !== 'undefined') feather.replace();
+        }
+        
+        document.getElementById('liveDataFilter')?.addEventListener('change', renderLiveDataTable);
+        
+        document.getElementById('clearLiveDataBtn')?.addEventListener('click', function() {
+            if (confirm('Clear all live data?')) {
+                liveDataBuffer = [];
+                renderLiveDataTable();
+                addStatus('Live data cleared', 'INFO');
+            }
+        });
+        
+        document.getElementById('exportLiveDataBtn')?.addEventListener('click', function() {
+            if (liveDataBuffer.length === 0) {
+                addStatus('No data to export', 'WARNING');
+                return;
+            }
+            
+            const csv = [
+                ['#', 'Time', 'Temperature (°C)', 'Humidity (%)', 'Mode', 'Status'].join(','),
+                ...liveDataBuffer.map((d, idx) => {
+                    const time = new Date(d.time).toLocaleTimeString('en-US', {hour12: false});
+                    return [idx + 1, time, d.temp, d.humi, d.mode, d.status].join(',');
+                })
+            ].join('\n');
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `livedata_${Date.now()}.csv`;
+            a.click();
+            
+            addStatus('Live data exported', 'INFO');
+        });
+        
+        // ====================================================================
+        // COMPONENT HEALTH MONITORING
+        // ====================================================================
+        function updateComponentHealth(component, isHealthy) {
+            const health = componentHealth[component];
+            if (!health) return;
+            
+            health.healthy = isHealthy;
+            health.lastUpdate = Date.now();
+            
+            if (!isHealthy) {
+                health.errorCount = (health.errorCount || 0) + 1;
+            } else {
+                health.errorCount = 0;
+            }
+            
+            updateComponentCard(component);
+        }
+        
+        function updateComponentCard(component) {
+            const card = document.getElementById(`component-${component}`);
+            if (!card) return;
+            
+            const health = componentHealth[component];
+            const badge = card.querySelector('.status-badge');
+            
+            if (component === 'SHT31') {
+                if (health.healthy) {
+                    badge.className = 'status-badge connected';
+                    badge.innerHTML = '<span class="status-dot connected"></span><span>Running</span>';
+                    
+                    document.getElementById('sht31-temp').textContent = currentTemp?.toFixed(1) + '°C' || '--';
+                    document.getElementById('sht31-humi').textContent = currentHumi?.toFixed(1) + '%' || '--';
+                    document.getElementById('sht31-time').textContent = getTimeAgo(health.lastUpdate);
+                } else {
+                    badge.className = 'status-badge disconnected';
+                    badge.innerHTML = '<span class="status-dot disconnected"></span><span>Error</span>';
+                    document.getElementById('sht31-temp').textContent = 'Sensor Failed';
+                    document.getElementById('sht31-humi').textContent = 'Check Wiring';
+                    document.getElementById('sht31-time').textContent = 'Error';
+                }
+            } else if (component === 'DS3231') {
+                if (health.healthy) {
+                    badge.className = 'status-badge connected';
+                    badge.innerHTML = '<span class="status-dot connected"></span><span>Running</span>';
+                    document.getElementById('rtc-time').textContent = getTimeAgo(health.lastSync || health.lastUpdate);
+                    document.getElementById('rtc-status').textContent = 'Operating normally';
+                } else {
+                    badge.className = 'status-badge disconnected';
+                    badge.innerHTML = '<span class="status-dot disconnected"></span><span>Error</span>';
+                    document.getElementById('rtc-time').textContent = 'RTC Failed';
+                    document.getElementById('rtc-status').textContent = 'Time sync failed';
+                }
+            }
+        }
+        
+        function getTimeAgo(timestamp) {
+            if (!timestamp) return 'Never';
+            const seconds = Math.floor((Date.now() - timestamp) / 1000);
+            if (seconds < 60) return `${seconds} seconds ago`;
+            const minutes = Math.floor(seconds / 60);
+            if (minutes < 60) return `${minutes} minutes ago`;
+            const hours = Math.floor(minutes / 60);
+            return `${hours} hours ago`;
+        }
+        
+        // ====================================================================
+        // TIME SETTINGS
+        // ====================================================================
+        function renderCalendar() {
+            const calendar = document.getElementById('calendar');
+            if (!calendar) return;
+            
+            const year = timePickerYear;
+            const month = timePickerMonth;
+            
+            // Update month/year display
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                               'July', 'August', 'September', 'October', 'November', 'December'];
+            document.getElementById('monthYear').textContent = `${monthNames[month]} ${year}`;
+            
+            // Clear calendar
+            calendar.innerHTML = '';
+            
+            // Add day headers
+            const dayHeaders = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+            dayHeaders.forEach(day => {
+                const div = document.createElement('div');
+                div.textContent = day;
+                div.style.fontWeight = '600';
+                div.style.padding = '0.5rem';
+                div.style.color = 'var(--text-muted)';
+                calendar.appendChild(div);
+            });
+            
+            // Get first day of month and number of days
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            
+            // Add empty cells for days before month starts
+            for (let i = 0; i < firstDay; i++) {
+                const div = document.createElement('div');
+                div.style.padding = '0.5rem';
+                calendar.appendChild(div);
+            }
+            
+            // Add day cells
+            for (let day = 1; day <= daysInMonth; day++) {
+                const div = document.createElement('div');
+                div.textContent = day;
+                div.style.padding = '0.5rem';
+                div.style.cursor = 'pointer';
+                div.style.borderRadius = '0.25rem';
+                div.style.transition = 'all 0.2s';
+                
+                if (day === timePickerDay && month === timePickerMonth && year === timePickerYear) {
+                    div.style.backgroundColor = 'var(--primary)';
+                    div.style.color = 'white';
+                    div.style.fontWeight = '700';
+                }
+                
+                div.addEventListener('click', function() {
+                    timePickerDay = day;
+                    renderCalendar();
+                });
+                
+                div.addEventListener('mouseenter', function() {
+                    if (!(day === timePickerDay && month === timePickerMonth && year === timePickerYear)) {
+                        div.style.backgroundColor = 'var(--bg-tertiary)';
+                    }
+                });
+                
+                div.addEventListener('mouseleave', function() {
+                    if (!(day === timePickerDay && month === timePickerMonth && year === timePickerYear)) {
+                        div.style.backgroundColor = '';
+                    }
+                });
+                
+                calendar.appendChild(div);
+            }
+        }
+        
+        document.getElementById('prevMonth')?.addEventListener('click', function() {
+            timePickerMonth--;
+            if (timePickerMonth < 0) {
+                timePickerMonth = 11;
+                timePickerYear--;
+            }
+            renderCalendar();
+        });
+        
+        document.getElementById('nextMonth')?.addEventListener('click', function() {
+            timePickerMonth++;
+            if (timePickerMonth > 11) {
+                timePickerMonth = 0;
+                timePickerYear++;
+            }
+            renderCalendar();
+        });
+        
+        function adjustTime(unit, delta) {
+            if (unit === 'hour') {
+                timePickerHour += delta;
+                if (timePickerHour < 0) timePickerHour = 23;
+                if (timePickerHour > 23) timePickerHour = 0;
+            } else if (unit === 'min') {
+                timePickerMinute += delta;
+                if (timePickerMinute < 0) timePickerMinute = 59;
+                if (timePickerMinute > 59) timePickerMinute = 0;
+            } else if (unit === 'sec') {
+                timePickerSecond += delta;
+                if (timePickerSecond < 0) timePickerSecond = 59;
+                if (timePickerSecond > 59) timePickerSecond = 0;
+            }
+            
+            updateTimeDisplay();
+        }
+        
+        function updateTimeDisplay() {
+            document.getElementById('displayHour').textContent = String(timePickerHour).padStart(2, '0');
+            document.getElementById('displayMin').textContent = String(timePickerMinute).padStart(2, '0');
+            document.getElementById('displaySec').textContent = String(timePickerSecond).padStart(2, '0');
+        }
+        
+        document.getElementById('syncTimeBtn')?.addEventListener('click', function() {
+            if (!isMqttConnected) {
+                addStatus("MQTT not connected", "ERROR");
+                return;
+            }
+            
+            const now = new Date();
+            const timestamp = Math.floor(now.getTime() / 1000);
+            
+            // Update time picker UI
+            timePickerYear = now.getFullYear();
+            timePickerMonth = now.getMonth();
+            timePickerDay = now.getDate();
+            timePickerHour = now.getHours();
+            timePickerMinute = now.getMinutes();
+            timePickerSecond = now.getSeconds();
+            
+            renderCalendar();
+            updateTimeDisplay();
+            
+            // Send to device
+            const command = `SET TIME ${timestamp}`;
+            mqttClient.publish(MQTT_CONFIG.topics.stm32Command, command, {qos: 1});
+            
+            addStatus(`Time synced from internet: ${now.toLocaleString()}`, 'SYNC');
+        });
+        
+        document.getElementById('setManualTimeBtn')?.addEventListener('click', function() {
+            if (!isMqttConnected) {
+                addStatus("MQTT not connected", "ERROR");
+                return;
+            }
+            
+            const date = new Date(timePickerYear, timePickerMonth, timePickerDay, 
+                                  timePickerHour, timePickerMinute, timePickerSecond);
+            const timestamp = Math.floor(date.getTime() / 1000);
+            
+            const command = `SET TIME ${timestamp}`;
+            mqttClient.publish(MQTT_CONFIG.topics.stm32Command, command, {qos: 1});
+            
+            addStatus(`Manual time set: ${date.toLocaleString()}`, 'SETTING');
+        });
+        
+        // Update time display every second
+        setInterval(updateTimeDisplay, 1000);
         
         // ====================================================================
         // INTERVAL PICKER
