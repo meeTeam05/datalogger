@@ -1476,19 +1476,19 @@
         
         // Firebase Configuration
         let FIREBASE_CONFIG = {
-            apiKey: localStorage.getItem('firebaseApiKey') || "AIzaSyAxEhTb1cNHTwmVWh4vbpA5MZSF0Vf0l0U",
-            databaseURL: localStorage.getItem('firebaseDbUrl') || "https://datalogger-8c5d5-default-rtdb.firebaseio.com/",
-            projectId: localStorage.getItem('firebaseProjectId') || "datalogger-8c5d5",
+            apiKey: "AIzaSyAxEhTb1cNHTwmVWh4vbpA5MZSF0Vf0l0U",
+            databaseURL: "https://datalogger-8c5d5-default-rtdb.firebaseio.com/",
+            projectId: "datalogger-8c5d5",
         };
         
         // MQTT Configuration
         const MQTT_CONFIG = {
-            host: localStorage.getItem('mqttHost') || "127.0.0.1",
-            port: parseInt(localStorage.getItem('mqttPort')) || 8083,
+            host: "127.0.0.1",
+            port: 8083,
             path: "/mqtt",
             username: "DataLogger",
             password: "datalogger",
-            clientId: localStorage.getItem('mqttClientId') || "web_client_1",
+            clientId: "web_client_1",
             url: "ws://127.0.0.1:8083/mqtt",
             topics: {
                 stm32Command: "datalogger/stm32/command",
@@ -2967,6 +2967,9 @@
             // Load MQTT settings
             document.getElementById('mqttHost').value = MQTT_CONFIG.host;
             document.getElementById('mqttPort').value = MQTT_CONFIG.port;
+            document.getElementById('mqttPath').value = MQTT_CONFIG.path;
+            document.getElementById('mqttUser').value = MQTT_CONFIG.username;
+            document.getElementById('mqttPass').value = MQTT_CONFIG.password;
             document.getElementById('mqttClientId').value = MQTT_CONFIG.clientId;
             
             // Load Firebase settings
@@ -2991,23 +2994,23 @@
         }
         
         function saveSettings() {
-            // Save MQTT settings
+            // Update MQTT config object
             MQTT_CONFIG.host = document.getElementById('mqttHost').value;
             MQTT_CONFIG.port = parseInt(document.getElementById('mqttPort').value) || 9001;
+            MQTT_CONFIG.path = document.getElementById('mqttPath').value || '/mqtt';
+            MQTT_CONFIG.username = document.getElementById('mqttUser').value || 'DataLogger';
+            MQTT_CONFIG.password = document.getElementById('mqttPass').value || 'datalogger';
             MQTT_CONFIG.clientId = document.getElementById('mqttClientId').value;
+            MQTT_CONFIG.url = `ws://${MQTT_CONFIG.host}:${MQTT_CONFIG.port}${MQTT_CONFIG.path}`;
             
-            localStorage.setItem('mqttHost', MQTT_CONFIG.host);
-            localStorage.setItem('mqttPort', MQTT_CONFIG.port);
-            localStorage.setItem('mqttClientId', MQTT_CONFIG.clientId);
-            
-            // Save Firebase settings
+            // Update Firebase config object
             FIREBASE_CONFIG.apiKey = document.getElementById('firebaseApiKey').value;
             FIREBASE_CONFIG.projectId = document.getElementById('firebaseProjectId').value;
             FIREBASE_CONFIG.databaseURL = document.getElementById('firebaseDbUrl').value;
             
-            localStorage.setItem('firebaseApiKey', FIREBASE_CONFIG.apiKey);
-            localStorage.setItem('firebaseProjectId', FIREBASE_CONFIG.projectId);
-            localStorage.setItem('firebaseDbUrl', FIREBASE_CONFIG.databaseURL);
+            // Save config objects to localStorage
+            localStorage.setItem('datalogger_mqtt_config', JSON.stringify(MQTT_CONFIG));
+            localStorage.setItem('datalogger_firebase_config', JSON.stringify(FIREBASE_CONFIG));
             
             // Save display preferences
             localStorage.setItem('tempUnit', document.getElementById('tempUnit').value);
@@ -3398,6 +3401,7 @@
                 MQTT_CONFIG.path = config.path || MQTT_CONFIG.path;
                 MQTT_CONFIG.username = config.username || MQTT_CONFIG.username;
                 MQTT_CONFIG.password = config.password || MQTT_CONFIG.password;
+                MQTT_CONFIG.clientId = config.clientId || MQTT_CONFIG.clientId;
                 MQTT_CONFIG.url = `ws://${MQTT_CONFIG.host}:${MQTT_CONFIG.port}${MQTT_CONFIG.path}`;
                 
                 // Update form fields
@@ -3406,6 +3410,7 @@
                 document.getElementById('mqttPath').value = MQTT_CONFIG.path;
                 document.getElementById('mqttUser').value = MQTT_CONFIG.username;
                 document.getElementById('mqttPass').value = MQTT_CONFIG.password;
+                document.getElementById('mqttClientId').value = MQTT_CONFIG.clientId;
             }
             
             if (savedFirebase) {
