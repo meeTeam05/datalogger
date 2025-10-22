@@ -625,9 +625,6 @@
                     <span class="status-dot disconnected" id="firebaseDot"></span>
                     <span id="firebaseText">Firebase Disconnected</span>
                 </div>
-                <button class="btn btn-secondary" id="settingsBtn">
-                    <i data-feather="settings"></i>
-                </button>
             </div>
         </header>
         
@@ -1777,14 +1774,24 @@
         }
         
         function parseStateMessage(message) {
-            const deviceMatch = message.match(/device[:\s]+(ON|OFF)/i);
-            const periodicMatch = message.match(/periodic[:\s]+(ON|OFF)/i);
-            
-            if (deviceMatch || periodicMatch) {
+            try {
+                // Try JSON format first (from ESP32)
+                const state = JSON.parse(message);
                 return {
-                    device: deviceMatch ? (deviceMatch[1].toUpperCase() === "ON") : isDeviceOn,
-                    periodic: periodicMatch ? (periodicMatch[1].toUpperCase() === "ON") : isPeriodic
+                    device: state.device === "ON",
+                    periodic: state.periodic === "ON"
                 };
+            } catch (e) {
+                // Fallback to text format
+                const deviceMatch = message.match(/device[:\s]+(ON|OFF)/i);
+                const periodicMatch = message.match(/periodic[:\s]+(ON|OFF)/i);
+                
+                if (deviceMatch || periodicMatch) {
+                    return {
+                        device: deviceMatch ? (deviceMatch[1].toUpperCase() === "ON") : isDeviceOn,
+                        periodic: periodicMatch ? (periodicMatch[1].toUpperCase() === "ON") : isPeriodic
+                    };
+                }
             }
             
             return null;
@@ -2091,15 +2098,58 @@
         // ====================================================================
         // BUTTON HANDLERS
         // ====================================================================
+        // ====================================================================
+        // BUTTON EVENT LISTENERS
+        // ====================================================================
         document.getElementById('deviceBtn').addEventListener('click', function() {
             if (!isMqttConnected) {
                 addStatus("MQTT not connected", "ERROR");
                 return;
             }
             
-            const newState = isDeviceOn ? "OFF" : "ON";
-            mqttClient.publish(MQTT_CONFIG.topics.relayControl, newState, {qos: 1});
-            addStatus(`Device ${newState} command sent`, "MQTT");
+            // Toggle device state
+            const command = isDeviceOn ? "RELAY OFF" : "RELAY ON";
+            const willBeDeviceOn = !isDeviceOn;
+            
+            // Publish MQTT command
+            mqttClient.publish(MQTT_CONFIG.topics.relayControl, command, {qos: 1});
+            
+            // Update state immediately
+            isDeviceOn = willBeDeviceOn;
+            
+            // Update UI
+            const deviceBtn = document.getElementById('deviceBtn');
+            const deviceBtnText = document.getElementById('deviceBtnText');
+            if (isDeviceOn) {
+                deviceBtn.className = 'btn btn-danger';
+                deviceBtnText.textContent = 'Device OFF';
+            } else {
+                deviceBtn.className = 'btn btn-primary';
+                deviceBtnText.textContent = 'Device ON';
+            }
+            
+            // If turning OFF, stop periodic mode immediately
+            if (!isDeviceOn && isPeriodic) {
+                isPeriodic = false;
+                const periodicBtn = document.getElementById('periodicBtn');
+                const periodicBtnText = document.getElementById('periodicBtnText');
+                if (periodicBtn) periodicBtn.className = 'btn btn-success';
+                if (periodicBtnText) periodicBtnText.textContent = 'Start Periodic';
+                
+                mqttClient.publish(MQTT_CONFIG.topics.stm32Command, "PERIODIC OFF", {qos: 1});
+                addStatus("Periodic mode stopped (device OFF)", "SYNC");
+            }
+            
+            // Reset current values when device OFF
+            if (!isDeviceOn) {
+                currentTemp = null;
+                currentHumi = null;
+                document.getElementById('currentTemp').textContent = '--';
+                document.getElementById('currentHumi').textContent = '--';
+                document.getElementById('lastUpdate').textContent = 'Updated at --:--:--';
+            }
+            
+            addStatus(`Device ${command} sent`, "MQTT");
         });
         
         document.getElementById('periodicBtn').addEventListener('click', function() {
@@ -2113,10 +2163,28 @@
                 return;
             }
             
-            const newState = isPeriodic ? "OFF" : "ON";
-            const command = `PERIODIC ${newState}`;
+            // Toggle periodic state
+            const willBePeriodic = !isPeriodic;
+            const command = willBePeriodic ? "PERIODIC ON" : "PERIODIC OFF";
+            
+            // Publish MQTT command
             mqttClient.publish(MQTT_CONFIG.topics.stm32Command, command, {qos: 1});
-            addStatus(`Periodic ${newState} command sent`, "MQTT");
+            
+            // Update state immediately
+            isPeriodic = willBePeriodic;
+            
+            // Update UI
+            const periodicBtn = document.getElementById('periodicBtn');
+            const periodicBtnText = document.getElementById('periodicBtnText');
+            if (isPeriodic) {
+                periodicBtn.className = 'btn btn-danger';
+                periodicBtnText.textContent = 'Stop Periodic';
+            } else {
+                periodicBtn.className = 'btn btn-success';
+                periodicBtnText.textContent = 'Start Periodic';
+            }
+            
+            addStatus(`Periodic ${isPeriodic ? 'ON' : 'OFF'} command sent`, "MQTT");
         });
         
         document.getElementById('singleBtn').addEventListener('click', function() {
