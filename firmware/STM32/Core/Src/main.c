@@ -23,6 +23,7 @@
 /* USER CODE BEGIN Includes */
 
 #include <stdio.h>
+#include <stdbool.h>
 #include <time.h>
 #include "uart.h"
 #include "sht3x.h"
@@ -32,6 +33,8 @@
 #include "sd_card_manager.h"
 #include "sensor_json_output.h"
 #include "print_cli.h"
+#include "ili9225.h"
+#include "display.h"
 
 /* USER CODE END Includes */
 
@@ -56,10 +59,14 @@
 I2C_HandleTypeDef hi2c1;
 
 SPI_HandleTypeDef hspi1;
+SPI_HandleTypeDef hspi2;
 
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
+
+// External variable for display update control
+extern bool force_display_update;
 
 // Periodic fetch variables
 static uint32_t last_fetch_ms = 0;                          // Track last fetch time to prevent duplicates
@@ -68,6 +75,9 @@ uint32_t periodic_interval_ms = PERIODIC_PRINT_INTERVAL_MS; // Interval to print
 
 // MQTT state tracking - Default to DISCONNECTED (ESP32 will notify if connected)
 mqtt_state_t mqtt_current_state = MQTT_STATE_DISCONNECTED;
+
+// Display update flag - Set to true when time is changed via SET TIME command
+bool force_display_update = false;
 
 // SHT3X device instance
 sht3x_t g_sht3x;
@@ -87,6 +97,7 @@ static void MX_GPIO_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_SPI1_Init(void);
+static void MX_SPI2_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -128,6 +139,7 @@ int main(void)
   MX_I2C1_Init();
   MX_USART1_UART_Init();
   MX_SPI1_Init();
+  MX_SPI2_Init();
   /* USER CODE BEGIN 2 */
 
   UART_Init(&huart1);
@@ -150,10 +162,23 @@ int main(void)
   {
     PRINT_CLI("[WARN] SD Card NOT available! Data will be lost when WiFi disconnected.\r\n");
   }
+
+  /* Initialize ILI9225 TFT Display */
+  ILI9225_Init();
+  HAL_Delay(50); // Display stabilization delay
+
+  /* Initialize Display Library */
+  display_init();
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
+  // Display update variables
+  static uint32_t last_display_update_ms = 0;
+  static bool is_periodic_active = false;
+
   while (1)
   {
     /* USER CODE END WHILE */
@@ -165,6 +190,7 @@ int main(void)
     /* Handle periodic sensor data fetch */
     if (SHT3X_IS_PERIODIC_STATE(g_sht3x.currentState))
     {
+      is_periodic_active = true;
       uint32_t now = HAL_GetTick();
 
       if ((int32_t)(now - next_fetch_ms) >= 0 && last_fetch_ms != now)
@@ -185,6 +211,10 @@ int main(void)
         next_fetch_ms = now + periodic_interval_ms;
       }
     }
+    else
+    {
+      is_periodic_active = false;
+    }
 
     /* MQTT-aware data routing logic */
     if (mqtt_current_state == MQTT_STATE_CONNECTED)
@@ -192,7 +222,7 @@ int main(void)
       /* MQTT CONNECTED - Send live data + buffered data */
 
       // 1. Print current live data if ready (uses centralized DataManager_Print)
-      //    DataManager_Print() will automatically clear data_ready flag
+      // DataManager_Print() will automatically clear data_ready flag
       DataManager_Print();
 
       // 2. Send buffered data from SD (non-blocking, one record per loop)
@@ -253,6 +283,42 @@ int main(void)
         // Clear flag to allow next data
         DataManager_ClearDataReady();
       }
+    }
+
+    /* Update Display (every 1 second for smooth clock update OR when forced) */
+    uint32_t now_ms = HAL_GetTick();
+    if (now_ms - last_display_update_ms >= 1000 || force_display_update)
+    {
+      // Get current timestamp from RTC (ALWAYS read from DS3231, not increment)
+      time_t current_time = 0;
+      struct tm time;
+      if (DS3231_Get_Time(&g_ds3231, &time) == HAL_OK)
+      {
+        current_time = mktime(&time);
+      }
+      else
+      {
+        current_time = HAL_GetTick() / 1000; // Fallback to systick
+      }
+
+      // Get sensor data from data manager
+      const data_manager_state_t *state = DataManager_GetState();
+      float display_temp = state->sht3x.valid ? state->sht3x.temperature : 0.0f;
+      float display_humi = state->sht3x.valid ? state->sht3x.humidity : 0.0f;
+
+      // Determine MQTT connection status
+      bool mqtt_connected = (mqtt_current_state == MQTT_STATE_CONNECTED);
+
+      // Calculate interval in seconds
+      int interval_seconds = periodic_interval_ms / 1000;
+
+      // Update display
+      display_update(current_time, display_temp, display_humi,
+                     mqtt_connected, is_periodic_active, interval_seconds);
+
+      // Reset flags after update
+      last_display_update_ms = now_ms;
+      force_display_update = false; // Clear force update flag
     }
   }
   /* USER CODE END 3 */
@@ -366,6 +432,43 @@ static void MX_SPI1_Init(void)
 }
 
 /**
+ * @brief SPI2 Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_SPI2_Init(void)
+{
+
+  /* USER CODE BEGIN SPI2_Init 0 */
+
+  /* USER CODE END SPI2_Init 0 */
+
+  /* USER CODE BEGIN SPI2_Init 1 */
+
+  /* USER CODE END SPI2_Init 1 */
+  /* SPI2 parameter configuration*/
+  hspi2.Instance = SPI2;
+  hspi2.Init.Mode = SPI_MODE_MASTER;
+  hspi2.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi2.Init.CLKPolarity = SPI_POLARITY_HIGH;
+  hspi2.Init.CLKPhase = SPI_PHASE_2EDGE;
+  hspi2.Init.NSS = SPI_NSS_SOFT;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
+  hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi2.Init.CRCPolynomial = 10;
+  if (HAL_SPI_Init(&hspi2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN SPI2_Init 2 */
+
+  /* USER CODE END SPI2_Init 2 */
+}
+
+/**
  * @brief USART1 Initialization Function
  * @param None
  * @retval None
@@ -419,7 +522,10 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(SD_CS_GPIO_Port, SD_CS_Pin, GPIO_PIN_SET); /* CS must start HIGH (deselected) */
+  HAL_GPIO_WritePin(GPIOA, SD_CS_Pin | ILI9225_RST_Pin | ILI9225_RS_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(ILI9225_CS_GPIO_Port, ILI9225_CS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : PC13 */
   GPIO_InitStruct.Pin = GPIO_PIN_13;
@@ -428,12 +534,19 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : SD_CS_Pin */
-  GPIO_InitStruct.Pin = SD_CS_Pin;
+  /*Configure GPIO pins : SD_CS_Pin ILI9225_RST_Pin ILI9225_RS_Pin */
+  GPIO_InitStruct.Pin = SD_CS_Pin | ILI9225_RST_Pin | ILI9225_RS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(SD_CS_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : ILI9225_CS_Pin */
+  GPIO_InitStruct.Pin = ILI9225_CS_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(ILI9225_CS_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
