@@ -1102,23 +1102,209 @@
             
             <!-- Logs Page -->
             <section class="page-section" id="page-logs">
-                <div class="card">
-                    <div class="card-header">
+                <div class="card" style="background: white; border-radius: 0.75rem; padding: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 1.5rem; overflow: hidden;">
+                    <div class="card-header" style="background: white; border-bottom: 1px solid var(--border-color); padding: 1.25rem;">
                         <i data-feather="file-text"></i>
-                        System Logs
+                        <span style="font-weight: 700;">System Logs</span>
+                        <span style="color: var(--text-muted); font-size: 0.875rem; margin-left: 0.5rem;">Complete log history with filtering</span>
                     </div>
-                    <div class="console" id="consoleFull" style="max-height: 600px;"></div>
+                    
+                    <!-- Filter Controls -->
+                    <div style="padding: 1.25rem; border-bottom: 1px solid var(--border-color);">
+                        <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; margin-bottom: 1rem;">
+                            <!-- Search -->
+                            <div style="flex: 1; min-width: 200px;">
+                                <input type="text" id="logSearchInput" placeholder="Search logs..." style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem;">
+                            </div>
+                            
+                            <!-- Actions -->
+                            <button onclick="clearLogs()" style="padding: 0.5rem 1rem; border: 2px solid var(--danger); background: white; color: var(--danger); border-radius: 0.5rem; cursor: pointer; font-weight: 600; font-size: 0.875rem; transition: all 0.2s;">
+                                Clear All
+                            </button>
+                            <button onclick="exportLogs()" style="padding: 0.5rem 1rem; border: 2px solid var(--success); background: var(--success); color: white; border-radius: 0.5rem; cursor: pointer; font-weight: 600; font-size: 0.875rem; transition: all 0.2s;">
+                                Export CSV
+                            </button>
+                        </div>
+                        
+                        <!-- Filter Buttons -->
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button onclick="filterLogs('ALL')" id="filterAll" style="padding: 0.5rem 1rem; border: 2px solid var(--primary); background: var(--primary); color: white; border-radius: 0.5rem; cursor: pointer; font-weight: 600; font-size: 0.875rem; transition: all 0.2s;">
+                                ALL
+                            </button>
+                            <button onclick="filterLogs('INFO')" id="filterInfo" style="padding: 0.5rem 1rem; border: 2px solid var(--border-color); background: white; color: var(--text-primary); border-radius: 0.5rem; cursor: pointer; font-weight: 600; font-size: 0.875rem; transition: all 0.2s;">
+                                INFO
+                            </button>
+                            <button onclick="filterLogs('WARNING')" id="filterWarning" style="padding: 0.5rem 1rem; border: 2px solid var(--border-color); background: white; color: var(--text-primary); border-radius: 0.5rem; cursor: pointer; font-weight: 600; font-size: 0.875rem; transition: all 0.2s;">
+                                WARNING
+                            </button>
+                            <button onclick="filterLogs('ERROR')" id="filterError" style="padding: 0.5rem 1rem; border: 2px solid var(--border-color); background: white; color: var(--text-primary); border-radius: 0.5rem; cursor: pointer; font-weight: 600; font-size: 0.875rem; transition: all 0.2s;">
+                                ERROR
+                            </button>
+                            <button onclick="filterLogs('MQTT')" id="filterMqtt" style="padding: 0.5rem 1rem; border: 2px solid var(--border-color); background: white; color: var(--text-primary); border-radius: 0.5rem; cursor: pointer; font-weight: 600; font-size: 0.875rem; transition: all 0.2s;">
+                                MQTT
+                            </button>
+                            <button onclick="filterLogs('FIREBASE')" id="filterFirebase" style="padding: 0.5rem 1rem; border: 2px solid var(--border-color); background: white; color: var(--text-primary); border-radius: 0.5rem; cursor: pointer; font-weight: 600; font-size: 0.875rem; transition: all 0.2s;">
+                                FIREBASE
+                            </button>
+                            <button onclick="filterLogs('SYNC')" id="filterSync" style="padding: 0.5rem 1rem; border: 2px solid var(--border-color); background: white; color: var(--text-primary); border-radius: 0.5rem; cursor: pointer; font-weight: 600; font-size: 0.875rem; transition: all 0.2s;">
+                                SYNC
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Log Console -->
+                    <div class="console" id="consoleFull" style="max-height: 600px; padding: 1.25rem; background: #1a1a1a; font-family: 'Courier New', monospace; font-size: 0.875rem; line-height: 1.5; overflow-y: auto;"></div>
                 </div>
             </section>
             
             <!-- Config/Settings Page -->
             <section class="page-section" id="page-config">
-                <div class="card">
-                    <div class="card-header">
+                <div class="card" style="background: white; border-radius: 0.75rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; margin-bottom: 1.5rem;">
+                    <div class="card-header" style="background: white; border-bottom: 1px solid var(--border-color); padding: 1.25rem;">
                         <i data-feather="settings"></i>
-                        System Configuration
+                        <span style="font-weight: 700;">System Configuration</span>
+                        <span style="color: var(--text-muted); font-size: 0.875rem; margin-left: 0.5rem;">Configure MQTT, Firebase, Display & Data settings</span>
                     </div>
-                    <p style="color: var(--text-muted); margin-bottom: 1rem;">Settings page will be implemented here</p>
+                    
+                    <!-- Settings Content -->
+                    <div style="padding: 1.5rem;">
+                        <!-- MQTT Settings -->
+                        <div style="margin-bottom: 2rem;">
+                            <h3 style="font-size: 1.125rem; font-weight: 700; margin-bottom: 1rem; color: var(--primary); display: flex; align-items: center; gap: 0.5rem;">
+                                <i data-feather="wifi" style="width: 20px; height: 20px;"></i>
+                                MQTT Broker Settings
+                            </h3>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                                <div>
+                                    <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">Broker Host</label>
+                                    <input type="text" id="mqttHost" placeholder="192.168.1.100" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem;">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">Port</label>
+                                    <input type="number" id="mqttPort" placeholder="9001" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem;">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">Client ID</label>
+                                    <input type="text" id="mqttClientId" placeholder="web_client_1" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem;">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Firebase Settings -->
+                        <div style="margin-bottom: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+                            <h3 style="font-size: 1.125rem; font-weight: 700; margin-bottom: 1rem; color: var(--primary); display: flex; align-items: center; gap: 0.5rem;">
+                                <i data-feather="database" style="width: 20px; height: 20px;"></i>
+                                Firebase Database Settings
+                            </h3>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                                <div>
+                                    <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">API Key</label>
+                                    <input type="text" id="firebaseApiKey" placeholder="AIzaSy..." style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem;">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">Project ID</label>
+                                    <input type="text" id="firebaseProjectId" placeholder="datalogger-xyz" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem;">
+                                </div>
+                                <div style="grid-column: 1 / -1;">
+                                    <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">Database URL</label>
+                                    <input type="text" id="firebaseDbUrl" placeholder="https://datalogger-xyz.firebaseio.com" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem;">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Display Preferences -->
+                        <div style="margin-bottom: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+                            <h3 style="font-size: 1.125rem; font-weight: 700; margin-bottom: 1rem; color: var(--primary); display: flex; align-items: center; gap: 0.5rem;">
+                                <i data-feather="eye" style="width: 20px; height: 20px;"></i>
+                                Display Preferences
+                            </h3>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                                <div>
+                                    <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">Temperature Unit</label>
+                                    <select id="tempUnit" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem;">
+                                        <option value="C">Celsius (°C)</option>
+                                        <option value="F">Fahrenheit (°F)</option>
+                                        <option value="K">Kelvin (K)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">Time Format</label>
+                                    <select id="timeFormat" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem;">
+                                        <option value="24h">24-hour</option>
+                                        <option value="12h">12-hour (AM/PM)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">Date Format</label>
+                                    <select id="dateFormat" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem;">
+                                        <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                                        <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                                        <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Chart Settings -->
+                        <div style="margin-bottom: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+                            <h3 style="font-size: 1.125rem; font-weight: 700; margin-bottom: 1rem; color: var(--primary); display: flex; align-items: center; gap: 0.5rem;">
+                                <i data-feather="bar-chart-2" style="width: 20px; height: 20px;"></i>
+                                Chart Settings
+                            </h3>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                                <div>
+                                    <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">Max Data Points</label>
+                                    <input type="number" id="chartMaxPoints" placeholder="50" min="10" max="200" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem;">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">Update Interval (s)</label>
+                                    <input type="number" id="chartUpdateInterval" placeholder="1" min="1" max="60" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem;">
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.5rem; padding-top: 1.75rem;">
+                                    <input type="checkbox" id="chartSkipErrors" style="width: 18px; height: 18px; cursor: pointer;">
+                                    <label for="chartSkipErrors" style="font-weight: 600; color: var(--text-primary); cursor: pointer;">Skip error readings</label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Data Settings -->
+                        <div style="margin-bottom: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+                            <h3 style="font-size: 1.125rem; font-weight: 700; margin-bottom: 1rem; color: var(--primary); display: flex; align-items: center; gap: 0.5rem;">
+                                <i data-feather="hard-drive" style="width: 20px; height: 20px;"></i>
+                                Data Management
+                            </h3>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                                <div>
+                                    <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">Default Interval (s)</label>
+                                    <input type="number" id="dataDefaultInterval" placeholder="5" min="1" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem;">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">Retention Days</label>
+                                    <input type="number" id="dataRetentionDays" placeholder="30" min="1" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem;">
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.5rem; padding-top: 1.75rem;">
+                                    <input type="checkbox" id="dataAutoSave" checked style="width: 18px; height: 18px; cursor: pointer;">
+                                    <label for="dataAutoSave" style="font-weight: 600; color: var(--text-primary); cursor: pointer;">Auto-save to Firebase</label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Action Buttons -->
+                        <div style="display: flex; gap: 1rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+                            <button onclick="saveSettings()" style="padding: 0.75rem 1.5rem; background: var(--primary); color: white; border: none; border-radius: 0.5rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+                                Save Settings
+                            </button>
+                            <button onclick="exportSettings()" style="padding: 0.75rem 1.5rem; background: white; color: var(--text-primary); border: 2px solid var(--border-color); border-radius: 0.5rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+                                Export Settings
+                            </button>
+                            <button onclick="importSettings()" style="padding: 0.75rem 1.5rem; background: white; color: var(--text-primary); border: 2px solid var(--border-color); border-radius: 0.5rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+                                Import Settings
+                            </button>
+                            <button onclick="restoreDefaults()" style="padding: 0.75rem 1.5rem; background: white; color: var(--danger); border: 2px solid var(--danger); border-radius: 0.5rem; font-weight: 700; cursor: pointer; transition: all 0.2s; margin-left: auto;">
+                                Restore Defaults
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </section>
         </main>
@@ -1325,6 +1511,10 @@
                     updateTimeDisplay();
                 } else if (page === 'livedata') {
                     renderLiveDataTable();
+                } else if (page === 'logs') {
+                    renderFullConsole();
+                } else if (page === 'config') {
+                    loadSettingsPage();
                 }
                 
                 // Re-initialize feather icons
@@ -1370,10 +1560,10 @@
                 }
             }
             
-            // Update full logs
-            const full = document.getElementById('consoleFull');
-            if (full) {
-                full.innerHTML = line + full.innerHTML;
+            // Update full logs if on logs page
+            const logsSection = document.getElementById('page-logs');
+            if (logsSection && logsSection.classList.contains('active')) {
+                renderFullConsole();
             }
         }
         
@@ -2576,6 +2766,318 @@
         document.getElementById('applyFiltersBtn')?.addEventListener('click', applyDataFilters);
         document.getElementById('resetFiltersBtn')?.addEventListener('click', resetDataFilters);
         document.getElementById('exportDataBtn')?.addEventListener('click', exportFilteredData);
+        
+        // ====================================================================
+        // LOGS PAGE ENHANCEMENT
+        // ====================================================================
+        let logFilterType = 'ALL';
+        
+        function renderFullConsole() {
+            const console = document.getElementById('consoleFull');
+            if (!console) return;
+            
+            const searchTerm = document.getElementById('logSearchInput')?.value.toLowerCase() || '';
+            
+            let filteredLogs = logBuffer.filter(log => {
+                // Type filter
+                if (logFilterType !== 'ALL' && log.type !== logFilterType) return false;
+                
+                // Search filter
+                if (searchTerm && !log.message.toLowerCase().includes(searchTerm)) return false;
+                
+                return true;
+            });
+            
+            if (filteredLogs.length === 0) {
+                console.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 2rem;">No logs found</div>';
+                return;
+            }
+            
+            console.innerHTML = filteredLogs.map(log => {
+                const colors = {
+                    'INFO': '#10B981',
+                    'WARNING': '#F59E0B',
+                    'ERROR': '#EF4444',
+                    'MQTT': '#8B5CF6',
+                    'FIREBASE': '#F97316',
+                    'SYNC': '#06B6D4'
+                };
+                
+                return `<div style="color: ${colors[log.type] || '#10B981'}; margin-bottom: 0.25rem;">
+                    <strong>[${log.timestamp}] [${log.type}]</strong> ${log.message}
+                </div>`;
+            }).join('');
+            
+            console.scrollTop = console.scrollHeight;
+        }
+        
+        function filterLogs(type) {
+            logFilterType = type;
+            
+            // Update button styles
+            ['filterAll', 'filterInfo', 'filterWarning', 'filterError', 'filterMqtt', 'filterFirebase', 'filterSync'].forEach(id => {
+                const btn = document.getElementById(id);
+                if (!btn) return;
+                
+                const isActive = id === 'filter' + type.charAt(0) + type.slice(1).toLowerCase();
+                
+                if (isActive) {
+                    btn.style.background = 'var(--primary)';
+                    btn.style.color = 'white';
+                    btn.style.borderColor = 'var(--primary)';
+                } else {
+                    btn.style.background = 'white';
+                    btn.style.color = 'var(--text-primary)';
+                    btn.style.borderColor = 'var(--border-color)';
+                }
+            });
+            
+            renderFullConsole();
+        }
+        
+        function clearLogs() {
+            if (!confirm('Are you sure you want to clear all logs?')) return;
+            
+            logBuffer = [];
+            renderConsole();
+            renderFullConsole();
+            addStatus('All logs cleared', 'INFO');
+        }
+        
+        function exportLogs() {
+            if (logBuffer.length === 0) {
+                addStatus('No logs to export', 'WARNING');
+                return;
+            }
+            
+            const headers = ['Timestamp', 'Type', 'Message'];
+            const rows = logBuffer.map(log => [
+                log.timestamp,
+                log.type,
+                log.message.replace(/,/g, ';') // Escape commas in message
+            ]);
+            
+            const csv = [
+                headers.join(','),
+                ...rows.map(row => row.join(','))
+            ].join('\n');
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `datalogger_logs_${Date.now()}.csv`;
+            a.click();
+            
+            addStatus(`Exported ${logBuffer.length} logs to CSV`, 'INFO');
+        }
+        
+        // Add search functionality
+        document.getElementById('logSearchInput')?.addEventListener('input', () => {
+            renderFullConsole();
+        });
+        
+        // ====================================================================
+        // SETTINGS PAGE
+        // ====================================================================
+        function loadSettingsPage() {
+            // Load MQTT settings
+            document.getElementById('mqttHost').value = MQTT_CONFIG.host;
+            document.getElementById('mqttPort').value = MQTT_CONFIG.port;
+            document.getElementById('mqttClientId').value = MQTT_CONFIG.clientId;
+            
+            // Load Firebase settings
+            document.getElementById('firebaseApiKey').value = FIREBASE_CONFIG.apiKey;
+            document.getElementById('firebaseProjectId').value = FIREBASE_CONFIG.projectId;
+            document.getElementById('firebaseDbUrl').value = FIREBASE_CONFIG.databaseURL;
+            
+            // Load display preferences (from localStorage or defaults)
+            document.getElementById('tempUnit').value = localStorage.getItem('tempUnit') || 'C';
+            document.getElementById('timeFormat').value = localStorage.getItem('timeFormat') || '24h';
+            document.getElementById('dateFormat').value = localStorage.getItem('dateFormat') || 'DD/MM/YYYY';
+            
+            // Load chart settings
+            document.getElementById('chartMaxPoints').value = localStorage.getItem('chartMaxPoints') || '50';
+            document.getElementById('chartUpdateInterval').value = localStorage.getItem('chartUpdateInterval') || '1';
+            document.getElementById('chartSkipErrors').checked = localStorage.getItem('chartSkipErrors') === 'true';
+            
+            // Load data settings
+            document.getElementById('dataDefaultInterval').value = localStorage.getItem('dataDefaultInterval') || '5';
+            document.getElementById('dataRetentionDays').value = localStorage.getItem('dataRetentionDays') || '30';
+            document.getElementById('dataAutoSave').checked = localStorage.getItem('dataAutoSave') !== 'false';
+        }
+        
+        function saveSettings() {
+            // Save MQTT settings
+            MQTT_CONFIG.host = document.getElementById('mqttHost').value;
+            MQTT_CONFIG.port = parseInt(document.getElementById('mqttPort').value) || 9001;
+            MQTT_CONFIG.clientId = document.getElementById('mqttClientId').value;
+            
+            localStorage.setItem('mqttHost', MQTT_CONFIG.host);
+            localStorage.setItem('mqttPort', MQTT_CONFIG.port);
+            localStorage.setItem('mqttClientId', MQTT_CONFIG.clientId);
+            
+            // Save Firebase settings
+            FIREBASE_CONFIG.apiKey = document.getElementById('firebaseApiKey').value;
+            FIREBASE_CONFIG.projectId = document.getElementById('firebaseProjectId').value;
+            FIREBASE_CONFIG.databaseURL = document.getElementById('firebaseDbUrl').value;
+            
+            localStorage.setItem('firebaseApiKey', FIREBASE_CONFIG.apiKey);
+            localStorage.setItem('firebaseProjectId', FIREBASE_CONFIG.projectId);
+            localStorage.setItem('firebaseDbUrl', FIREBASE_CONFIG.databaseURL);
+            
+            // Save display preferences
+            localStorage.setItem('tempUnit', document.getElementById('tempUnit').value);
+            localStorage.setItem('timeFormat', document.getElementById('timeFormat').value);
+            localStorage.setItem('dateFormat', document.getElementById('dateFormat').value);
+            
+            // Save chart settings
+            localStorage.setItem('chartMaxPoints', document.getElementById('chartMaxPoints').value);
+            localStorage.setItem('chartUpdateInterval', document.getElementById('chartUpdateInterval').value);
+            localStorage.setItem('chartSkipErrors', document.getElementById('chartSkipErrors').checked);
+            
+            // Save data settings
+            localStorage.setItem('dataDefaultInterval', document.getElementById('dataDefaultInterval').value);
+            localStorage.setItem('dataRetentionDays', document.getElementById('dataRetentionDays').value);
+            localStorage.setItem('dataAutoSave', document.getElementById('dataAutoSave').checked);
+            
+            addStatus('Settings saved successfully. Reload page to apply MQTT/Firebase changes.', 'INFO');
+            
+            alert('Settings saved! Please reload the page to apply MQTT and Firebase configuration changes.');
+        }
+        
+        function exportSettings() {
+            const settings = {
+                mqtt: {
+                    host: MQTT_CONFIG.host,
+                    port: MQTT_CONFIG.port,
+                    clientId: MQTT_CONFIG.clientId
+                },
+                firebase: {
+                    apiKey: FIREBASE_CONFIG.apiKey,
+                    projectId: FIREBASE_CONFIG.projectId,
+                    databaseURL: FIREBASE_CONFIG.databaseURL
+                },
+                display: {
+                    tempUnit: localStorage.getItem('tempUnit') || 'C',
+                    timeFormat: localStorage.getItem('timeFormat') || '24h',
+                    dateFormat: localStorage.getItem('dateFormat') || 'DD/MM/YYYY'
+                },
+                chart: {
+                    maxPoints: localStorage.getItem('chartMaxPoints') || '50',
+                    updateInterval: localStorage.getItem('chartUpdateInterval') || '1',
+                    skipErrors: localStorage.getItem('chartSkipErrors') === 'true'
+                },
+                data: {
+                    defaultInterval: localStorage.getItem('dataDefaultInterval') || '5',
+                    retentionDays: localStorage.getItem('dataRetentionDays') || '30',
+                    autoSave: localStorage.getItem('dataAutoSave') !== 'false'
+                }
+            };
+            
+            const json = JSON.stringify(settings, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `datalogger_settings_${Date.now()}.json`;
+            a.click();
+            
+            addStatus('Settings exported to JSON', 'INFO');
+        }
+        
+        function importSettings() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            
+            input.onchange = e => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = event => {
+                    try {
+                        const settings = JSON.parse(event.target.result);
+                        
+                        // Apply MQTT settings
+                        if (settings.mqtt) {
+                            document.getElementById('mqttHost').value = settings.mqtt.host;
+                            document.getElementById('mqttPort').value = settings.mqtt.port;
+                            document.getElementById('mqttClientId').value = settings.mqtt.clientId;
+                        }
+                        
+                        // Apply Firebase settings
+                        if (settings.firebase) {
+                            document.getElementById('firebaseApiKey').value = settings.firebase.apiKey;
+                            document.getElementById('firebaseProjectId').value = settings.firebase.projectId;
+                            document.getElementById('firebaseDbUrl').value = settings.firebase.databaseURL;
+                        }
+                        
+                        // Apply display preferences
+                        if (settings.display) {
+                            document.getElementById('tempUnit').value = settings.display.tempUnit;
+                            document.getElementById('timeFormat').value = settings.display.timeFormat;
+                            document.getElementById('dateFormat').value = settings.display.dateFormat;
+                        }
+                        
+                        // Apply chart settings
+                        if (settings.chart) {
+                            document.getElementById('chartMaxPoints').value = settings.chart.maxPoints;
+                            document.getElementById('chartUpdateInterval').value = settings.chart.updateInterval;
+                            document.getElementById('chartSkipErrors').checked = settings.chart.skipErrors;
+                        }
+                        
+                        // Apply data settings
+                        if (settings.data) {
+                            document.getElementById('dataDefaultInterval').value = settings.data.defaultInterval;
+                            document.getElementById('dataRetentionDays').value = settings.data.retentionDays;
+                            document.getElementById('dataAutoSave').checked = settings.data.autoSave;
+                        }
+                        
+                        addStatus('Settings imported successfully. Click Save to apply.', 'INFO');
+                        alert('Settings imported! Click "Save Settings" to apply them.');
+                    } catch (err) {
+                        addStatus(`Import error: ${err.message}`, 'ERROR');
+                        alert('Failed to import settings. Invalid JSON file.');
+                    }
+                };
+                reader.readAsText(file);
+            };
+            
+            input.click();
+        }
+        
+        function restoreDefaults() {
+            if (!confirm('Are you sure you want to restore all settings to defaults? This will clear your MQTT and Firebase configuration.')) return;
+            
+            // Clear all localStorage
+            localStorage.clear();
+            
+            // Reset form to defaults
+            document.getElementById('mqttHost').value = '';
+            document.getElementById('mqttPort').value = '9001';
+            document.getElementById('mqttClientId').value = 'web_client_1';
+            
+            document.getElementById('firebaseApiKey').value = '';
+            document.getElementById('firebaseProjectId').value = '';
+            document.getElementById('firebaseDbUrl').value = '';
+            
+            document.getElementById('tempUnit').value = 'C';
+            document.getElementById('timeFormat').value = '24h';
+            document.getElementById('dateFormat').value = 'DD/MM/YYYY';
+            
+            document.getElementById('chartMaxPoints').value = '50';
+            document.getElementById('chartUpdateInterval').value = '1';
+            document.getElementById('chartSkipErrors').checked = false;
+            
+            document.getElementById('dataDefaultInterval').value = '5';
+            document.getElementById('dataRetentionDays').value = '30';
+            document.getElementById('dataAutoSave').checked = true;
+            
+            addStatus('Settings restored to defaults', 'INFO');
+            alert('Settings restored to defaults! Reload the page to apply changes.');
+        }
         
         // ====================================================================
         // INTERVAL PICKER
