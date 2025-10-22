@@ -1,0 +1,45 @@
+menu "Status LED Configuration"
+
+    config WIFI_LED_GPIO
+        int "WiFi status LED GPIO pin number"
+        range 0 39 if IDF_TARGET_ESP32
+        range 0 46 if IDF_TARGET_ESP32S2
+        range 0 48 if IDF_TARGET_ESP32S3
+        range 0 21 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2
+        default 22 if IDF_TARGET_ESP32
+        default 22 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+        default 8 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2
+        help
+            GPIO pin for WiFi connection status LED.
+            LED ON: WiFi connected
+            LED OFF: WiFi disconnected
+            ESP32: Any GPIO except input-only pins (34-39)
+            Recommended: GPIO 2, 4, 5, 12-15, 18, 19, 21-23, 25-27, 32-33
+
+    config MQTT_LED_GPIO
+        int "MQTT status LED GPIO pin number"
+        range 0 39 if IDF_TARGET_ESP32
+        range 0 46 if IDF_TARGET_ESP32S2
+        range 0 48 if IDF_TARGET_ESP32S3
+        range 0 21 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2
+        default 23 if IDF_TARGET_ESP32
+        default 23 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+        default 9 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2
+        help
+            GPIO pin for MQTT connection status LED.
+            LED ON: MQTT broker connected
+            LED OFF: MQTT broker disconnected
+            ESP32: Any GPIO except input-only pins (34-39)
+            Recommended: GPIO 2, 4, 5, 12-15, 18, 19, 21-23, 25-27, 32-33
+
+    config LED_ACTIVE_LEVEL
+        int "LED active level (0=active low, 1=active high)"
+        range 0 1
+        default 1
+        help
+            Configure LED polarity:
+            0: Active LOW (LED on when GPIO = 0, common cathode)
+            1: Active HIGH (LED on when GPIO = 1, common anode)
+            Default: Active HIGH (1)
+
+endmenu
