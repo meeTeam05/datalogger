@@ -516,6 +516,21 @@
             border-radius: 3px;
         }
         
+        /* Global input and select styling for dark mode */
+        input[type="text"],
+        input[type="number"],
+        input[type="date"],
+        input[type="password"],
+        select {
+            background-color: var(--bg-primary) !important;
+            color: var(--text-primary) !important;
+        }
+        
+        select option {
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+        
         .picker-item {
             padding: 0.75rem;
             text-align: center;
@@ -1156,11 +1171,10 @@
             
             <!-- Config/Settings Page -->
             <section class="page-section" id="page-config">
-                <div class="card" style="background: white; border-radius: 0.75rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; margin-bottom: 1.5rem;">
-                    <div class="card-header" style="background: white; border-bottom: 1px solid var(--border-color); padding: 1.25rem;">
+                <div class="card">
+                    <div class="card-header">
                         <i data-feather="settings"></i>
-                        <span style="font-weight: 700;">System Configuration</span>
-                        <span style="color: var(--text-muted); font-size: 0.875rem; margin-left: 0.5rem;">Configure MQTT, Firebase, Display & Data settings</span>
+                        System Configuration
                     </div>
                     
                     <!-- Settings Content -->
@@ -1174,15 +1188,15 @@
                             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
                                 <div>
                                     <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">Broker Host</label>
-                                    <input type="text" id="mqttHost" placeholder="192.168.1.100" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem;">
+                                    <input type="text" id="mqttHost" placeholder="192.168.1.100" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem; background-color: var(--bg-primary); color: var(--text-primary);">
                                 </div>
                                 <div>
                                     <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">Port</label>
-                                    <input type="number" id="mqttPort" placeholder="9001" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem;">
+                                    <input type="number" id="mqttPort" placeholder="9001" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem; background-color: var(--bg-primary); color: var(--text-primary);">
                                 </div>
                                 <div>
                                     <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">Client ID</label>
-                                    <input type="text" id="mqttClientId" placeholder="web_client_1" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem;">
+                                    <input type="text" id="mqttClientId" placeholder="web_client_1" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem; background-color: var(--bg-primary); color: var(--text-primary);">
                                 </div>
                             </div>
                         </div>
@@ -1196,15 +1210,15 @@
                             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
                                 <div>
                                     <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">API Key</label>
-                                    <input type="text" id="firebaseApiKey" placeholder="AIzaSy..." style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem;">
+                                    <input type="text" id="firebaseApiKey" placeholder="AIzaSy..." style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem; background-color: var(--bg-primary); color: var(--text-primary);">
                                 </div>
                                 <div>
                                     <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">Project ID</label>
-                                    <input type="text" id="firebaseProjectId" placeholder="datalogger-xyz" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem;">
+                                    <input type="text" id="firebaseProjectId" placeholder="datalogger-xyz" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem; background-color: var(--bg-primary); color: var(--text-primary);">
                                 </div>
                                 <div style="grid-column: 1 / -1;">
                                     <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">Database URL</label>
-                                    <input type="text" id="firebaseDbUrl" placeholder="https://datalogger-xyz.firebaseio.com" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem;">
+                                    <input type="text" id="firebaseDbUrl" placeholder="https://datalogger-xyz.firebaseio.com" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem; background-color: var(--bg-primary); color: var(--text-primary);">
                                 </div>
                             </div>
                         </div>
@@ -1291,13 +1305,13 @@
                             <button onclick="saveSettings()" style="padding: 0.75rem 1.5rem; background: var(--primary); color: white; border: none; border-radius: 0.5rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">
                                 Save Settings
                             </button>
-                            <button onclick="exportSettings()" style="padding: 0.75rem 1.5rem; background: white; color: var(--text-primary); border: 2px solid var(--border-color); border-radius: 0.5rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+                            <button onclick="exportSettings()" style="padding: 0.75rem 1.5rem; background: var(--bg-tertiary); color: var(--text-primary); border: 2px solid var(--border-color); border-radius: 0.5rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">
                                 Export Settings
                             </button>
-                            <button onclick="importSettings()" style="padding: 0.75rem 1.5rem; background: white; color: var(--text-primary); border: 2px solid var(--border-color); border-radius: 0.5rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+                            <button onclick="importSettings()" style="padding: 0.75rem 1.5rem; background: var(--bg-tertiary); color: var(--text-primary); border: 2px solid var(--border-color); border-radius: 0.5rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">
                                 Import Settings
                             </button>
-                            <button onclick="restoreDefaults()" style="padding: 0.75rem 1.5rem; background: white; color: var(--danger); border: 2px solid var(--danger); border-radius: 0.5rem; font-weight: 700; cursor: pointer; transition: all 0.2s; margin-left: auto;">
+                            <button onclick="restoreDefaults()" style="padding: 0.75rem 1.5rem; background: var(--bg-tertiary); color: var(--error); border: 2px solid var(--error); border-radius: 0.5rem; font-weight: 700; cursor: pointer; transition: all 0.2s; margin-left: auto;">
                                 Restore Defaults
                             </button>
                         </div>
@@ -1462,18 +1476,19 @@
         
         // Firebase Configuration
         let FIREBASE_CONFIG = {
-            apiKey: "AIzaSyAxEhTb1cNHTwmVWh4vbpA5MZSF0Vf0l0U",
-            databaseURL: "https://datalogger-8c5d5-default-rtdb.firebaseio.com/",
-            projectId: "datalogger-8c5d5",
+            apiKey: localStorage.getItem('firebaseApiKey') || "AIzaSyAxEhTb1cNHTwmVWh4vbpA5MZSF0Vf0l0U",
+            databaseURL: localStorage.getItem('firebaseDbUrl') || "https://datalogger-8c5d5-default-rtdb.firebaseio.com/",
+            projectId: localStorage.getItem('firebaseProjectId') || "datalogger-8c5d5",
         };
         
         // MQTT Configuration
         const MQTT_CONFIG = {
-            host: "127.0.0.1",
-            port: 8083,
+            host: localStorage.getItem('mqttHost') || "127.0.0.1",
+            port: parseInt(localStorage.getItem('mqttPort')) || 8083,
             path: "/mqtt",
             username: "DataLogger",
             password: "datalogger",
+            clientId: localStorage.getItem('mqttClientId') || "web_client_1",
             url: "ws://127.0.0.1:8083/mqtt",
             topics: {
                 stm32Command: "datalogger/stm32/command",
