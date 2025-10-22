@@ -174,7 +174,7 @@ static bool json_get_float(const char *json, const char *key, float *value)
     return true;
 }
 
-/* PUBLIC API IMPLEMENTATION -------------------------------------------------*/
+/* PUBLIC API  ---------------------------------------------------------------*/
 
 /**
  * @brief Initialize JSON sensor parser
