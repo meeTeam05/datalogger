@@ -27,6 +27,25 @@ extern mqtt_state_t mqtt_current_state;
 
 /* PUBLIC API ----------------------------------------------------------------*/
 
+void CHECK_UART_STATUS(uint8_t argc, char **argv)
+{
+	if (argc != 1)
+	{
+		PRINT_CLI("Usage: CHECK_UART_STATUS\r\n");
+		return;
+	}
+
+	// Check UART status
+	if (HAL_UART_GetState(&huart1) == HAL_UART_STATE_READY)
+	{
+		PRINT_CLI("UART is READY\r\n");
+	}
+	else
+	{
+		PRINT_CLI("UART is NOT READY\r\n");
+	}
+}
+
 /**
  * @brief Command parser for SHT3X heater commands
  */
@@ -231,6 +250,10 @@ void SET_TIME_PARSER(uint8_t argc, char **argv)
 
 	// Call DS3231_Set_Time with struct tm pointer
 	DS3231_Set_Time(&g_ds3231, time);
+
+	// Force display update immediately after setting time
+	extern bool force_display_update;
+	force_display_update = true;
 }
 
 /**

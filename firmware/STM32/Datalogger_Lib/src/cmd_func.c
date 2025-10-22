@@ -20,6 +20,8 @@
  * @note The table is terminated by an entry with NULL values.
  */
 command_function_t cmdTable[] = {
+	{.cmdString = "CHECK UART STATUS", // Check UART status for debugging
+	 .func = CHECK_UART_STATUS},
 
 	{.cmdString = "SHT3X HEATER ENABLE", // Enable the heater for Debugging
 	 .func = SHT3X_Heater_Parser},

@@ -28,6 +28,16 @@ extern uint32_t periodic_interval_ms;
 /* PUBLIC API ----------------------------------------------------------------*/
 
 /**
+ * @brief Command parser for SD CLEAR command
+ *
+ * @param argc Argument count
+ * @param argv Argument vector
+ *
+ * @note argv[0] is the command itself.
+ */
+void CHECK_UART_STATUS(uint8_t argc, char **argv);
+
+/**
  * @brief Command parser for SHT3X heater commands
  *
  * @param argc Argument count
