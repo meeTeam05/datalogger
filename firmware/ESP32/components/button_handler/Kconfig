@@ -1,0 +1,73 @@
+menu "Button Handler Configuration"
+
+    config BUTTON_RELAY_GPIO
+        int "Relay button GPIO pin number"
+        range 0 39 if IDF_TARGET_ESP32
+        range 0 46 if IDF_TARGET_ESP32S2
+        range 0 48 if IDF_TARGET_ESP32S3
+        range 0 21 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2
+        default 5 if IDF_TARGET_ESP32
+        default 5 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+        default 5 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2
+        help
+            GPIO pin for relay toggle button.
+            Press to toggle relay ON/OFF.
+            ESP32: Any GPIO (avoid 6-11, 34-39)
+            Recommended: GPIO 0, 4, 5, 12-15, 25-27, 32-33
+
+    config BUTTON_SINGLE_GPIO
+        int "Single command button GPIO pin number"
+        range 0 39 if IDF_TARGET_ESP32
+        range 0 46 if IDF_TARGET_ESP32S2
+        range 0 48 if IDF_TARGET_ESP32S3
+        range 0 21 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2
+        default 25 if IDF_TARGET_ESP32
+        default 25 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+        default 9 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2
+        help
+            GPIO pin for SINGLE command button.
+            Press to send SINGLE sensor read command to STM32.
+            ESP32: Any GPIO (avoid 6-11, 34-39)
+            Recommended: GPIO 0, 4, 5, 12-15, 25-27, 32-33
+
+    config BUTTON_PERIODIC_GPIO
+        int "Periodic toggle button GPIO pin number"
+        range 0 39 if IDF_TARGET_ESP32
+        range 0 46 if IDF_TARGET_ESP32S2
+        range 0 48 if IDF_TARGET_ESP32S3
+        range 0 21 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2
+        default 26 if IDF_TARGET_ESP32
+        default 26 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+        default 10 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2
+        help
+            GPIO pin for PERIODIC toggle button.
+            Press to toggle periodic sensor reading ON/OFF.
+            ESP32: Any GPIO (avoid 6-11, 34-39)
+            Recommended: GPIO 0, 4, 5, 12-15, 25-27, 32-33
+
+    config BUTTON_INTERVAL_GPIO
+        int "Interval cycle button GPIO pin number"
+        range 0 39 if IDF_TARGET_ESP32
+        range 0 46 if IDF_TARGET_ESP32S2
+        range 0 48 if IDF_TARGET_ESP32S3
+        range 0 21 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2
+        default 4 if IDF_TARGET_ESP32
+        default 4 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+        default 4 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2
+        help
+            GPIO pin for interval cycle button.
+            Press to cycle through interval values (5s → 30s → 1m → 10m → 30m → 60m).
+            ESP32: Any GPIO (avoid 6-11, 34-39)
+            Recommended: GPIO 0, 4, 5, 12-15, 25-27, 32-33
+
+    config BUTTON_DEBOUNCE_TIME_MS
+        int "Button debounce time (milliseconds)"
+        range 10 500
+        default 50
+        help
+            Debounce time for button press detection.
+            Prevents false triggering from mechanical bounce.
+            Typical values: 20-100ms
+            Default: 50ms
+
+endmenu
