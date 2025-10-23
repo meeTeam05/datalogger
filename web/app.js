@@ -393,8 +393,12 @@
                     // Update charts - always update for periodic mode data
                     // Don't check isPeriodic flag as it might be out of sync
                     if (mode === "periodic" && !sensorFailed) {
+                        console.log(`[CHART] Pushing data: temp=${jsonData.temperature}, humi=${jsonData.humidity}, time=${new Date(timestamp).toLocaleTimeString()}`);
                         pushTemperature(jsonData.temperature, true, timestamp);
                         pushHumidity(jsonData.humidity, true, timestamp);
+                        console.log(`[CHART] Data pushed. TempData length: ${temperatureData.length}, HumiData length: ${humidityData.length}`);
+                    } else {
+                        console.log(`[CHART] Skipped: mode=${mode}, sensorFailed=${sensorFailed}`);
                     }
                     
                     // Update component health
@@ -526,8 +530,15 @@
         // CHARTS
         // ====================================================================
         function initializeCharts() {
-            const tempCtx = document.getElementById('tempChart').getContext('2d');
-            const humiCtx = document.getElementById('humiChart').getContext('2d');
+            const tempCtx = document.getElementById('tempChart')?.getContext('2d');
+            const humiCtx = document.getElementById('humiChart')?.getContext('2d');
+            
+            if (!tempCtx || !humiCtx) {
+                console.error('[CHART] Canvas elements not found!');
+                return;
+            }
+            
+            console.log('[CHART] Initializing charts...');
             
             tempChart = new Chart(tempCtx, {
                 type: 'line',
@@ -670,6 +681,8 @@
                     }
                 }
             });
+            
+            console.log('[CHART] Charts initialized successfully', { tempChart: !!tempChart, humiChart: !!humiChart });
         }
         
         function pushTemperature(value, update = true, timestamp = null) {
@@ -685,7 +698,7 @@
             if (update && tempChart) {
                 tempChart.data.labels = temperatureData.map(d => d.time);
                 tempChart.data.datasets[0].data = temperatureData.map(d => d.value);
-                tempChart.update('none');
+                tempChart.update('active');  // Changed from 'none' to 'active' for visible animation
                 updateChartStats('temp');
             }
         }
@@ -703,7 +716,7 @@
             if (update && humiChart) {
                 humiChart.data.labels = humidityData.map(d => d.time);
                 humiChart.data.datasets[0].data = humidityData.map(d => d.value);
-                humiChart.update('none');
+                humiChart.update('active');  // Changed from 'none' to 'active' for visible animation
                 updateChartStats('humi');
             }
         }
