@@ -40,13 +40,19 @@
             }
         };
         
-        // Time picker state
+    // Time picker state
         let timePickerYear = new Date().getFullYear();
         let timePickerMonth = new Date().getMonth();
         let timePickerDay = new Date().getDate();
         let timePickerHour = new Date().getHours();
         let timePickerMinute = new Date().getMinutes();
         let timePickerSecond = new Date().getSeconds();
+
+    // Device/system time emulation (updated after SET TIME)
+    // deviceClockMs: epoch ms set on device; deviceClockSetAtMs: local time when we set it
+    // Displayed time = deviceClockMs + (Date.now() - deviceClockSetAtMs)
+    let deviceClockMs = null;
+    let deviceClockSetAtMs = null;
         
         // State synchronization management
         let stateSync = {
@@ -1421,11 +1427,6 @@
         }
         
         document.getElementById('syncTimeBtn')?.addEventListener('click', function() {
-            if (!isMqttConnected) {
-                addStatus("MQTT not connected", "ERROR");
-                return;
-            }
-            
             const now = new Date();
             const timestamp = Math.floor(now.getTime() / 1000);
             
@@ -1442,25 +1443,36 @@
             
             // Send to device
             const command = `SET TIME ${timestamp}`;
-            mqttClient.publish(MQTT_CONFIG.topics.stm32Command, command, {qos: 1});
-            
-            addStatus(`Time synced from internet: ${now.toLocaleString()}`, 'SYNC');
+            if (isMqttConnected && mqttClient) {
+                mqttClient.publish(MQTT_CONFIG.topics.stm32Command, command, {qos: 1});
+                addStatus(`Time synced from internet: ${now.toLocaleString()}`, 'SYNC');
+            } else {
+                addStatus("MQTT not connected - cannot send SET TIME", "ERROR");
+            }
+
+            // Update local device/system time emulation regardless, so UI reflects chosen time
+            deviceClockMs = timestamp * 1000;
+            deviceClockSetAtMs = Date.now();
+            updateFooterClock();
         });
         
         document.getElementById('setManualTimeBtn')?.addEventListener('click', function() {
-            if (!isMqttConnected) {
-                addStatus("MQTT not connected", "ERROR");
-                return;
-            }
-            
             const date = new Date(timePickerYear, timePickerMonth, timePickerDay, 
                                   timePickerHour, timePickerMinute, timePickerSecond);
             const timestamp = Math.floor(date.getTime() / 1000);
             
             const command = `SET TIME ${timestamp}`;
-            mqttClient.publish(MQTT_CONFIG.topics.stm32Command, command, {qos: 1});
-            
-            addStatus(`Manual time set: ${date.toLocaleString()}`, 'SETTING');
+            if (isMqttConnected && mqttClient) {
+                mqttClient.publish(MQTT_CONFIG.topics.stm32Command, command, {qos: 1});
+                addStatus(`Manual time set: ${date.toLocaleString()}`, 'SETTING');
+            } else {
+                addStatus("MQTT not connected - cannot send SET TIME", "ERROR");
+            }
+
+            // Update local device/system time emulation to reflect manual selection
+            deviceClockMs = timestamp * 1000;
+            deviceClockSetAtMs = Date.now();
+            updateFooterClock();
         });
         
         // Update time display every second
@@ -2343,9 +2355,15 @@
         // FOOTER CLOCK
         // ====================================================================
         function updateFooterClock() {
-            const now = new Date();
-            const timeStr = now.toLocaleTimeString('en-US', {hour12: false});
-            document.getElementById('footerTime').textContent = timeStr;
+            let display;
+            if (deviceClockMs !== null && deviceClockSetAtMs !== null) {
+                const ms = deviceClockMs + (Date.now() - deviceClockSetAtMs);
+                display = new Date(ms).toLocaleTimeString('en-US', {hour12: false});
+            } else {
+                display = '--:--:--';
+            }
+            const el = document.getElementById('footerTime');
+            if (el) el.textContent = display;
         }
         
         setInterval(updateFooterClock, 1000);
