@@ -437,7 +437,8 @@ function handleMQTTMessage(topic, payload) {
   ) {
     try {
       const jsonData = JSON.parse(text);
-      const timestamp = jsonData.timestamp * 1000 - 7 * 3600 * 1000 || Date.now();
+      const timestamp =
+        jsonData.timestamp * 1000 - 7 * 3600 * 1000 || Date.now();
       // Derive mode from topic to avoid unreliable payloads
       const isPeriodicTopic = topic === MQTT_CONFIG.topics.periodicData;
       const isSingleTopic = topic === MQTT_CONFIG.topics.singleData;
@@ -636,7 +637,9 @@ function saveToFirebaseSimple(data) {
   if (!isFirebaseConnected || !firebaseDb) return;
 
   // Use device timestamp to create date key, not browser time
-  const deviceTimestamp = data.time ? (data.time - 7 * 3600) * 1000 : Date.now();
+  const deviceTimestamp = data.time
+    ? (data.time - 7 * 3600) * 1000
+    : Date.now();
   const dateStr = new Date(deviceTimestamp).toISOString().split("T")[0];
   const id = Date.now().toString();
 
@@ -1307,7 +1310,6 @@ function renderLiveDataTable() {
     .map((data, idx) => {
       const time = new Date(data.time).toLocaleTimeString("en-US", {
         hour12: false,
-        timeZone: "UTC",
       });
       const statusClass =
         data.status === "success" ? "connected" : "disconnected";
