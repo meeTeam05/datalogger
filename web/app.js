@@ -437,7 +437,7 @@ function handleMQTTMessage(topic, payload) {
   ) {
     try {
       const jsonData = JSON.parse(text);
-      const timestamp = jsonData.timestamp * 1000 || Date.now();
+      const timestamp = jsonData.timestamp * 1000 - 7 * 3600 * 1000 || Date.now();
       // Derive mode from topic to avoid unreliable payloads
       const isPeriodicTopic = topic === MQTT_CONFIG.topics.periodicData;
       const isSingleTopic = topic === MQTT_CONFIG.topics.singleData;
@@ -624,7 +624,6 @@ function updateCurrentDisplay() {
   const timeStr = lastReadingTimestamp
     ? new Date(lastReadingTimestamp).toLocaleTimeString("en-US", {
         hour12: false,
-        timeZone: "UTC",
       })
     : "--:--:--";
   document.getElementById("lastUpdate").textContent = `Updated at ${timeStr}`;
@@ -637,7 +636,7 @@ function saveToFirebaseSimple(data) {
   if (!isFirebaseConnected || !firebaseDb) return;
 
   // Use device timestamp to create date key, not browser time
-  const deviceTimestamp = data.time ? data.time * 1000 : Date.now();
+  const deviceTimestamp = data.time ? (data.time - 7 * 3600) * 1000 : Date.now();
   const dateStr = new Date(deviceTimestamp).toISOString().split("T")[0];
   const id = Date.now().toString();
 
@@ -653,7 +652,7 @@ function saveToFirebaseSimple(data) {
         : data.time === 0
         ? "rtc_fail"
         : null,
-    time: data.time ?? Math.floor(Date.now() / 1000),
+    time: data.time ? data.time - 7 * 3600 : Math.floor(Date.now() / 1000),
     device: data.device ?? "ESP32_01",
     created_at: Date.now(),
   };
