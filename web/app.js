@@ -1406,6 +1406,24 @@
             console.log('[TIME] New month/year:', { month: timePickerMonth, year: timePickerYear });
             renderCalendar();
         });
+
+        // Delegated handlers ensure functionality even if buttons are re-rendered
+        document.addEventListener('click', (e) => {
+            const prev = e.target.closest && e.target.closest('#prevMonth');
+            const next = e.target.closest && e.target.closest('#nextMonth');
+            if (prev) {
+                console.log('[TIME] prevMonth clicked (delegated)');
+                timePickerMonth--;
+                if (timePickerMonth < 0) { timePickerMonth = 11; timePickerYear--; }
+                renderCalendar();
+            }
+            if (next) {
+                console.log('[TIME] nextMonth clicked (delegated)');
+                timePickerMonth++;
+                if (timePickerMonth > 11) { timePickerMonth = 0; timePickerYear++; }
+                renderCalendar();
+            }
+        });
         
         // Global handler for inline onclick buttons in index.html
         function adjustTime(unit, delta) {
@@ -1493,7 +1511,7 @@
             deviceClockMs = timestamp * 1000;
             deviceClockSetAtMs = Date.now();
             console.log('[TIME] Device clock set:', { deviceClockMs, deviceClockSetAtMs });
-            updateFooterClock();
+            startDeviceClockTicker();
         }
         
         function onManualTimeClick() {
@@ -1518,12 +1536,17 @@
             deviceClockMs = timestamp * 1000;
             deviceClockSetAtMs = Date.now();
             console.log('[TIME] Device clock set:', { deviceClockMs, deviceClockSetAtMs });
-            updateFooterClock();
-        }    // Initial binding
+            startDeviceClockTicker();
+        }
+
+    // Initial binding
     attachTimeButtons();
-        
-        // Update time display every second
-        setInterval(updateTimeDisplay, 1000);
+
+    // Update time display every second (picker clock)
+    setInterval(updateTimeDisplay, 1000);
+
+    // Start device clock ticker (footer). Will show --:--:-- until first time set
+    startDeviceClockTicker();
         
         // ====================================================================
         // DATA MANAGEMENT
@@ -2401,6 +2424,8 @@
         // ====================================================================
         // FOOTER CLOCK
         // ====================================================================
+        let clockIntervalId = null;
+
         function updateFooterClock() {
             let display;
             if (deviceClockMs !== null && deviceClockSetAtMs !== null) {
@@ -2424,8 +2449,12 @@
             const el = document.getElementById('footerTime');
             if (el) el.textContent = display;
         }
-        
-        setInterval(updateFooterClock, 1000);
+
+        function startDeviceClockTicker() {
+            if (clockIntervalId) clearInterval(clockIntervalId);
+            clockIntervalId = setInterval(updateFooterClock, 1000);
+            updateFooterClock();
+        }
         
         // ====================================================================
         // INITIALIZATION
