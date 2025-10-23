@@ -365,37 +365,56 @@
                 try {
                     const jsonData = JSON.parse(text);
                     const timestamp = jsonData.timestamp * 1000 || Date.now();
-                    const mode = jsonData.mode === "PERIODIC" ? "periodic" : "single";
+                    // Derive mode from topic to avoid unreliable payloads
+                    const isPeriodicTopic = (topic === MQTT_CONFIG.topics.periodicData);
+                    const isSingleTopic = (topic === MQTT_CONFIG.topics.singleData);
+                    const mode = isPeriodicTopic ? 'periodic' : 'single';
+
+                    // Only treat periodic messages when user actually enabled PERIODIC and device is ON
+                    const isActiveMeasurement = isSingleTopic || (isPeriodicTopic && isDeviceOn && isPeriodic);
+
+                    if (isPeriodicTopic && !isActiveMeasurement) {
+                        console.log(`[DATA] Ignored periodic message (deviceOn=${isDeviceOn}, isPeriodic=${isPeriodic})`);
+                        return; // ignore completely: no warnings, no firebase, no charts
+                    }
                     
                     // Check for sensor/RTC failures
                     const sensorFailed = (jsonData.temperature === 0.0 && jsonData.humidity === 0.0);
                     const rtcFailed = (jsonData.timestamp === 0);
                     
-                    if (sensorFailed) {
-                        addStatus('âš ï¸ Sensor hardware failed (disconnected)', 'WARNING');
+                    // Only surface warnings when measurement is active
+                    if (isActiveMeasurement) {
+                        if (sensorFailed) {
+                            addStatus('⚠️ Sensor hardware failed (disconnected)', 'WARNING');
+                        }
+                        if (rtcFailed) {
+                            addStatus('⚠️ RTC failed (using local time)', 'WARNING');
+                        }
                     }
-                    if (rtcFailed) {
-                        addStatus('âš ï¸ RTC failed (using local time)', 'WARNING');
+                    
+                    // Update current values only when active
+                    if (isActiveMeasurement) {
+                        currentTemp = jsonData.temperature;
+                        currentHumi = jsonData.humidity;
+                        updateCurrentDisplay();
                     }
                     
-                    // Update current values
-                    currentTemp = jsonData.temperature;
-                    currentHumi = jsonData.humidity;
-                    updateCurrentDisplay();
+                    // Save to Firebase only when active
+                    if (isActiveMeasurement) {
+                        saveToFirebaseSimple({
+                            temp: jsonData.temperature,
+                            humi: jsonData.humidity,
+                            mode: mode,
+                            sensor: "SHT31",
+                            time: jsonData.timestamp || 0,
+                            device: "ESP32_01"
+                        });
+                    } else {
+                        console.log('[DATA] Skipped Firebase save (inactive)');
+                    }
                     
-                    // Save to Firebase
-                    saveToFirebaseSimple({
-                        temp: jsonData.temperature,
-                        humi: jsonData.humidity,
-                        mode: mode,
-                        sensor: "SHT31",
-                        time: jsonData.timestamp || 0,
-                        device: "ESP32_01"
-                    });
-                    
-                    // Update charts - always update for periodic mode data
-                    // Don't check isPeriodic flag as it might be out of sync
-                    if (mode === "periodic" && !sensorFailed) {
+                    // Update charts only when active and valid values
+                    if (isPeriodicTopic && isActiveMeasurement && !sensorFailed) {
                         console.log(`[CHART] Pushing data: temp=${jsonData.temperature}, humi=${jsonData.humidity}, time=${new Date(timestamp).toLocaleTimeString()}`);
                         pushTemperature(jsonData.temperature, true, timestamp);
                         pushHumidity(jsonData.humidity, true, timestamp);
@@ -405,17 +424,21 @@
                     }
                     
                     // Update component health
-                    updateComponentHealth('SHT31', !sensorFailed);
-                    updateComponentHealth('DS3231', !rtcFailed);
+                    if (isActiveMeasurement) {
+                        updateComponentHealth('SHT31', !sensorFailed);
+                        updateComponentHealth('DS3231', !rtcFailed);
+                    }
                     
-                    // Add to Live Data table
-                    addToLiveDataTable({
-                        time: timestamp,
-                        temp: jsonData.temperature,
-                        humi: jsonData.humidity,
-                        mode: mode,
-                        status: (sensorFailed || rtcFailed) ? 'error' : 'success'
-                    });
+                    // Add to Live Data table only when active
+                    if (isActiveMeasurement) {
+                        addToLiveDataTable({
+                            time: timestamp,
+                            temp: jsonData.temperature,
+                            humi: jsonData.humidity,
+                            mode: mode,
+                            status: (sensorFailed || rtcFailed) ? 'error' : 'success'
+                        });
+                    }
                     
                 } catch (e) {
                     addStatus(`JSON parse error: ${e.message}`, 'ERROR');
