@@ -86,6 +86,8 @@
         
         // Charts
         let tempChart, humiChart;
+        let chartInitRetryCount = 0;
+        const maxChartInitRetries = 10;
         
         // ====================================================================
         // NAVIGATION
@@ -531,27 +533,53 @@
         // CHARTS
         // ====================================================================
         function initializeCharts() {
+            console.log(`[CHART] Attempting to initialize charts (attempt ${chartInitRetryCount + 1}/${maxChartInitRetries})...`);
+            
             const tempCanvas = document.getElementById('tempChart');
             const humiCanvas = document.getElementById('humiChart');
             
+            console.log('[CHART] Canvas elements:', { tempCanvas: !!tempCanvas, humiCanvas: !!humiCanvas });
+            
             if (!tempCanvas || !humiCanvas) {
-                console.error('[CHART] Canvas elements not found! Retrying in 500ms...');
-                setTimeout(initializeCharts, 500);
+                chartInitRetryCount++;
+                if (chartInitRetryCount < maxChartInitRetries) {
+                    console.warn(`[CHART] Canvas elements not found! Retrying in 500ms... (${chartInitRetryCount}/${maxChartInitRetries})`);
+                    setTimeout(initializeCharts, 500);
+                } else {
+                    console.error('[CHART] FAILED: Canvas elements not found after maximum retries!');
+                    addStatus('ERROR: Chart canvas elements not found', 'ERROR');
+                }
                 return;
             }
             
             const tempCtx = tempCanvas.getContext('2d');
             const humiCtx = humiCanvas.getContext('2d');
             
+            console.log('[CHART] Canvas contexts:', { tempCtx: !!tempCtx, humiCtx: !!humiCtx });
+            
             if (!tempCtx || !humiCtx) {
-                console.error('[CHART] Cannot get 2D context! Retrying in 500ms...');
-                setTimeout(initializeCharts, 500);
+                chartInitRetryCount++;
+                if (chartInitRetryCount < maxChartInitRetries) {
+                    console.warn(`[CHART] Cannot get 2D context! Retrying in 500ms... (${chartInitRetryCount}/${maxChartInitRetries})`);
+                    setTimeout(initializeCharts, 500);
+                } else {
+                    console.error('[CHART] FAILED: Cannot get 2D context after maximum retries!');
+                    addStatus('ERROR: Cannot get chart 2D context', 'ERROR');
+                }
                 return;
             }
             
-            console.log('[CHART] Initializing charts...');
+            // Check if Chart.js is loaded
+            if (typeof Chart === 'undefined') {
+                console.error('[CHART] Chart.js library is not loaded!');
+                addStatus('ERROR: Chart.js library not loaded', 'ERROR');
+                return;
+            }
             
-            tempChart = new Chart(tempCtx, {
+            console.log('[CHART] Starting chart initialization with Chart.js...');
+            
+            try {
+                tempChart = new Chart(tempCtx, {
                 type: 'line',
                 data: {
                     labels: [],
@@ -715,6 +743,13 @@
                 humiChart.data.datasets[0].data = humidityData.map(d => d.value);
                 humiChart.update('none');
                 updateChartStats('humi');
+            }
+            
+            addStatus('Charts initialized successfully', 'INFO');
+            
+            } catch (error) {
+                console.error('[CHART] Error initializing charts:', error);
+                addStatus(`Chart initialization error: ${error.message}`, 'ERROR');
             }
         }
         
