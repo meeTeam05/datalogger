@@ -15,8 +15,10 @@
         let maxLogsInMemory = 100;
         let mqttClient = null;
         let firebaseDb = null;
-        let currentTemp = null;
-        let currentHumi = null;
+    let currentTemp = null;
+    let currentHumi = null;
+    // Last reading timestamp (ms since epoch) sourced from device payload
+    let lastReadingTimestamp = null;
         
         // Live Data table
         let liveDataBuffer = [];
@@ -396,6 +398,7 @@
                     if (isActiveMeasurement) {
                         currentTemp = jsonData.temperature;
                         currentHumi = jsonData.humidity;
+                        lastReadingTimestamp = timestamp;
                         updateCurrentDisplay();
                     }
                     
@@ -516,8 +519,11 @@
             document.getElementById('currentTemp').textContent = currentTemp !== null ? currentTemp.toFixed(1) : '--';
             document.getElementById('currentHumi').textContent = currentHumi !== null ? currentHumi.toFixed(1) : '--';
             
-            const now = new Date().toLocaleTimeString('en-US', {hour12: false});
-            document.getElementById('lastUpdate').textContent = `Updated at ${now}`;
+            // Prefer the device-provided timestamp if available
+            const timeStr = lastReadingTimestamp
+                ? new Date(lastReadingTimestamp).toLocaleTimeString('en-US', {hour12: false})
+                : '--:--:--';
+            document.getElementById('lastUpdate').textContent = `Updated at ${timeStr}`;
         }
         
         // ====================================================================
