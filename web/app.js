@@ -347,6 +347,7 @@
         
         function handleMQTTMessage(topic, payload) {
             const text = payload.toString();
+            console.log(`[MQTT] Message received - Topic: ${topic}, Payload: ${text.substring(0, 100)}`);
             
             // System state sync
             if (topic === MQTT_CONFIG.topics.systemState) {
@@ -695,11 +696,16 @@
                 temperatureData.shift();
             }
             
+            console.log(`[pushTemperature] Value: ${value}, Update: ${update}, TempChart exists: ${!!tempChart}, Array length: ${temperatureData.length}`);
+            
             if (update && tempChart) {
                 tempChart.data.labels = temperatureData.map(d => d.time);
                 tempChart.data.datasets[0].data = temperatureData.map(d => d.value);
-                tempChart.update('active');  // Changed from 'none' to 'active' for visible animation
+                tempChart.update('active');
                 updateChartStats('temp');
+                console.log(`[pushTemperature] Chart updated with ${temperatureData.length} points`);
+            } else if (!tempChart) {
+                console.error('[pushTemperature] TempChart is not initialized!');
             }
         }
         
@@ -713,11 +719,16 @@
                 humidityData.shift();
             }
             
+            console.log(`[pushHumidity] Value: ${value}, Update: ${update}, HumiChart exists: ${!!humiChart}, Array length: ${humidityData.length}`);
+            
             if (update && humiChart) {
                 humiChart.data.labels = humidityData.map(d => d.time);
                 humiChart.data.datasets[0].data = humidityData.map(d => d.value);
-                humiChart.update('active');  // Changed from 'none' to 'active' for visible animation
+                humiChart.update('active');
                 updateChartStats('humi');
+                console.log(`[pushHumidity] Chart updated with ${humidityData.length} points`);
+            } else if (!humiChart) {
+                console.error('[pushHumidity] HumiChart is not initialized!');
             }
         }
         
