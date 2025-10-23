@@ -1256,7 +1256,8 @@
             renderCalendar();
         });
         
-        function adjustTime(unit, delta) {
+        // Expose to window for onclick handlers
+        window.adjustTime = function(unit, delta) {
             if (unit === 'hour') {
                 timePickerHour += delta;
                 if (timePickerHour < 0) timePickerHour = 23;
@@ -1331,7 +1332,8 @@
         // ====================================================================
         let filteredDataCache = [];
         
-        function setQuickFilter(type) {
+        // Expose to window for onclick handlers
+        window.setQuickFilter = function(type) {
             const today = new Date();
             const to = today.toISOString().split('T')[0];
             let from;
