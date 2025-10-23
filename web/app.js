@@ -2309,7 +2309,9 @@
         // ====================================================================
         // INITIALIZATION
         // ====================================================================
-        window.addEventListener('DOMContentLoaded', function() {
+        
+        // Function to run initialization tasks
+        function runInitialization() {
             addStatus("DataLogger Monitor starting...", "INFO");
             
             // Load saved config from localStorage
@@ -2347,7 +2349,8 @@
                 document.getElementById('firebaseProject').value = FIREBASE_CONFIG.projectId;
             }
             
-            // Initialize charts
+            // Initialize charts FIRST - CRITICAL for rendering
+            console.log('[INIT] Calling initializeCharts()');
             initializeCharts();
             addStatus("Charts initialized", "INFO");
             
@@ -2361,4 +2364,14 @@
             updateFooterClock();
             
             addStatus("System ready", "INFO");
-        });
+        }
+        
+        // Run initialization when DOM is ready
+        if (document.readyState === 'loading') {
+            // DOM is still loading
+            window.addEventListener('DOMContentLoaded', runInitialization);
+        } else {
+            // DOM is already loaded (script loaded after DOM)
+            console.log('[INIT] DOM already loaded, running initialization immediately');
+            runInitialization();
+        }
