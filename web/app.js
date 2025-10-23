@@ -869,8 +869,94 @@
         });
         
         document.getElementById('loadHistoryBtn').addEventListener('click', function() {
-            addStatus("Load history will be implemented", "INFO");
+            loadHistoryFromFirebase();
         });
+        
+        function loadHistoryFromFirebase() {
+            if (!isFirebaseConnected || !firebaseDb) {
+                addStatus("Firebase not connected. Cannot load history.", "ERROR");
+                return;
+            }
+            
+            addStatus("Loading history from Firebase...", "INFO");
+            
+            // Get last 24 hours of data
+            const now = new Date();
+            const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+            
+            const dateRange = [];
+            let currentDate = new Date(yesterday);
+            while (currentDate <= now) {
+                const dateStr = currentDate.toISOString().split('T')[0];
+                dateRange.push(dateStr);
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+            
+            let totalRecords = 0;
+            const promises = dateRange.map(date => {
+                return firebaseDb.ref(`readings/${date}`)
+                    .once('value')
+                    .then(snapshot => {
+                        const dayData = snapshot.val() || {};
+                        return Object.entries(dayData).map(([id, record]) => ({
+                            id,
+                            date,
+                            ...record
+                        }));
+                    })
+                    .catch(err => {
+                        console.error(`Error loading ${date}:`, err);
+                        return [];
+                    });
+            });
+            
+            Promise.all(promises).then(results => {
+                const allData = results.flat();
+                totalRecords = allData.length;
+                
+                if (totalRecords === 0) {
+                    addStatus("No historical data found in last 24 hours", "WARNING");
+                    return;
+                }
+                
+                // Sort by timestamp (newest first)
+                allData.sort((a, b) => b.timestamp - a.timestamp);
+                
+                // Take last 50 points for charts
+                const recentData = allData.slice(0, 50).reverse();
+                
+                // Clear existing chart data
+                temperatureData = [];
+                humidityData = [];
+                
+                // Populate charts
+                recentData.forEach(record => {
+                    if (record.temp !== undefined && record.humi !== undefined) {
+                        pushTemperature(record.temp, false, record.timestamp * 1000);
+                        pushHumidity(record.humi, false, record.timestamp * 1000);
+                    }
+                });
+                
+                // Update charts
+                if (tempChart) {
+                    tempChart.data.labels = temperatureData.map(d => d.time);
+                    tempChart.data.datasets[0].data = temperatureData.map(d => d.value);
+                    tempChart.update('active');
+                    updateChartStats('temp');
+                }
+                
+                if (humiChart) {
+                    humiChart.data.labels = humidityData.map(d => d.time);
+                    humiChart.data.datasets[0].data = humidityData.map(d => d.value);
+                    humiChart.update('active');
+                    updateChartStats('humi');
+                }
+                
+                addStatus(`Loaded ${totalRecords} records (last 24h), showing ${recentData.length} on charts`, "INFO");
+            }).catch(err => {
+                addStatus(`Firebase load error: ${err.message}`, "ERROR");
+            });
+        }
         
         document.getElementById('clearChartsBtn').addEventListener('click', function() {
             clearChartData();
