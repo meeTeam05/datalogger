@@ -390,8 +390,9 @@
                         device: "ESP32_01"
                     });
                     
-                    // Update charts (only if periodic and not error)
-                    if (mode === "periodic" && isPeriodic) {
+                    // Update charts - always update for periodic mode data
+                    // Don't check isPeriodic flag as it might be out of sync
+                    if (mode === "periodic" && !sensorFailed) {
                         pushTemperature(jsonData.temperature, true, timestamp);
                         pushHumidity(jsonData.humidity, true, timestamp);
                     }
