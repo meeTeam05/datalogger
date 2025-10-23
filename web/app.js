@@ -531,11 +531,21 @@
         // CHARTS
         // ====================================================================
         function initializeCharts() {
-            const tempCtx = document.getElementById('tempChart')?.getContext('2d');
-            const humiCtx = document.getElementById('humiChart')?.getContext('2d');
+            const tempCanvas = document.getElementById('tempChart');
+            const humiCanvas = document.getElementById('humiChart');
+            
+            if (!tempCanvas || !humiCanvas) {
+                console.error('[CHART] Canvas elements not found! Retrying in 500ms...');
+                setTimeout(initializeCharts, 500);
+                return;
+            }
+            
+            const tempCtx = tempCanvas.getContext('2d');
+            const humiCtx = humiCanvas.getContext('2d');
             
             if (!tempCtx || !humiCtx) {
-                console.error('[CHART] Canvas elements not found!');
+                console.error('[CHART] Cannot get 2D context! Retrying in 500ms...');
+                setTimeout(initializeCharts, 500);
                 return;
             }
             
@@ -683,7 +693,29 @@
                 }
             });
             
-            console.log('[CHART] Charts initialized successfully', { tempChart: !!tempChart, humiChart: !!humiChart });
+            console.log('[CHART] Charts initialized successfully', { 
+                tempChart: !!tempChart, 
+                humiChart: !!humiChart,
+                existingTempData: temperatureData.length,
+                existingHumiData: humidityData.length
+            });
+            
+            // If there's existing data, render it now
+            if (temperatureData.length > 0) {
+                console.log('[CHART] Rendering existing temperature data...');
+                tempChart.data.labels = temperatureData.map(d => d.time);
+                tempChart.data.datasets[0].data = temperatureData.map(d => d.value);
+                tempChart.update('none');
+                updateChartStats('temp');
+            }
+            
+            if (humidityData.length > 0) {
+                console.log('[CHART] Rendering existing humidity data...');
+                humiChart.data.labels = humidityData.map(d => d.time);
+                humiChart.data.datasets[0].data = humidityData.map(d => d.value);
+                humiChart.update('none');
+                updateChartStats('humi');
+            }
         }
         
         function pushTemperature(value, update = true, timestamp = null) {
@@ -698,14 +730,16 @@
             
             console.log(`[pushTemperature] Value: ${value}, Update: ${update}, TempChart exists: ${!!tempChart}, Array length: ${temperatureData.length}`);
             
-            if (update && tempChart) {
-                tempChart.data.labels = temperatureData.map(d => d.time);
-                tempChart.data.datasets[0].data = temperatureData.map(d => d.value);
-                tempChart.update('active');
-                updateChartStats('temp');
-                console.log(`[pushTemperature] Chart updated with ${temperatureData.length} points`);
-            } else if (!tempChart) {
-                console.error('[pushTemperature] TempChart is not initialized!');
+            if (update) {
+                if (tempChart) {
+                    tempChart.data.labels = temperatureData.map(d => d.time);
+                    tempChart.data.datasets[0].data = temperatureData.map(d => d.value);
+                    tempChart.update('active');
+                    updateChartStats('temp');
+                    console.log(`[pushTemperature] Chart updated with ${temperatureData.length} points`);
+                } else {
+                    console.warn('[pushTemperature] TempChart not initialized yet - data saved, will render when ready');
+                }
             }
         }
         
@@ -721,14 +755,16 @@
             
             console.log(`[pushHumidity] Value: ${value}, Update: ${update}, HumiChart exists: ${!!humiChart}, Array length: ${humidityData.length}`);
             
-            if (update && humiChart) {
-                humiChart.data.labels = humidityData.map(d => d.time);
-                humiChart.data.datasets[0].data = humidityData.map(d => d.value);
-                humiChart.update('active');
-                updateChartStats('humi');
-                console.log(`[pushHumidity] Chart updated with ${humidityData.length} points`);
-            } else if (!humiChart) {
-                console.error('[pushHumidity] HumiChart is not initialized!');
+            if (update) {
+                if (humiChart) {
+                    humiChart.data.labels = humidityData.map(d => d.time);
+                    humiChart.data.datasets[0].data = humidityData.map(d => d.value);
+                    humiChart.update('active');
+                    updateChartStats('humi');
+                    console.log(`[pushHumidity] Chart updated with ${humidityData.length} points`);
+                } else {
+                    console.warn('[pushHumidity] HumiChart not initialized yet - data saved, will render when ready');
+                }
             }
         }
         
