@@ -1,4 +1,4 @@
-// Initialize Feather Icons
+﻿// Initialize Feather Icons
 feather.replace();
 
 // ====================================================================
@@ -20,7 +20,7 @@ let currentHumi = null;
 // Last reading timestamp (ms since epoch) sourced from device payload
 let lastReadingTimestamp = null;
 
-let logFilterType = 'ALL';
+let logFilterType = "ALL";
 
 // Data Management cache (MUST be declared BEFORE any functions that use it)
 let filteredDataCache = [];
@@ -178,24 +178,28 @@ function addStatus(message, type = "INFO") {
 }
 
 function updateConsoleDisplay(logEntry) {
-    const time = new Date(logEntry.timestamp).toLocaleTimeString('en-US', {hour12: false});
-    const line = `<div class="log-line log-${logEntry.type.toLowerCase()}">[${logEntry.type}] ${time}: ${logEntry.message}</div>`;
-    
-    // Update preview (last 5)
-    const preview = document.getElementById('consolePreview');
-    if (preview) {
-        preview.innerHTML = line + preview.innerHTML;
-        const lines = preview.querySelectorAll('.log-line');
-        if (lines.length > 5) {
-            lines[lines.length - 1].remove();
-        }
+  const time = new Date(logEntry.timestamp).toLocaleTimeString("en-US", {
+    hour12: false,
+  });
+  const line = `<div class="log-line log-${logEntry.type.toLowerCase()}">[${
+    logEntry.type
+  }] ${time}: ${logEntry.message}</div>`;
+
+  // Update preview (last 5)
+  const preview = document.getElementById("consolePreview");
+  if (preview) {
+    preview.innerHTML = line + preview.innerHTML;
+    const lines = preview.querySelectorAll(".log-line");
+    if (lines.length > 5) {
+      lines[lines.length - 1].remove();
     }
-    
-    // Update full logs if on logs page
-    const logsSection = document.getElementById('page-logs');
-    if (logsSection && logsSection.classList.contains('active')) {
-        renderFullConsole();
-    }
+  }
+
+  // Update full logs if on logs page
+  const logsSection = document.getElementById("page-logs");
+  if (logsSection && logsSection.classList.contains("active")) {
+    renderFullConsole();
+  }
 }
 
 // ====================================================================
@@ -459,12 +463,17 @@ function handleMQTTMessage(topic, payload) {
       if (isActiveMeasurement) {
         if (sensorFailed) {
           addStatus(
-            "[WARNING] Sensor hardware failed (disconnected)",
-            "WARNING"
+            "SHT31 sensor hardware failed (disconnected or wiring issue)",
+            "ERROR"
           );
+          addStatus("Sensor hardware failed (disconnected)", "WARNING");
         }
         if (rtcFailed) {
-          addStatus("[WARNING] RTC failed (using local time)", "WARNING");
+          addStatus(
+            "DS3231 RTC module failed (time sync error or I2C communication failure)",
+            "ERROR"
+          );
+          addStatus("RTC failed (using local time)", "WARNING");
         }
       }
 
@@ -615,6 +624,7 @@ function updateCurrentDisplay() {
   const timeStr = lastReadingTimestamp
     ? new Date(lastReadingTimestamp).toLocaleTimeString("en-US", {
         hour12: false,
+        timeZone: "UTC",
       })
     : "--:--:--";
   document.getElementById("lastUpdate").textContent = `Updated at ${timeStr}`;
@@ -626,7 +636,9 @@ function updateCurrentDisplay() {
 function saveToFirebaseSimple(data) {
   if (!isFirebaseConnected || !firebaseDb) return;
 
-  const dateStr = new Date().toISOString().split("T")[0];
+  // Use device timestamp to create date key, not browser time
+  const deviceTimestamp = data.time ? data.time * 1000 : Date.now();
+  const dateStr = new Date(deviceTimestamp).toISOString().split("T")[0];
   const id = Date.now().toString();
 
   const record = {
@@ -1296,6 +1308,7 @@ function renderLiveDataTable() {
     .map((data, idx) => {
       const time = new Date(data.time).toLocaleTimeString("en-US", {
         hour12: false,
+        timeZone: "UTC",
       });
       const statusClass =
         data.status === "success" ? "connected" : "disconnected";
@@ -1927,7 +1940,9 @@ function renderDataManagementTable(data) {
 
   tbody.innerHTML = data
     .map((record, idx) => {
-      const date = new Date(record.created_at);
+      // Use device timestamp (time field) instead of created_at
+      const timestamp = record.time ? record.time * 1000 : record.created_at;
+      const date = new Date(timestamp);
       const dateStr = date.toLocaleDateString();
       const timeStr = date.toLocaleTimeString("en-US", { hour12: false });
       const statusClass =
