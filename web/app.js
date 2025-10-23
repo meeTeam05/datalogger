@@ -1609,7 +1609,8 @@
                     'ERROR': '#EF4444',
                     'MQTT': '#8B5CF6',
                     'FIREBASE': '#F97316',
-                    'SYNC': '#06B6D4'
+                    'SYNC': '#06B6D4',
+                    'SETTING': '#14B8A6'
                 };
                 
                 return `<div style="color: ${colors[log.type] || '#10B981'}; margin-bottom: 0.25rem;">
@@ -1620,15 +1621,26 @@
             console.scrollTop = console.scrollHeight;
         }
         
-        function filterLogs(type) {
+        // Expose to window for onclick handlers
+        window.filterLogs = function(type) {
             logFilterType = type;
             
             // Update button styles
-            ['filterAll', 'filterInfo', 'filterWarning', 'filterError', 'filterMqtt', 'filterFirebase', 'filterSync'].forEach(id => {
-                const btn = document.getElementById(id);
+            const buttonMap = {
+                'ALL': 'filterAll',
+                'INFO': 'filterInfo',
+                'WARNING': 'filterWarning',
+                'ERROR': 'filterError',
+                'MQTT': 'filterMqtt',
+                'FIREBASE': 'filterFirebase',
+                'SYNC': 'filterSync'
+            };
+            
+            Object.entries(buttonMap).forEach(([filterType, btnId]) => {
+                const btn = document.getElementById(btnId);
                 if (!btn) return;
                 
-                const isActive = id === 'filter' + type.charAt(0) + type.slice(1).toLowerCase();
+                const isActive = filterType === type;
                 
                 if (isActive) {
                     btn.style.background = 'var(--primary)';
@@ -1642,18 +1654,18 @@
             });
             
             renderFullConsole();
-        }
+        };
         
-        function clearLogs() {
+        window.clearLogs = function() {
             if (!confirm('Are you sure you want to clear all logs?')) return;
             
             logBuffer = [];
             renderConsole();
             renderFullConsole();
             addStatus('All logs cleared', 'INFO');
-        }
+        };
         
-        function exportLogs() {
+        window.exportLogs = function() {
             if (logBuffer.length === 0) {
                 addStatus('No logs to export', 'WARNING');
                 return;
