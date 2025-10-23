@@ -116,6 +116,8 @@
                 if (page === 'time') {
                     renderCalendar();
                     updateTimeDisplay();
+                    // Ensure time buttons are bound when user navigates here
+                    if (typeof attachTimeButtons === 'function') attachTimeButtons();
                 } else if (page === 'livedata') {
                     renderLiveDataTable();
                 } else if (page === 'logs') {
@@ -1384,25 +1386,30 @@
         }
         
         document.getElementById('prevMonth')?.addEventListener('click', function() {
+            console.log('[TIME] prevMonth clicked');
             timePickerMonth--;
             if (timePickerMonth < 0) {
                 timePickerMonth = 11;
                 timePickerYear--;
             }
+            console.log('[TIME] New month/year:', { month: timePickerMonth, year: timePickerYear });
             renderCalendar();
         });
         
         document.getElementById('nextMonth')?.addEventListener('click', function() {
+            console.log('[TIME] nextMonth clicked');
             timePickerMonth++;
             if (timePickerMonth > 11) {
                 timePickerMonth = 0;
                 timePickerYear++;
             }
+            console.log('[TIME] New month/year:', { month: timePickerMonth, year: timePickerYear });
             renderCalendar();
         });
         
         // Expose to window for onclick handlers
         window.adjustTime = function(unit, delta) {
+            console.log('[TIME] adjustTime called:', { unit, delta });
             if (unit === 'hour') {
                 timePickerHour += delta;
                 if (timePickerHour < 0) timePickerHour = 23;
@@ -1417,6 +1424,7 @@
                 if (timePickerSecond > 59) timePickerSecond = 0;
             }
             
+            console.log('[TIME] Updated values:', { hour: timePickerHour, min: timePickerMinute, sec: timePickerSecond });
             updateTimeDisplay();
         }
         
@@ -1426,9 +1434,36 @@
             document.getElementById('displaySec').textContent = String(timePickerSecond).padStart(2, '0');
         }
         
-        document.getElementById('syncTimeBtn')?.addEventListener('click', function() {
+        // Robust binding for Time Settings buttons
+        function attachTimeButtons() {
+            const syncBtn = document.getElementById('syncTimeBtn');
+            const manualBtn = document.getElementById('setManualTimeBtn');
+            console.log('[TIME] attachTimeButtons()', { hasSyncBtn: !!syncBtn, hasManualBtn: !!manualBtn });
+
+            if (syncBtn && !syncBtn.__bound) {
+                syncBtn.addEventListener('click', onSyncTimeClick);
+                syncBtn.__bound = true;
+            }
+            if (manualBtn && !manualBtn.__bound) {
+                manualBtn.addEventListener('click', onManualTimeClick);
+                manualBtn.__bound = true;
+            }
+        }
+
+        // Delegated fallback in case DOM is re-rendered or binding missed
+        document.addEventListener('click', (e) => {
+            const syncEl = e.target.closest && e.target.closest('#syncTimeBtn');
+            const manualEl = e.target.closest && e.target.closest('#setManualTimeBtn');
+            if (syncEl) return onSyncTimeClick(e);
+            if (manualEl) return onManualTimeClick(e);
+        }, true);
+
+        function onSyncTimeClick() {
+            console.log('[TIME] onSyncTimeClick() called');
             const now = new Date();
             const timestamp = Math.floor(now.getTime() / 1000);
+            
+            console.log('[TIME] Sync from internet:', { now: now.toISOString(), timestamp });
             
             // Update time picker UI
             timePickerYear = now.getFullYear();
@@ -1446,34 +1481,44 @@
             if (isMqttConnected && mqttClient) {
                 mqttClient.publish(MQTT_CONFIG.topics.stm32Command, command, {qos: 1});
                 addStatus(`Time synced from internet: ${now.toLocaleString()}`, 'SYNC');
+                console.log('[TIME] MQTT command sent:', command);
             } else {
                 addStatus("MQTT not connected - cannot send SET TIME", "ERROR");
+                console.warn('[TIME] MQTT not connected, command not sent');
             }
 
             // Update local device/system time emulation regardless, so UI reflects chosen time
             deviceClockMs = timestamp * 1000;
             deviceClockSetAtMs = Date.now();
+            console.log('[TIME] Device clock set:', { deviceClockMs, deviceClockSetAtMs });
             updateFooterClock();
-        });
+        }
         
-        document.getElementById('setManualTimeBtn')?.addEventListener('click', function() {
+        function onManualTimeClick() {
+            console.log('[TIME] onManualTimeClick() called');
             const date = new Date(timePickerYear, timePickerMonth, timePickerDay, 
                                   timePickerHour, timePickerMinute, timePickerSecond);
             const timestamp = Math.floor(date.getTime() / 1000);
+            
+            console.log('[TIME] Manual time set:', { date: date.toISOString(), timestamp });
             
             const command = `SET TIME ${timestamp}`;
             if (isMqttConnected && mqttClient) {
                 mqttClient.publish(MQTT_CONFIG.topics.stm32Command, command, {qos: 1});
                 addStatus(`Manual time set: ${date.toLocaleString()}`, 'SETTING');
+                console.log('[TIME] MQTT command sent:', command);
             } else {
                 addStatus("MQTT not connected - cannot send SET TIME", "ERROR");
+                console.warn('[TIME] MQTT not connected, command not sent');
             }
 
             // Update local device/system time emulation to reflect manual selection
             deviceClockMs = timestamp * 1000;
             deviceClockSetAtMs = Date.now();
+            console.log('[TIME] Device clock set:', { deviceClockMs, deviceClockSetAtMs });
             updateFooterClock();
-        });
+        }    // Initial binding
+    attachTimeButtons();
         
         // Update time display every second
         setInterval(updateTimeDisplay, 1000);
@@ -2357,8 +2402,20 @@
         function updateFooterClock() {
             let display;
             if (deviceClockMs !== null && deviceClockSetAtMs !== null) {
-                const ms = deviceClockMs + (Date.now() - deviceClockSetAtMs);
-                display = new Date(ms).toLocaleTimeString('en-US', {hour12: false});
+                const elapsed = Date.now() - deviceClockSetAtMs;
+                const currentDeviceTime = deviceClockMs + elapsed;
+                display = new Date(currentDeviceTime).toLocaleTimeString('en-US', {hour12: false});
+                
+                // Debug: log every 10 seconds to verify it's updating
+                if (Math.floor(elapsed / 1000) % 10 === 0 && elapsed > 0 && elapsed < 1000) {
+                    console.log('[CLOCK] Device time updating:', {
+                        deviceClockMs,
+                        deviceClockSetAtMs,
+                        elapsed,
+                        currentDeviceTime,
+                        display
+                    });
+                }
             } else {
                 display = '--:--:--';
             }
