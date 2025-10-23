@@ -1953,16 +1953,21 @@
         let selectedMinute = 0;
         let selectedSecond = 5;
         let pickerInitialized = false;
+        let isScrolling = false;
         
         function openIntervalModal() {
             document.getElementById('intervalModal').classList.add('active');
-            initializeTimePicker();
             
             if (!pickerInitialized) {
                 selectedMinute = 0;
                 selectedSecond = 5;
+                initializeTimePicker();
+            } else {
+                // Reuse existing picker, just scroll to values
+                scrollToValue(document.getElementById('minutePicker'), selectedMinute);
+                scrollToValue(document.getElementById('secondPicker'), selectedSecond);
+                updatePickerSelection();
             }
-            updatePickerSelection();
         }
         
         function closeIntervalModal() {
@@ -1973,7 +1978,7 @@
             const minutePicker = document.getElementById('minutePicker');
             const secondPicker = document.getElementById('secondPicker');
             
-            console.log('ðŸ”§ Initializing time picker...', { minutePicker, secondPicker, pickerInitialized });
+            // Initializing time picker
             
             if (!minutePicker || !secondPicker) {
                 console.error('âŒ Picker elements not found!');
@@ -1981,13 +1986,13 @@
             }
             
             if (pickerInitialized) {
-                console.log('âœ… Picker already initialized, just scrolling...');
+                // Picker already initialized
                 scrollToValue(minutePicker, selectedMinute);
                 scrollToValue(secondPicker, selectedSecond);
                 return;
             }
             
-            console.log('ðŸ“ Populating pickers...');
+            // Populating pickers
             minutePicker.innerHTML = "";
             secondPicker.innerHTML = "";
             
@@ -2013,22 +2018,34 @@
                 secondPicker.appendChild(createPickerItem("", true));
             }
             
-            // Add scroll listeners
-            minutePicker.addEventListener('scroll', handlePickerScroll);
-            secondPicker.addEventListener('scroll', handlePickerScroll);
+            // Add scroll listeners with debouncing
+            let minuteScrollTimer;
+            minutePicker.addEventListener('scroll', function() {
+                clearTimeout(minuteScrollTimer);
+                minuteScrollTimer = setTimeout(() => {
+                    if (!isScrolling) {
+                        handlePickerScroll(minutePicker);
+                    }
+                }, 150);
+            });
+            
+            let secondScrollTimer;
+            secondPicker.addEventListener('scroll', function() {
+                clearTimeout(secondScrollTimer);
+                secondScrollTimer = setTimeout(() => {
+                    if (!isScrolling) {
+                        handlePickerScroll(secondPicker);
+                    }
+                }, 150);
+            });
             
             pickerInitialized = true;
-            console.log('âœ… Pickers populated!', { 
-                minuteItems: minutePicker.children.length, 
-                secondItems: secondPicker.children.length 
-            });
             
             setTimeout(() => {
                 scrollToValue(minutePicker, selectedMinute);
                 scrollToValue(secondPicker, selectedSecond);
                 updatePickerSelection();
-                console.log('âœ… Scrolled to initial values:', { selectedMinute, selectedSecond });
-            }, 150);
+            }, 100);
         }
         
         function createPickerItem(value, isPadding, type) {
@@ -2068,19 +2085,18 @@
             }
         }
         
-        function handlePickerScroll(event) {
-            const picker = event.currentTarget;
-            if (!picker) return;
+        function handlePickerScroll(picker) {
+            if (!picker || isScrolling) return;
             
             clearTimeout(picker.scrollTimeout);
             picker.scrollTimeout = setTimeout(() => {
                 updatePickerSelection();
                 snapToClosest(picker);
-            }, 50);
+            }, 150);
         }
         
         function snapToClosest(picker) {
-            if (!picker) return;
+            if (!picker || isScrolling) return;
             
             const items = picker.querySelectorAll('.picker-item[data-value]');
             if (items.length === 0) return;
@@ -2100,8 +2116,10 @@
             });
             
             if (closestItem && closestDistance > 3) {
+                isScrolling = true;
                 const scrollTop = closestItem.offsetTop - picker.offsetHeight / 2 + closestItem.offsetHeight / 2;
                 picker.scrollTo({ top: scrollTop, behavior: 'smooth' });
+                setTimeout(() => { isScrolling = false; }, 300);
             }
         }
         
