@@ -532,6 +532,17 @@
         // ====================================================================
         // CHARTS
         // ====================================================================
+        // Helper to (re)try chart initialization on-demand
+        function ensureChartsInitialized() {
+            if (tempChart && humiChart) return; // already ready
+            console.warn('[CHART] ensureChartsInitialized(): charts not ready, invoking initializeCharts()');
+            try {
+                initializeCharts();
+            } catch (e) {
+                console.error('[CHART] ensureChartsInitialized() failed:', e);
+            }
+        }
+
         function initializeCharts() {
             console.log(`[CHART] Attempting to initialize charts (attempt ${chartInitRetryCount + 1}/${maxChartInitRetries})...`);
             
@@ -754,6 +765,8 @@
         }
         
         function pushTemperature(value, update = true, timestamp = null) {
+            // Lazy init in case initial boot missed DOM timing
+            if (!tempChart || !humiChart) ensureChartsInitialized();
             const time = timestamp ? new Date(timestamp).toLocaleTimeString('en-US', {hour12: false}) : 
                          new Date().toLocaleTimeString('en-US', {hour12: false});
             
@@ -779,6 +792,8 @@
         }
         
         function pushHumidity(value, update = true, timestamp = null) {
+            // Lazy init in case initial boot missed DOM timing
+            if (!tempChart || !humiChart) ensureChartsInitialized();
             const time = timestamp ? new Date(timestamp).toLocaleTimeString('en-US', {hour12: false}) : 
                          new Date().toLocaleTimeString('en-US', {hour12: false});
             
