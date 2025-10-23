@@ -92,13 +92,13 @@
                         Quick Actions
                     </div>
                     <div class="action-buttons">
-                        <button class="btn btn-primary" id="deviceBtn">
+                        <button class="btn btn-secondary" id="deviceBtn">
                             <i data-feather="power"></i>
-                            <span id="deviceBtnText">Device ON</span>
+                            <span id="deviceBtnText">Device OFF</span>
                         </button>
-                        <button class="btn btn-success" id="periodicBtn">
+                        <button class="btn btn-secondary" id="periodicBtn">
                             <i data-feather="repeat"></i>
-                            <span id="periodicBtnText">Start Periodic</span>
+                            <span id="periodicBtnText">Periodic OFF</span>
                         </button>
                         <button class="btn btn-primary" id="singleBtn">
                             <i data-feather="thermometer"></i>
@@ -131,7 +131,7 @@
                     <div class="reading-values">
                         <div class="reading-value">
                             <div class="reading-number" id="currentTemp">--</div>
-                            <div class="reading-unit">°C</div>
+                            <div class="reading-unit">C</div>
                         </div>
                         <div class="reading-value">
                             <div class="reading-number" id="currentHumi">--</div>
@@ -154,7 +154,7 @@
                     <div class="card">
                         <div class="card-header">
                             <i data-feather="trending-up"></i>
-                            Temperature (°C)
+                            Temperature (C)
                         </div>
                         <div class="chart-container">
                             <canvas id="tempChart"></canvas>
@@ -233,7 +233,7 @@
                                 <tr style="background-color: var(--bg-tertiary); border-bottom: 2px solid var(--primary);">
                                     <th style="padding: 0.75rem; text-align: left; font-weight: 600;">#</th>
                                     <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Time</th>
-                                    <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Temp (°C)</th>
+                                    <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Temp (C)</th>
                                     <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Humidity (%)</th>
                                     <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Mode</th>
                                     <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Status</th>
@@ -328,9 +328,9 @@
                             <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 1rem; text-align: center; color: var(--primary);">Date Selection</h3>
                             <div style="background-color: var(--bg-tertiary); padding: 1.5rem; border-radius: 0.5rem;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                                    <button class="btn btn-secondary" style="padding: 0.5rem 1rem;" id="prevMonth">◀</button>
+                                    <button class="btn btn-secondary" style="padding: 0.5rem 1rem;" id="prevMonth"><</button>
                                     <h4 style="font-weight: 600; font-size: 1.125rem;" id="monthYear">January 2025</h4>
-                                    <button class="btn btn-secondary" style="padding: 0.5rem 1rem;" id="nextMonth">▶</button>
+                                    <button class="btn btn-secondary" style="padding: 0.5rem 1rem;" id="nextMonth">></button>
                                 </div>
                                 
                                 <div id="calendar" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.5rem; text-align: center;"></div>
@@ -350,19 +350,19 @@
                                 
                                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
                                     <div style="text-align: center;">
-                                        <button class="btn btn-secondary" style="width: 100%; margin-bottom: 0.5rem;" onclick="adjustTime('hour', 1)">▲</button>
+                                        <button class="btn btn-secondary" style="width: 100%; margin-bottom: 0.5rem;" onclick="adjustTime('hour', 1)">UP</button>
                                         <div style="font-weight: 600; margin-bottom: 0.5rem;">Hour</div>
-                                        <button class="btn btn-secondary" style="width: 100%;" onclick="adjustTime('hour', -1)">▼</button>
+                                        <button class="btn btn-secondary" style="width: 100%;" onclick="adjustTime('hour', -1)">DOWN</button>
                                     </div>
                                     <div style="text-align: center;">
-                                        <button class="btn btn-secondary" style="width: 100%; margin-bottom: 0.5rem;" onclick="adjustTime('min', 1)">▲</button>
+                                        <button class="btn btn-secondary" style="width: 100%; margin-bottom: 0.5rem;" onclick="adjustTime('min', 1)">UP</button>
                                         <div style="font-weight: 600; margin-bottom: 0.5rem;">Min</div>
-                                        <button class="btn btn-secondary" style="width: 100%;" onclick="adjustTime('min', -1)">▼</button>
+                                        <button class="btn btn-secondary" style="width: 100%;" onclick="adjustTime('min', -1)">DOWN</button>
                                     </div>
                                     <div style="text-align: center;">
-                                        <button class="btn btn-secondary" style="width: 100%; margin-bottom: 0.5rem;" onclick="adjustTime('sec', 1)">▲</button>
+                                        <button class="btn btn-secondary" style="width: 100%; margin-bottom: 0.5rem;" onclick="adjustTime('sec', 1)">UP</button>
                                         <div style="font-weight: 600; margin-bottom: 0.5rem;">Sec</div>
-                                        <button class="btn btn-secondary" style="width: 100%;" onclick="adjustTime('sec', -1)">▼</button>
+                                        <button class="btn btn-secondary" style="width: 100%;" onclick="adjustTime('sec', -1)">DOWN</button>
                                     </div>
                                 </div>
                             </div>
@@ -419,7 +419,7 @@
                     </div>
                     
                     <!-- Row 1: Date Range -->
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                         <div class="form-group" style="margin: 0;">
                             <label class="form-label">From Date:</label>
                             <input type="date" class="form-input" id="filterDateFrom">
@@ -428,11 +428,14 @@
                             <label class="form-label">To Date:</label>
                             <input type="date" class="form-input" id="filterDateTo">
                         </div>
-                        <div style="display: flex; gap: 0.5rem; align-items: end;">
-                            <button class="btn btn-secondary" onclick="setQuickFilter('today')">Today</button>
-                            <button class="btn btn-secondary" onclick="setQuickFilter('week')">This Week</button>
-                            <button class="btn btn-secondary" onclick="setQuickFilter('month')">This Month</button>
-                        </div>
+                    </div>
+                    
+                    <!-- Quick Filter Buttons Row -->
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-bottom: 1rem;">
+                        <button class="btn btn-secondary" id="quickFilterToday">Today</button>
+                        <button class="btn btn-secondary" id="quickFilterWeek">This Week</button>
+                        <button class="btn btn-secondary" id="quickFilterMonth">This Month</button>
+                        <button class="btn btn-secondary" id="quickFilterAll">All Time</button>
                     </div>
                     
                     <!-- Row 2: Filters -->
@@ -470,12 +473,12 @@
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                         <div style="display: flex; gap: 0.5rem; align-items: end;">
                             <div class="form-group" style="margin: 0; flex: 1;">
-                                <label class="form-label">Temp Min (°C):</label>
+                                <label class="form-label">Temp Min (C):</label>
                                 <input type="number" class="form-input" id="filterTempMin" placeholder="Min" step="0.1">
                             </div>
                             <span style="padding-bottom: 0.75rem;">to</span>
                             <div class="form-group" style="margin: 0; flex: 1;">
-                                <label class="form-label">Temp Max (°C):</label>
+                                <label class="form-label">Temp Max (C):</label>
                                 <input type="number" class="form-input" id="filterTempMax" placeholder="Max" step="0.1">
                             </div>
                         </div>
@@ -523,7 +526,7 @@
                                 <tr style="background-color: var(--bg-tertiary); border-bottom: 2px solid var(--primary);">
                                     <th style="padding: 0.75rem; text-align: left; font-weight: 600;">#</th>
                                     <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Date & Time</th>
-                                    <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Temp (°C)</th>
+                                    <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Temp (C)</th>
                                     <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Humidity (%)</th>
                                     <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Mode</th>
                                     <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Status</th>
@@ -671,8 +674,8 @@
                                 <div>
                                     <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">Temperature Unit</label>
                                     <select id="tempUnit" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem; background-color: var(--bg-primary); color: var(--text-primary);">
-                                        <option value="C">Celsius (°C)</option>
-                                        <option value="F">Fahrenheit (°F)</option>
+                                        <option value="C">Celsius (C)</option>
+                                        <option value="F">Fahrenheit (F)</option>
                                         <option value="K">Kelvin (K)</option>
                                     </select>
                                 </div>
@@ -765,7 +768,7 @@
                 System Time: <strong id="footerTime">--:--:--</strong>
             </div>
             <div class="footer-item">
-                © 2025 DataLogger System
+                  2025 DataLogger System
             </div>
         </footer>
     </div>
@@ -777,13 +780,24 @@
             <p style="text-align: center; color: var(--text-muted); margin-bottom: 1.5rem;">Select measurement interval</p>
             
             <div style="display: flex; gap: 2rem; justify-content: center; margin-bottom: 2rem;">
+                <!-- Minutes Picker -->
                 <div style="text-align: center;">
                     <div style="font-weight: 600; margin-bottom: 0.5rem; color: var(--text-secondary);">Minutes</div>
-                    <div class="picker-scroll" id="minutePicker" style="height: 200px; overflow-y: auto; border: 2px solid var(--primary); border-radius: 0.5rem; padding: 0.5rem; background: var(--bg-primary);"></div>
+                    <button class="btn btn-primary" id="minuteUpBtn" style="width: 100%; margin-bottom: 0.5rem;">UP</button>
+                    <div style="background: var(--bg-tertiary); border: 2px solid var(--primary); border-radius: 0.5rem; padding: 2rem 1rem; font-size: 2rem; font-weight: 700; color: white; min-width: 100px;">
+                        <span id="minuteDisplay">00</span>
+                    </div>
+                    <button class="btn btn-primary" id="minuteDownBtn" style="width: 100%; margin-top: 0.5rem;">DOWN</button>
                 </div>
+                
+                <!-- Seconds Picker -->
                 <div style="text-align: center;">
                     <div style="font-weight: 600; margin-bottom: 0.5rem; color: var(--text-secondary);">Seconds</div>
-                    <div class="picker-scroll" id="secondPicker" style="height: 200px; overflow-y: auto; border: 2px solid var(--primary); border-radius: 0.5rem; padding: 0.5rem; background: var(--bg-primary);"></div>
+                    <button class="btn btn-primary" id="secondUpBtn" style="width: 100%; margin-bottom: 0.5rem;">UP</button>
+                    <div style="background: var(--bg-tertiary); border: 2px solid var(--primary); border-radius: 0.5rem; padding: 2rem 1rem; font-size: 2rem; font-weight: 700; color: white; min-width: 100px;">
+                        <span id="secondDisplay">05</span>
+                    </div>
+                    <button class="btn btn-primary" id="secondDownBtn" style="width: 100%; margin-top: 0.5rem;">DOWN</button>
                 </div>
             </div>
             

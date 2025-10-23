@@ -1,4 +1,4 @@
-﻿// Initialize Feather Icons
+// Initialize Feather Icons
         feather.replace();
         
         // ====================================================================
@@ -19,6 +19,9 @@
     let currentHumi = null;
     // Last reading timestamp (ms since epoch) sourced from device payload
     let lastReadingTimestamp = null;
+        
+        // Data Management cache (MUST be declared BEFORE any functions that use it)
+        let filteredDataCache = [];
         
         // Live Data table
         let liveDataBuffer = [];
@@ -53,6 +56,12 @@
     // Displayed time = deviceClockMs + (Date.now() - deviceClockSetAtMs)
     let deviceClockMs = null;
     let deviceClockSetAtMs = null;
+    // Interval ID for the footer System Time ticker; must be declared before any usage to avoid TDZ
+    let clockIntervalId = null;
+    
+    // Interval picker state
+    let selectedMinute = 0;
+    let selectedSecond = 5;
         
         // State synchronization management
         let stateSync = {
@@ -116,10 +125,16 @@
                 if (page === 'time') {
                     renderCalendar();
                     updateTimeDisplay();
+                    bindCalendarButtons();
                     // Ensure time buttons are bound when user navigates here
                     if (typeof attachTimeButtons === 'function') attachTimeButtons();
                 } else if (page === 'livedata') {
                     renderLiveDataTable();
+                    bindLiveDataButtons();
+                } else if (page === 'data') {
+                    bindDataManagementButtons();
+                    // Auto-load data when opening page
+                    applyDataFilters();
                 } else if (page === 'logs') {
                     renderFullConsole();
                 } else if (page === 'config') {
@@ -181,15 +196,15 @@
         // ====================================================================
         function initializeFirebase() {
             if (!FIREBASE_CONFIG.apiKey || !FIREBASE_CONFIG.databaseURL || !FIREBASE_CONFIG.projectId) {
-                addStatus("âš ï¸ Firebase configuration incomplete - skipping initialization", "WARNING");
-                addStatus(`   API Key: ${FIREBASE_CONFIG.apiKey ? 'âœ… Set' : 'âŒ Missing'}`, "INFO");
-                addStatus(`   Database URL: ${FIREBASE_CONFIG.databaseURL ? 'âœ… Set' : 'âŒ Missing'}`, "INFO");
-                addStatus(`   Project ID: ${FIREBASE_CONFIG.projectId ? 'âœ… Set' : 'âŒ Missing'}`, "INFO");
+                addStatus(" Firebase configuration incomplete - skipping initialization", "WARNING");
+                addStatus(`   API Key: ${FIREBASE_CONFIG.apiKey ? ' Set' : ' Missing'}`, "INFO");
+                addStatus(`   Database URL: ${FIREBASE_CONFIG.databaseURL ? ' Set' : ' Missing'}`, "INFO");
+                addStatus(`   Project ID: ${FIREBASE_CONFIG.projectId ? ' Set' : ' Missing'}`, "INFO");
                 updateFirebaseStatus(false);
                 return false;
             }
             
-            addStatus("ðŸ”¥ Initializing Firebase...", "FIREBASE");
+            addStatus(" Initializing Firebase...", "FIREBASE");
             addStatus(`   Project: ${FIREBASE_CONFIG.projectId}`, "INFO");
             addStatus(`   Database: ${FIREBASE_CONFIG.databaseURL}`, "INFO");
             
@@ -209,7 +224,7 @@
                 
                 firebaseDb.ref('.info/connected').on('value', function(snapshot) {
                     if (snapshot.val() === true) {
-                        addStatus("ðŸ”¥ Firebase connected - testing permissions...", "FIREBASE");
+                        addStatus(" Firebase connected - testing permissions...", "FIREBASE");
                         
                         firebaseDb.ref('test/connection').set({
                             timestamp: Date.now(),
@@ -217,24 +232,24 @@
                         })
                         .then(() => {
                             updateFirebaseStatus(true);
-                            addStatus("âœ… Firebase write permissions verified", "FIREBASE");
+                            addStatus(" Firebase write permissions verified", "FIREBASE");
                             firebaseDb.ref('test').remove();
                         })
                         .catch((error) => {
                             updateFirebaseStatus(false);
-                            addStatus(`âŒ Firebase permission error: ${error.code}`, "ERROR");
+                            addStatus(` Firebase permission error: ${error.code}`, "ERROR");
                             addStatus(`   Message: ${error.message}`, "ERROR");
                             addStatus(`   Check Firebase Rules and authentication`, "ERROR");
                         });
                     } else {
                         updateFirebaseStatus(false);
-                        addStatus("âš ï¸ Firebase connection lost", "WARNING");
+                        addStatus(" Firebase connection lost", "WARNING");
                     }
                 });
                 
                 return true;
             } catch (error) {
-                addStatus(`âŒ Firebase init exception: ${error.message}`, "ERROR");
+                addStatus(` Firebase init exception: ${error.message}`, "ERROR");
                 addStatus(`   Stack: ${error.stack}`, "ERROR");
                 updateFirebaseStatus(false);
                 return false;
@@ -266,7 +281,7 @@
         function initializeMQTT() {
             const url = `ws://${MQTT_CONFIG.host}:${MQTT_CONFIG.port}${MQTT_CONFIG.path}`;
             
-            addStatus(`ðŸ”Œ Connecting to MQTT broker...`, "MQTT");
+            addStatus(` Connecting to MQTT broker...`, "MQTT");
             addStatus(`   Host: ${MQTT_CONFIG.host}`, "INFO");
             addStatus(`   Port: ${MQTT_CONFIG.port}`, "INFO");
             addStatus(`   Path: ${MQTT_CONFIG.path}`, "INFO");
@@ -285,7 +300,7 @@
                 
                 mqttClient.on('connect', function() {
                     updateMQTTStatus(true);
-                    addStatus("âœ… MQTT broker connected successfully!", "MQTT");
+                    addStatus(" MQTT broker connected successfully!", "MQTT");
                     
                     // Subscribe to topics
                     const topics = [
@@ -297,9 +312,9 @@
                     topics.forEach(topic => {
                         mqttClient.subscribe(topic, {qos: 1}, (err) => {
                             if (err) {
-                                addStatus(`âŒ Failed to subscribe to ${topic}: ${err.message}`, "ERROR");
+                                addStatus(` Failed to subscribe to ${topic}: ${err.message}`, "ERROR");
                             } else {
-                                addStatus(`âœ… Subscribed to ${topic}`, "MQTT");
+                                addStatus(` Subscribed to ${topic}`, "MQTT");
                             }
                         });
                     });
@@ -313,28 +328,28 @@
                 mqttClient.on('message', handleMQTTMessage);
                 
                 mqttClient.on('error', function(error) {
-                    addStatus(`âŒ MQTT error: ${error.message}`, "ERROR");
+                    addStatus(` MQTT error: ${error.message}`, "ERROR");
                     addStatus(`   Check if broker is running at ${MQTT_CONFIG.host}:${MQTT_CONFIG.port}`, "ERROR");
                     addStatus(`   Verify network connectivity and firewall settings`, "ERROR");
                     updateMQTTStatus(false);
                 });
                 
                 mqttClient.on('offline', function() {
-                    addStatus("âš ï¸ MQTT client offline - attempting reconnect...", "WARNING");
+                    addStatus(" MQTT client offline - attempting reconnect...", "WARNING");
                     updateMQTTStatus(false);
                 });
                 
                 mqttClient.on('reconnect', function() {
-                    addStatus("ðŸ”„ MQTT reconnecting...", "MQTT");
+                    addStatus(" MQTT reconnecting...", "MQTT");
                 });
                 
                 mqttClient.on('close', function() {
                     updateMQTTStatus(false);
-                    addStatus("ðŸ”Œ MQTT connection closed", "MQTT");
+                    addStatus(" MQTT connection closed", "MQTT");
                 });
                 
             } catch (error) {
-                addStatus(`âŒ MQTT init exception: ${error.message}`, "ERROR");
+                addStatus(` MQTT init exception: ${error.message}`, "ERROR");
                 addStatus(`   Stack: ${error.stack}`, "ERROR");
                 updateMQTTStatus(false);
             }
@@ -395,10 +410,10 @@
                     // Only surface warnings when measurement is active
                     if (isActiveMeasurement) {
                         if (sensorFailed) {
-                            addStatus('⚠️ Sensor hardware failed (disconnected)', 'WARNING');
+                            addStatus('[WARNING] Sensor hardware failed (disconnected)', 'WARNING');
                         }
                         if (rtcFailed) {
-                            addStatus('⚠️ RTC failed (using local time)', 'WARNING');
+                            addStatus('[WARNING] RTC failed (using local time)', 'WARNING');
                         }
                     }
                     
@@ -495,26 +510,26 @@
             isDeviceOn = state.device;
             isPeriodic = state.periodic;
             
-            // Update Device button
+            // Update Device button - show CURRENT state
             const deviceBtn = document.getElementById('deviceBtn');
             const deviceBtnText = document.getElementById('deviceBtnText');
             if (isDeviceOn) {
-                deviceBtn.className = 'btn btn-danger';
-                deviceBtnText.textContent = 'Device OFF';
-            } else {
-                deviceBtn.className = 'btn btn-primary';
+                deviceBtn.className = 'btn btn-success';
                 deviceBtnText.textContent = 'Device ON';
+            } else {
+                deviceBtn.className = 'btn btn-secondary';
+                deviceBtnText.textContent = 'Device OFF';
             }
             
-            // Update Periodic button
+            // Update Periodic button - show CURRENT state
             const periodicBtn = document.getElementById('periodicBtn');
             const periodicBtnText = document.getElementById('periodicBtnText');
             if (isPeriodic) {
-                periodicBtn.className = 'btn btn-danger';
-                periodicBtnText.textContent = 'Stop Periodic';
-            } else {
                 periodicBtn.className = 'btn btn-success';
-                periodicBtnText.textContent = 'Start Periodic';
+                periodicBtnText.textContent = 'Periodic ON';
+            } else {
+                periodicBtn.className = 'btn btn-secondary';
+                periodicBtnText.textContent = 'Periodic OFF';
             }
             
             addStatus(`State synced: Device=${state.device?'ON':'OFF'}, Periodic=${state.periodic?'ON':'OFF'}`, "SYNC");
@@ -632,18 +647,18 @@
                 data: {
                     labels: [],
                     datasets: [{
-                        label: 'Temperature (Â°C)',
+                        label: 'Temperature (C)',
                         data: [],
                         borderColor: '#06B6D4',
                         backgroundColor: 'rgba(6, 182, 212, 0.1)',
                         tension: 0.4,
-                        pointRadius: 4,
-                        pointHoverRadius: 8,
-                        borderWidth: 3,
+                        pointRadius: 2,
+                        pointHoverRadius: 6,
+                        borderWidth: 2,
                         fill: true,
                         pointBackgroundColor: '#06B6D4',
                         pointBorderColor: 'white',
-                        pointBorderWidth: 2
+                        pointBorderWidth: 1
                     }]
                 },
                 options: {
@@ -665,7 +680,7 @@
                             displayColors: false,
                             callbacks: {
                                 label: function(context) {
-                                    return `Temperature: ${context.parsed.y.toFixed(1)}Â°C`;
+                                    return `Temperature: ${context.parsed.y.toFixed(1)}C`;
                                 }
                             }
                         }
@@ -673,12 +688,14 @@
                     scales: {
                         y: {
                             beginAtZero: false,
+                            suggestedMin: 15,
+                            suggestedMax: 40,
                             grid: {
                                 color: 'rgba(6, 182, 212, 0.1)'
                             },
                             ticks: {
                                 callback: function(value) {
-                                    return value.toFixed(1) + 'Â°C';
+                                    return value.toFixed(1) + 'C';
                                 }
                             }
                         },
@@ -708,13 +725,13 @@
                         borderColor: '#22D3EE',
                         backgroundColor: 'rgba(34, 211, 238, 0.1)',
                         tension: 0.4,
-                        pointRadius: 4,
-                        pointHoverRadius: 8,
-                        borderWidth: 3,
+                        pointRadius: 2,
+                        pointHoverRadius: 6,
+                        borderWidth: 2,
                         fill: true,
                         pointBackgroundColor: '#22D3EE',
                         pointBorderColor: 'white',
-                        pointBorderWidth: 2
+                        pointBorderWidth: 1
                     }]
                 },
                 options: {
@@ -744,6 +761,8 @@
                     scales: {
                         y: {
                             beginAtZero: false,
+                            suggestedMin: 40,
+                            suggestedMax: 90,
                             grid: {
                                 color: 'rgba(34, 211, 238, 0.1)'
                             },
@@ -917,15 +936,15 @@
             // Update state immediately
             isDeviceOn = willBeDeviceOn;
             
-            // Update UI
+            // Update UI - show CURRENT state
             const deviceBtn = document.getElementById('deviceBtn');
             const deviceBtnText = document.getElementById('deviceBtnText');
             if (isDeviceOn) {
-                deviceBtn.className = 'btn btn-danger';
-                deviceBtnText.textContent = 'Device OFF';
-            } else {
-                deviceBtn.className = 'btn btn-primary';
+                deviceBtn.className = 'btn btn-success';
                 deviceBtnText.textContent = 'Device ON';
+            } else {
+                deviceBtn.className = 'btn btn-secondary';
+                deviceBtnText.textContent = 'Device OFF';
             }
             
             // If turning OFF, stop periodic mode immediately
@@ -933,8 +952,8 @@
                 isPeriodic = false;
                 const periodicBtn = document.getElementById('periodicBtn');
                 const periodicBtnText = document.getElementById('periodicBtnText');
-                if (periodicBtn) periodicBtn.className = 'btn btn-success';
-                if (periodicBtnText) periodicBtnText.textContent = 'Start Periodic';
+                if (periodicBtn) periodicBtn.className = 'btn btn-secondary';
+                if (periodicBtnText) periodicBtnText.textContent = 'Periodic OFF';
                 
                 mqttClient.publish(MQTT_CONFIG.topics.stm32Command, "PERIODIC OFF", {qos: 1});
                 addStatus("Periodic mode stopped (device OFF)", "SYNC");
@@ -973,15 +992,15 @@
             // Update state immediately
             isPeriodic = willBePeriodic;
             
-            // Update UI
+            // Update UI - show CURRENT state
             const periodicBtn = document.getElementById('periodicBtn');
             const periodicBtnText = document.getElementById('periodicBtnText');
             if (isPeriodic) {
-                periodicBtn.className = 'btn btn-danger';
-                periodicBtnText.textContent = 'Stop Periodic';
-            } else {
                 periodicBtn.className = 'btn btn-success';
-                periodicBtnText.textContent = 'Start Periodic';
+                periodicBtnText.textContent = 'Periodic ON';
+            } else {
+                periodicBtn.className = 'btn btn-secondary';
+                periodicBtnText.textContent = 'Periodic OFF';
             }
             
             addStatus(`Periodic ${isPeriodic ? 'ON' : 'OFF'} command sent`, "MQTT");
@@ -1185,7 +1204,7 @@
             tbody.innerHTML = filtered.map((data, idx) => {
                 const time = new Date(data.time).toLocaleTimeString('en-US', {hour12: false});
                 const statusClass = data.status === 'success' ? 'connected' : 'disconnected';
-                const statusText = data.status === 'success' ? 'âœ… Success' : 'âŒ Error';
+                const statusText = data.status === 'success' ? ' Success' : ' Error';
                 
                 return `
                     <tr style="border-bottom: 1px solid var(--border-color);">
@@ -1211,37 +1230,55 @@
         
         document.getElementById('liveDataFilter')?.addEventListener('change', renderLiveDataTable);
         
-        document.getElementById('clearLiveDataBtn')?.addEventListener('click', function() {
-            if (confirm('Clear all live data?')) {
-                liveDataBuffer = [];
-                renderLiveDataTable();
-                addStatus('Live data cleared', 'INFO');
+        // Function to bind Live Data buttons
+        function bindLiveDataButtons() {
+            const clearBtn = document.getElementById('clearLiveDataBtn');
+            const exportBtn = document.getElementById('exportLiveDataBtn');
+            
+            if (clearBtn) {
+                // Remove old listener by cloning
+                const newClearBtn = clearBtn.cloneNode(true);
+                clearBtn.parentNode.replaceChild(newClearBtn, clearBtn);
+                
+                newClearBtn.addEventListener('click', function() {
+                    if (confirm('Clear all live data?')) {
+                        liveDataBuffer = [];
+                        renderLiveDataTable();
+                        addStatus('Live data cleared', 'INFO');
+                    }
+                });
             }
-        });
-        
-        document.getElementById('exportLiveDataBtn')?.addEventListener('click', function() {
-            if (liveDataBuffer.length === 0) {
-                addStatus('No data to export', 'WARNING');
-                return;
+            
+            if (exportBtn) {
+                // Remove old listener by cloning
+                const newExportBtn = exportBtn.cloneNode(true);
+                exportBtn.parentNode.replaceChild(newExportBtn, exportBtn);
+                
+                newExportBtn.addEventListener('click', function() {
+                    if (liveDataBuffer.length === 0) {
+                        addStatus('No data to export', 'WARNING');
+                        return;
+                    }
+                    
+                    const csv = [
+                        ['#', 'Time', 'Temperature (C)', 'Humidity (%)', 'Mode', 'Status'].join(','),
+                        ...liveDataBuffer.map((d, idx) => {
+                            const time = new Date(d.time).toLocaleTimeString('en-US', {hour12: false});
+                            return [idx + 1, time, d.temp, d.humi, d.mode, d.status].join(',');
+                        })
+                    ].join('\n');
+                    
+                    const blob = new Blob([csv], { type: 'text/csv' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `livedata_${Date.now()}.csv`;
+                    a.click();
+                    
+                    addStatus('Live data exported', 'INFO');
+                });
             }
-            
-            const csv = [
-                ['#', 'Time', 'Temperature (Â°C)', 'Humidity (%)', 'Mode', 'Status'].join(','),
-                ...liveDataBuffer.map((d, idx) => {
-                    const time = new Date(d.time).toLocaleTimeString('en-US', {hour12: false});
-                    return [idx + 1, time, d.temp, d.humi, d.mode, d.status].join(',');
-                })
-            ].join('\n');
-            
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `livedata_${Date.now()}.csv`;
-            a.click();
-            
-            addStatus('Live data exported', 'INFO');
-        });
+        }
         
         // ====================================================================
         // COMPONENT HEALTH MONITORING
@@ -1274,7 +1311,7 @@
                     badge.className = 'status-badge connected';
                     badge.innerHTML = '<span class="status-dot connected"></span><span>Running</span>';
                     
-                    document.getElementById('sht31-temp').textContent = currentTemp?.toFixed(1) + 'Â°C' || '--';
+                    document.getElementById('sht31-temp').textContent = currentTemp?.toFixed(1) + 'C' || '--';
                     document.getElementById('sht31-humi').textContent = currentHumi?.toFixed(1) + '%' || '--';
                     document.getElementById('sht31-time').textContent = getTimeAgo(health.lastUpdate);
                 } else {
@@ -1385,45 +1422,45 @@
             }
         }
         
-        document.getElementById('prevMonth')?.addEventListener('click', function() {
-            console.log('[TIME] prevMonth clicked');
-            timePickerMonth--;
-            if (timePickerMonth < 0) {
-                timePickerMonth = 11;
-                timePickerYear--;
+        // Function to bind calendar navigation buttons
+        function bindCalendarButtons() {
+            const prevBtn = document.getElementById('prevMonth');
+            const nextBtn = document.getElementById('nextMonth');
+            
+            console.log('[TIME] Binding calendar buttons:', { prevBtn: !!prevBtn, nextBtn: !!nextBtn });
+            
+            if (prevBtn) {
+                const newPrevBtn = prevBtn.cloneNode(true);
+                prevBtn.parentNode.replaceChild(newPrevBtn, prevBtn);
+                
+                newPrevBtn.addEventListener('click', function() {
+                    console.log('[TIME] prevMonth clicked');
+                    timePickerMonth--;
+                    if (timePickerMonth < 0) {
+                        timePickerMonth = 11;
+                        timePickerYear--;
+                    }
+                    console.log('[TIME] New month/year:', { month: timePickerMonth, year: timePickerYear });
+                    renderCalendar();
+                });
             }
-            console.log('[TIME] New month/year:', { month: timePickerMonth, year: timePickerYear });
-            renderCalendar();
-        });
-        
-        document.getElementById('nextMonth')?.addEventListener('click', function() {
-            console.log('[TIME] nextMonth clicked');
-            timePickerMonth++;
-            if (timePickerMonth > 11) {
-                timePickerMonth = 0;
-                timePickerYear++;
+            
+            if (nextBtn) {
+                const newNextBtn = nextBtn.cloneNode(true);
+                nextBtn.parentNode.replaceChild(newNextBtn, nextBtn);
+                
+                newNextBtn.addEventListener('click', function() {
+                    console.log('[TIME] nextMonth clicked');
+                    timePickerMonth++;
+                    if (timePickerMonth > 11) {
+                        timePickerMonth = 0;
+                        timePickerYear++;
+                    }
+                    console.log('[TIME] New month/year:', { month: timePickerMonth, year: timePickerYear });
+                    renderCalendar();
+                });
             }
-            console.log('[TIME] New month/year:', { month: timePickerMonth, year: timePickerYear });
-            renderCalendar();
-        });
-
-        // Delegated handlers ensure functionality even if buttons are re-rendered
-        document.addEventListener('click', (e) => {
-            const prev = e.target.closest && e.target.closest('#prevMonth');
-            const next = e.target.closest && e.target.closest('#nextMonth');
-            if (prev) {
-                console.log('[TIME] prevMonth clicked (delegated)');
-                timePickerMonth--;
-                if (timePickerMonth < 0) { timePickerMonth = 11; timePickerYear--; }
-                renderCalendar();
-            }
-            if (next) {
-                console.log('[TIME] nextMonth clicked (delegated)');
-                timePickerMonth++;
-                if (timePickerMonth > 11) { timePickerMonth = 0; timePickerYear++; }
-                renderCalendar();
-            }
-        });
+        }
         
         // Global handler for inline onclick buttons in index.html
         function adjustTime(unit, delta) {
@@ -1496,12 +1533,13 @@
             renderCalendar();
             updateTimeDisplay();
             
-            // Send to device
-            const command = `SET TIME ${timestamp}`;
+            // Send to device (add 7 hours offset for Vietnam timezone UTC+7)
+            const timestampWithOffset = timestamp + (7 * 3600);  // Add 7 hours in seconds
+            const command = `SET TIME ${timestampWithOffset}`;
             if (isMqttConnected && mqttClient) {
                 mqttClient.publish(MQTT_CONFIG.topics.stm32Command, command, {qos: 1});
-                addStatus(`Time synced from internet: ${now.toLocaleString()}`, 'SYNC');
-                console.log('[TIME] MQTT command sent:', command);
+                addStatus(`Time synced from internet: ${now.toLocaleString()} (UTC+7 sent to device)`, 'SYNC');
+                console.log('[TIME] MQTT command sent:', command, '(original:', timestamp, '+ 7h offset)');
             } else {
                 addStatus("MQTT not connected - cannot send SET TIME", "ERROR");
                 console.warn('[TIME] MQTT not connected, command not sent');
@@ -1522,11 +1560,13 @@
             
             console.log('[TIME] Manual time set:', { date: date.toISOString(), timestamp });
             
-            const command = `SET TIME ${timestamp}`;
+            // Send to device (add 7 hours offset for Vietnam timezone UTC+7)
+            const timestampWithOffset = timestamp + (7 * 3600);  // Add 7 hours in seconds
+            const command = `SET TIME ${timestampWithOffset}`;
             if (isMqttConnected && mqttClient) {
                 mqttClient.publish(MQTT_CONFIG.topics.stm32Command, command, {qos: 1});
-                addStatus(`Manual time set: ${date.toLocaleString()}`, 'SETTING');
-                console.log('[TIME] MQTT command sent:', command);
+                addStatus(`Manual time set: ${date.toLocaleString()} (UTC+7 sent to device)`, 'SETTING');
+                console.log('[TIME] MQTT command sent:', command, '(original:', timestamp, '+ 7h offset)');
             } else {
                 addStatus("MQTT not connected - cannot send SET TIME", "ERROR");
                 console.warn('[TIME] MQTT not connected, command not sent');
@@ -1551,29 +1591,6 @@
         // ====================================================================
         // DATA MANAGEMENT
         // ====================================================================
-        let filteredDataCache = [];
-        
-        // Expose to window for onclick handlers
-        window.setQuickFilter = function(type) {
-            const today = new Date();
-            const to = today.toISOString().split('T')[0];
-            let from;
-            
-            if (type === 'today') {
-                from = to;
-            } else if (type === 'week') {
-                const weekAgo = new Date(today);
-                weekAgo.setDate(weekAgo.getDate() - 7);
-                from = weekAgo.toISOString().split('T')[0];
-            } else if (type === 'month') {
-                const monthAgo = new Date(today);
-                monthAgo.setMonth(monthAgo.getMonth() - 1);
-                from = monthAgo.toISOString().split('T')[0];
-            }
-            
-            document.getElementById('filterDateFrom').value = from;
-            document.getElementById('filterDateTo').value = to;
-        }
         
         function getDateRange(startDate, endDate) {
             const dates = [];
@@ -1688,7 +1705,7 @@
                 const dateStr = date.toLocaleDateString();
                 const timeStr = date.toLocaleTimeString('en-US', {hour12: false});
                 const statusClass = record.status === 'success' ? 'connected' : 'disconnected';
-                const statusText = record.status === 'success' ? 'âœ… Success' : 'âŒ Error';
+                const statusText = record.status === 'success' ? ' Success' : ' Error';
                 
                 return `
                     <tr style="border-bottom: 1px solid var(--border-color);">
@@ -1731,7 +1748,7 @@
             
             document.getElementById('statsTotal').textContent = data.length;
             document.getElementById('statsSuccess').textContent = successRate + '%';
-            document.getElementById('statsAvgTemp').textContent = avgTemp + (avgTemp !== '--' ? 'Â°C' : '');
+            document.getElementById('statsAvgTemp').textContent = avgTemp + (avgTemp !== '--' ? 'C' : '');
             document.getElementById('statsAvgHumi').textContent = avgHumi + (avgHumi !== '--' ? '%' : '');
         }
         
@@ -1741,7 +1758,7 @@
                 return;
             }
             
-            const headers = ['#', 'Date', 'Time', 'Temperature (Â°C)', 'Humidity (%)', 'Mode', 'Status', 'Sensor', 'Device'];
+            const headers = ['#', 'Date', 'Time', 'Temperature (C)', 'Humidity (%)', 'Mode', 'Status', 'Sensor', 'Device'];
             const rows = filteredDataCache.map((record, idx) => {
                 const date = new Date(record.created_at);
                 return [
@@ -1793,9 +1810,155 @@
             addStatus('Filters reset', 'INFO');
         }
         
-        document.getElementById('applyFiltersBtn')?.addEventListener('click', applyDataFilters);
-        document.getElementById('resetFiltersBtn')?.addEventListener('click', resetDataFilters);
-        document.getElementById('exportDataBtn')?.addEventListener('click', exportFilteredData);
+        // Function to bind Data Management buttons
+        function bindDataManagementButtons() {
+            console.log('[DATA] Binding Data Management buttons...');
+            
+            // Define setQuickFilter locally
+            function setQuickFilter(type) {
+                const today = new Date();
+                const startInput = document.getElementById('filterDateFrom');
+                const endInput = document.getElementById('filterDateTo');
+                
+                if (!startInput || !endInput) {
+                    console.error('[DATA] Date inputs not found!');
+                    return;
+                }
+                
+                let startDate = new Date();
+                const endDate = new Date();
+                
+                switch(type) {
+                    case 'today':
+                        startDate = today;
+                        break;
+                    case 'week':
+                        startDate.setDate(today.getDate() - 7);
+                        break;
+                    case 'month':
+                        startDate.setMonth(today.getMonth() - 1);
+                        break;
+                    case 'all':
+                        startDate = new Date(2020, 0, 1);
+                        break;
+                }
+                
+                startInput.value = startDate.toISOString().split('T')[0];
+                endInput.value = endDate.toISOString().split('T')[0];
+                
+                console.log(`[DATA] Quick filter "${type}" set dates:`, {
+                    from: startInput.value,
+                    to: endInput.value
+                });
+            }
+            
+            // Quick filter buttons
+            const todayBtn = document.getElementById('quickFilterToday');
+            const weekBtn = document.getElementById('quickFilterWeek');
+            const monthBtn = document.getElementById('quickFilterMonth');
+            const allBtn = document.getElementById('quickFilterAll');
+            
+            console.log('[DATA] Quick filter buttons found:', {
+                today: !!todayBtn,
+                week: !!weekBtn,
+                month: !!monthBtn,
+                all: !!allBtn
+            });
+            
+            if (todayBtn) {
+                const newBtn = todayBtn.cloneNode(true);
+                todayBtn.parentNode.replaceChild(newBtn, todayBtn);
+                newBtn.addEventListener('click', () => {
+                    console.log('[DATA] Quick filter: Today clicked');
+                    setQuickFilter('today');
+                    applyDataFilters();
+                });
+            } else {
+                console.warn('[DATA] Today button not found!');
+            }
+            
+            if (weekBtn) {
+                const newBtn = weekBtn.cloneNode(true);
+                weekBtn.parentNode.replaceChild(newBtn, weekBtn);
+                newBtn.addEventListener('click', () => {
+                    console.log('[DATA] Quick filter: Week clicked');
+                    setQuickFilter('week');
+                    applyDataFilters();
+                });
+            } else {
+                console.warn('[DATA] Week button not found!');
+            }
+            
+            if (monthBtn) {
+                const newBtn = monthBtn.cloneNode(true);
+                monthBtn.parentNode.replaceChild(newBtn, monthBtn);
+                newBtn.addEventListener('click', () => {
+                    console.log('[DATA] Quick filter: Month clicked');
+                    setQuickFilter('month');
+                    applyDataFilters();
+                });
+            } else {
+                console.warn('[DATA] Month button not found!');
+            }
+            
+            if (allBtn) {
+                const newBtn = allBtn.cloneNode(true);
+                allBtn.parentNode.replaceChild(newBtn, allBtn);
+                newBtn.addEventListener('click', () => {
+                    console.log('[DATA] Quick filter: All Time clicked');
+                    setQuickFilter('all');
+                    applyDataFilters();
+                });
+            } else {
+                console.warn('[DATA] All Time button not found!');
+            }
+            
+            // Action buttons
+            const applyBtn = document.getElementById('applyFiltersBtn');
+            const resetBtn = document.getElementById('resetFiltersBtn');
+            const exportBtn = document.getElementById('exportDataBtn');
+            
+            console.log('[DATA] Action buttons found:', {
+                apply: !!applyBtn,
+                reset: !!resetBtn,
+                export: !!exportBtn
+            });
+            
+            if (applyBtn) {
+                const newBtn = applyBtn.cloneNode(true);
+                applyBtn.parentNode.replaceChild(newBtn, applyBtn);
+                newBtn.addEventListener('click', () => {
+                    console.log('[DATA] Apply filters clicked');
+                    applyDataFilters();
+                });
+            } else {
+                console.warn('[DATA] Apply button not found!');
+            }
+            
+            if (resetBtn) {
+                const newBtn = resetBtn.cloneNode(true);
+                resetBtn.parentNode.replaceChild(newBtn, resetBtn);
+                newBtn.addEventListener('click', () => {
+                    console.log('[DATA] Reset filters clicked');
+                    resetDataFilters();
+                });
+            } else {
+                console.warn('[DATA] Reset button not found!');
+            }
+            
+            if (exportBtn) {
+                const newBtn = exportBtn.cloneNode(true);
+                exportBtn.parentNode.replaceChild(newBtn, exportBtn);
+                newBtn.addEventListener('click', () => {
+                    console.log('[DATA] Export data clicked');
+                    exportFilteredData();
+                });
+            } else {
+                console.warn('[DATA] Export button not found!');
+            }
+            
+            console.log('[DATA] All buttons bound successfully');
+        }
         
         // ====================================================================
         // LOGS PAGE ENHANCEMENT
@@ -1965,17 +2128,17 @@
             
             // Validate MQTT settings
             if (!host) {
-                alert('âŒ Error: MQTT Host cannot be empty!');
+                alert(' Error: MQTT Host cannot be empty!');
                 addStatus('Settings validation failed: Empty MQTT host', 'ERROR');
                 return;
             }
             if (!port || port < 1 || port > 65535) {
-                alert('âŒ Error: MQTT Port must be between 1-65535!');
+                alert(' Error: MQTT Port must be between 1-65535!');
                 addStatus('Settings validation failed: Invalid MQTT port', 'ERROR');
                 return;
             }
             if (!clientId) {
-                alert('âŒ Error: Client ID cannot be empty!');
+                alert(' Error: Client ID cannot be empty!');
                 addStatus('Settings validation failed: Empty client ID', 'ERROR');
                 return;
             }
@@ -1986,7 +2149,7 @@
             const databaseURL = document.getElementById('firebaseDbUrl').value.trim();
             
             if (!apiKey || !projectId || !databaseURL) {
-                alert('âš ï¸ Warning: Firebase settings are incomplete. Firebase features will be disabled.');
+                alert(' Warning: Firebase settings are incomplete. Firebase features will be disabled.');
                 addStatus('Settings saved with incomplete Firebase config', 'WARNING');
             }
             
@@ -2023,10 +2186,10 @@
             localStorage.setItem('dataRetentionDays', document.getElementById('dataRetentionDays').value);
             localStorage.setItem('dataAutoSave', document.getElementById('dataAutoSave').checked);
             
-            addStatus('âœ… Settings saved to localStorage', 'SUCCESS');
+            addStatus(' Settings saved to localStorage', 'SUCCESS');
             
             // Reconnect MQTT with diagnostic
-            addStatus('ðŸ”„ Reconnecting MQTT broker...', 'INFO');
+            addStatus(' Reconnecting MQTT broker...', 'INFO');
             if (mqttClient && mqttClient.connected) {
                 addStatus('Disconnecting existing MQTT connection...', 'INFO');
                 mqttClient.end(true);
@@ -2040,13 +2203,13 @@
             
             // Reconnect Firebase with diagnostic
             if (apiKey && projectId && databaseURL) {
-                addStatus('ðŸ”„ Reconnecting Firebase...', 'INFO');
+                addStatus(' Reconnecting Firebase...', 'INFO');
                 setTimeout(() => {
                     initializeFirebase();
                 }, 1000);
             }
             
-            alert('âœ… Settings saved!\n\nðŸ”„ Reconnecting to MQTT and Firebase...\nCheck the System Console for connection status.');
+            alert(' Settings saved!\n\n Reconnecting to MQTT and Firebase...\nCheck the System Console for connection status.');
         }
         
         function exportSettings() {
@@ -2185,220 +2348,45 @@
         // ====================================================================
         // INTERVAL PICKER
         // ====================================================================
-        let selectedMinute = 0;
-        let selectedSecond = 5;
-        let pickerInitialized = false;
-        let isScrolling = false;
         
         function openIntervalModal() {
+            console.log('[INTERVAL] Opening modal with:', { selectedMinute, selectedSecond });
             document.getElementById('intervalModal').classList.add('active');
+            updateIntervalDisplay();
             
-            if (!pickerInitialized) {
-                selectedMinute = 0;
-                selectedSecond = 5;
-                initializeTimePicker();
-            } else {
-                // Reuse existing picker, just scroll to values
-                scrollToValue(document.getElementById('minutePicker'), selectedMinute);
-                scrollToValue(document.getElementById('secondPicker'), selectedSecond);
-                updatePickerSelection();
-            }
+            // Bind buttons EVERY TIME modal opens (to ensure DOM elements exist)
+            bindIntervalButtons();
         }
         
         function closeIntervalModal() {
+            console.log('[INTERVAL] Closing modal');
             document.getElementById('intervalModal').classList.remove('active');
         }
         
-        function initializeTimePicker() {
-            const minutePicker = document.getElementById('minutePicker');
-            const secondPicker = document.getElementById('secondPicker');
-            
-            // Initializing time picker
-            
-            if (!minutePicker || !secondPicker) {
-                console.error('âŒ Picker elements not found!');
-                return;
+        function adjustInterval(type, delta) {
+            console.log('[INTERVAL] Adjust:', { type, delta, before: { selectedMinute, selectedSecond } });
+            if (type === 'minute') {
+                selectedMinute += delta;
+                if (selectedMinute < 0) selectedMinute = 60;
+                if (selectedMinute > 60) selectedMinute = 0;
+            } else if (type === 'second') {
+                selectedSecond += delta;
+                if (selectedSecond < 0) selectedSecond = 59;
+                if (selectedSecond > 59) selectedSecond = 0;
             }
-            
-            if (pickerInitialized) {
-                // Picker already initialized
-                scrollToValue(minutePicker, selectedMinute);
-                scrollToValue(secondPicker, selectedSecond);
-                return;
-            }
-            
-            // Populating pickers
-            minutePicker.innerHTML = "";
-            secondPicker.innerHTML = "";
-            
-            // Add padding
-            for (let i = 0; i < 3; i++) {
-                minutePicker.appendChild(createPickerItem("", true));
-                secondPicker.appendChild(createPickerItem("", true));
-            }
-            
-            // Populate minutes (0-60)
-            for (let i = 0; i <= 60; i++) {
-                minutePicker.appendChild(createPickerItem(i, false, "minute"));
-            }
-            
-            // Populate seconds (0-59)
-            for (let i = 0; i <= 59; i++) {
-                secondPicker.appendChild(createPickerItem(i, false, "second"));
-            }
-            
-            // Add bottom padding
-            for (let i = 0; i < 3; i++) {
-                minutePicker.appendChild(createPickerItem("", true));
-                secondPicker.appendChild(createPickerItem("", true));
-            }
-            
-            // Add scroll listeners with debouncing
-            let minuteScrollTimer;
-            minutePicker.addEventListener('scroll', function() {
-                clearTimeout(minuteScrollTimer);
-                minuteScrollTimer = setTimeout(() => {
-                    if (!isScrolling) {
-                        handlePickerScroll(minutePicker);
-                    }
-                }, 150);
-            });
-            
-            let secondScrollTimer;
-            secondPicker.addEventListener('scroll', function() {
-                clearTimeout(secondScrollTimer);
-                secondScrollTimer = setTimeout(() => {
-                    if (!isScrolling) {
-                        handlePickerScroll(secondPicker);
-                    }
-                }, 150);
-            });
-            
-            pickerInitialized = true;
-            
-            setTimeout(() => {
-                scrollToValue(minutePicker, selectedMinute);
-                scrollToValue(secondPicker, selectedSecond);
-                updatePickerSelection();
-            }, 100);
+            console.log('[INTERVAL] After adjust:', { selectedMinute, selectedSecond });
+            updateIntervalDisplay();
         }
         
-        function createPickerItem(value, isPadding, type) {
-            const div = document.createElement('div');
-            div.className = 'picker-item';
-            
-            if (!isPadding) {
-                div.textContent = String(value).padStart(2, '0');
-                div.dataset.value = value;
-                div.dataset.type = type;
-                
-                div.addEventListener('click', function() {
-                    if (type === 'minute') {
-                        selectedMinute = parseInt(value);
-                        scrollToValue(document.getElementById('minutePicker'), selectedMinute);
-                    } else {
-                        selectedSecond = parseInt(value);
-                        scrollToValue(document.getElementById('secondPicker'), selectedSecond);
-                    }
-                    
-                    setTimeout(() => updatePickerSelection(), 100);
-                });
-            }
-            
-            return div;
-        }
-        
-        function scrollToValue(picker, value) {
-            if (!picker) return;
-            
-            const items = picker.querySelectorAll('.picker-item[data-value]');
-            const targetItem = Array.from(items).find(item => parseInt(item.dataset.value) === value);
-            
-            if (targetItem) {
-                const scrollTop = targetItem.offsetTop - picker.offsetHeight / 2 + targetItem.offsetHeight / 2;
-                picker.scrollTo({ top: scrollTop, behavior: 'smooth' });
-            }
-        }
-        
-        function handlePickerScroll(picker) {
-            if (!picker || isScrolling) return;
-            
-            clearTimeout(picker.scrollTimeout);
-            picker.scrollTimeout = setTimeout(() => {
-                updatePickerSelection();
-                snapToClosest(picker);
-            }, 150);
-        }
-        
-        function snapToClosest(picker) {
-            if (!picker || isScrolling) return;
-            
-            const items = picker.querySelectorAll('.picker-item[data-value]');
-            if (items.length === 0) return;
-            
-            const pickerCenter = picker.scrollTop + picker.offsetHeight / 2;
-            let closestItem = null;
-            let closestDistance = Infinity;
-            
-            items.forEach(item => {
-                const itemCenter = item.offsetTop + item.offsetHeight / 2;
-                const distance = Math.abs(itemCenter - pickerCenter);
-                
-                if (distance < closestDistance) {
-                    closestDistance = distance;
-                    closestItem = item;
-                }
-            });
-            
-            if (closestItem && closestDistance > 3) {
-                isScrolling = true;
-                const scrollTop = closestItem.offsetTop - picker.offsetHeight / 2 + closestItem.offsetHeight / 2;
-                picker.scrollTo({ top: scrollTop, behavior: 'smooth' });
-                setTimeout(() => { isScrolling = false; }, 300);
-            }
-        }
-        
-        function updatePickerSelection() {
-            updatePickerHighlight('minutePicker', selectedMinute);
-            updatePickerHighlight('secondPicker', selectedSecond);
-        }
-        
-        function updatePickerHighlight(pickerId, selectedValue) {
-            const picker = document.getElementById(pickerId);
-            if (!picker) return;
-            
-            const items = picker.querySelectorAll('.picker-item[data-value]');
-            if (items.length === 0) return;
-            
-            const pickerCenter = picker.scrollTop + picker.offsetHeight / 2;
-            let closestItem = null;
-            let closestDistance = Infinity;
-            
-            items.forEach(item => {
-                item.classList.remove('selected');
-                const itemCenter = item.offsetTop + item.offsetHeight / 2;
-                const distance = Math.abs(itemCenter - pickerCenter);
-                
-                if (distance < closestDistance) {
-                    closestDistance = distance;
-                    closestItem = item;
-                }
-            });
-            
-            if (closestItem) {
-                closestItem.classList.add('selected');
-                const value = parseInt(closestItem.dataset.value);
-                
-                if (pickerId === 'minutePicker') {
-                    selectedMinute = value;
-                } else {
-                    selectedSecond = value;
-                }
-            }
+        function updateIntervalDisplay() {
+            document.getElementById('minuteDisplay').textContent = String(selectedMinute).padStart(2, '0');
+            document.getElementById('secondDisplay').textContent = String(selectedSecond).padStart(2, '0');
+            console.log('[INTERVAL] Display updated:', { selectedMinute, selectedSecond });
         }
         
         function setPeriodicInterval() {
             const totalSeconds = selectedMinute * 60 + selectedSecond;
+            console.log('[INTERVAL] Setting interval:', { selectedMinute, selectedSecond, totalSeconds });
             
             if (totalSeconds < 1) {
                 addStatus("Interval must be at least 1 second", "ERROR");
@@ -2411,6 +2399,7 @@
             }
             
             const command = `SET PERIODIC INTERVAL ${totalSeconds}`;
+            console.log('[INTERVAL] Publishing command:', command, 'to', MQTT_CONFIG.topics.stm32Command);
             mqttClient.publish(MQTT_CONFIG.topics.stm32Command, command, {qos: 1});
             
             addStatus(`Interval set to ${selectedMinute}m ${selectedSecond}s (${totalSeconds}s)`, "SETTING");
@@ -2418,14 +2407,86 @@
         }
         
         // Interval modal button handlers
-        document.getElementById('intervalCancelBtn').addEventListener('click', closeIntervalModal);
-        document.getElementById('intervalSetBtn').addEventListener('click', setPeriodicInterval);
-        
-        // ====================================================================
-        // FOOTER CLOCK
-        // ====================================================================
-        let clockIntervalId = null;
-
+        function bindIntervalButtons() {
+            console.log('[INTERVAL] Binding buttons...');
+            
+            // Get all button elements
+            const minuteUp = document.getElementById('minuteUpBtn');
+            const minuteDown = document.getElementById('minuteDownBtn');
+            const secondUp = document.getElementById('secondUpBtn');
+            const secondDown = document.getElementById('secondDownBtn');
+            const cancelBtn = document.getElementById('intervalCancelBtn');
+            const setBtn = document.getElementById('intervalSetBtn');
+            
+            console.log('[INTERVAL] Found buttons:', {
+                minuteUp: !!minuteUp,
+                minuteDown: !!minuteDown,
+                secondUp: !!secondUp,
+                secondDown: !!secondDown,
+                cancelBtn: !!cancelBtn,
+                setBtn: !!setBtn
+            });
+            
+            // Remove old listeners by cloning and replacing
+            if (minuteUp) {
+                const newMinuteUp = minuteUp.cloneNode(true);
+                minuteUp.parentNode.replaceChild(newMinuteUp, minuteUp);
+                newMinuteUp.addEventListener('click', () => {
+                    console.log('[INTERVAL] Minute UP clicked');
+                    adjustInterval('minute', 1);
+                });
+            }
+            
+            if (minuteDown) {
+                const newMinuteDown = minuteDown.cloneNode(true);
+                minuteDown.parentNode.replaceChild(newMinuteDown, minuteDown);
+                newMinuteDown.addEventListener('click', () => {
+                    console.log('[INTERVAL] Minute DOWN clicked');
+                    adjustInterval('minute', -1);
+                });
+            }
+            
+            if (secondUp) {
+                const newSecondUp = secondUp.cloneNode(true);
+                secondUp.parentNode.replaceChild(newSecondUp, secondUp);
+                newSecondUp.addEventListener('click', () => {
+                    console.log('[INTERVAL] Second UP clicked');
+                    adjustInterval('second', 1);
+                });
+            }
+            
+            if (secondDown) {
+                const newSecondDown = secondDown.cloneNode(true);
+                secondDown.parentNode.replaceChild(newSecondDown, secondDown);
+                newSecondDown.addEventListener('click', () => {
+                    console.log('[INTERVAL] Second DOWN clicked');
+                    adjustInterval('second', -1);
+                });
+            }
+            
+            if (cancelBtn) {
+                const newCancelBtn = cancelBtn.cloneNode(true);
+                cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+                newCancelBtn.addEventListener('click', () => {
+                    console.log('[INTERVAL] Cancel clicked');
+                    closeIntervalModal();
+                });
+            }
+            
+            if (setBtn) {
+                const newSetBtn = setBtn.cloneNode(true);
+                setBtn.parentNode.replaceChild(newSetBtn, setBtn);
+                newSetBtn.addEventListener('click', () => {
+                    console.log('[INTERVAL] Set clicked');
+                    setPeriodicInterval();
+                });
+            }
+            
+            console.log('[INTERVAL] All buttons bound successfully');
+        }
+    
+    // ====================================================================
+    // FOOTER CLOCK
         function updateFooterClock() {
             let display;
             if (deviceClockMs !== null && deviceClockSetAtMs !== null) {
