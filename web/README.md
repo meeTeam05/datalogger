@@ -8,19 +8,42 @@ This professional-grade web application provides comprehensive monitoring and co
 
 - Real-time Data Visualization: Live temperature/humidity charts with statistical analysis
 - **MQTT Protocol**: Bi-directional communication with ESP32 devices (reliable)
-- **CoAP Protocol** (Optional): Lightweight sensor data streaming from ESP32
 - Firebase Cloud Integration: Persistent data storage and historical analysis
 - Device Control Interface: Remote relay switching and sampling configuration
 - Responsive Design: Optimized for desktop, tablet, and mobile devices
 - State Synchronization: Automatic hardware/software state management
+- **Modular Architecture**: Separated HTML, CSS, and JavaScript for maintainability
+
+## File Structure
+
+```
+web/
+├── index.html              # Main HTML structure (855 lines)
+├── style.css              # All CSS styling (609 lines)
+├── app.js                 # All JavaScript logic (2148 lines)
+├── README.md              # This documentation
+└── index_original_backup.html  # Backup of monolithic version
+```
+
+### Modular Architecture
+
+**Benefits of separated files:**
+- ✅ **Easier debugging** - Edit one concern at a time
+- ✅ **Better caching** - Browser caches CSS/JS independently
+- ✅ **Faster development** - Smaller, focused files
+- ✅ **Better IDE support** - Full syntax highlighting per file type
+- ✅ **Version control friendly** - Smaller, meaningful diffs
+- ✅ **Code reusability** - CSS/JS can be shared across pages
+
+**Previous structure:** Single monolithic `index.html` (3572 lines)  
+**Current structure:** 3 modular files for separation of concerns
 
 ## Protocols Supported
 
 | Protocol | Purpose | Implementation |
 |----------|---------|-----------------|
 | **MQTT** | Device control + state messages | ✅ Working (Mosquitto broker) |
-| **CoAP** | Lightweight sensor data (optional) | 📖 See COAP_INTEGRATION.md |
-| **HTTP** | Dashboard + REST API | ✅ Node.js Express |
+| **HTTP** | Dashboard + REST API | ✅ Static files |
 | **WebSocket** | Browser real-time updates | ✅ MQTT over WebSocket |
 
 ## Architecture

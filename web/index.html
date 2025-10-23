@@ -555,10 +555,10 @@
             
             <!-- Logs Page -->
             <section class="page-section" id="page-logs">
-                <div class="card" style="background: white; border-radius: 0.75rem; padding: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 1.5rem; overflow: hidden;">
-                    <div class="card-header" style="background: white; border-bottom: 1px solid var(--border-color); padding: 1.25rem;">
+                <div class="card">
+                    <div class="card-header">
                         <i data-feather="file-text"></i>
-                        <span style="font-weight: 700;">System Logs</span>
+                        System Logs
                         <span style="color: var(--text-muted); font-size: 0.875rem; margin-left: 0.5rem;">Complete log history with filtering</span>
                     </div>
                     
@@ -567,46 +567,41 @@
                         <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; margin-bottom: 1rem;">
                             <!-- Search -->
                             <div style="flex: 1; min-width: 200px;">
-                                <input type="text" id="logSearchInput" placeholder="Search logs..." style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; font-size: 0.875rem;">
+                                <input type="text" id="logSearchInput" placeholder="Search logs..." class="form-input" style="width: 100%;">
                             </div>
                             
                             <!-- Actions -->
-                            <button onclick="clearLogs()" style="padding: 0.5rem 1rem; border: 2px solid var(--danger); background: white; color: var(--danger); border-radius: 0.5rem; cursor: pointer; font-weight: 600; font-size: 0.875rem; transition: all 0.2s;">
+                            <button class="btn btn-danger" id="clearLogsBtn">
+                                <i data-feather="trash-2"></i>
                                 Clear All
                             </button>
-                            <button onclick="exportLogs()" style="padding: 0.5rem 1rem; border: 2px solid var(--success); background: var(--success); color: white; border-radius: 0.5rem; cursor: pointer; font-weight: 600; font-size: 0.875rem; transition: all 0.2s;">
+                            <button class="btn btn-success" id="exportLogsBtn">
+                                <i data-feather="download"></i>
                                 Export CSV
                             </button>
                         </div>
                         
                         <!-- Filter Buttons -->
                         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                            <button onclick="filterLogs('ALL')" id="filterAll" style="padding: 0.5rem 1rem; border: 2px solid var(--primary); background: var(--primary); color: white; border-radius: 0.5rem; cursor: pointer; font-weight: 600; font-size: 0.875rem; transition: all 0.2s;">
-                                ALL
-                            </button>
-                            <button onclick="filterLogs('INFO')" id="filterInfo" style="padding: 0.5rem 1rem; border: 2px solid var(--border-color); background: white; color: var(--text-primary); border-radius: 0.5rem; cursor: pointer; font-weight: 600; font-size: 0.875rem; transition: all 0.2s;">
-                                INFO
-                            </button>
-                            <button onclick="filterLogs('WARNING')" id="filterWarning" style="padding: 0.5rem 1rem; border: 2px solid var(--border-color); background: white; color: var(--text-primary); border-radius: 0.5rem; cursor: pointer; font-weight: 600; font-size: 0.875rem; transition: all 0.2s;">
-                                WARNING
-                            </button>
-                            <button onclick="filterLogs('ERROR')" id="filterError" style="padding: 0.5rem 1rem; border: 2px solid var(--border-color); background: white; color: var(--text-primary); border-radius: 0.5rem; cursor: pointer; font-weight: 600; font-size: 0.875rem; transition: all 0.2s;">
-                                ERROR
-                            </button>
-                            <button onclick="filterLogs('MQTT')" id="filterMqtt" style="padding: 0.5rem 1rem; border: 2px solid var(--border-color); background: white; color: var(--text-primary); border-radius: 0.5rem; cursor: pointer; font-weight: 600; font-size: 0.875rem; transition: all 0.2s;">
-                                MQTT
-                            </button>
-                            <button onclick="filterLogs('FIREBASE')" id="filterFirebase" style="padding: 0.5rem 1rem; border: 2px solid var(--border-color); background: white; color: var(--text-primary); border-radius: 0.5rem; cursor: pointer; font-weight: 600; font-size: 0.875rem; transition: all 0.2s;">
-                                FIREBASE
-                            </button>
-                            <button onclick="filterLogs('SYNC')" id="filterSync" style="padding: 0.5rem 1rem; border: 2px solid var(--border-color); background: white; color: var(--text-primary); border-radius: 0.5rem; cursor: pointer; font-weight: 600; font-size: 0.875rem; transition: all 0.2s;">
-                                SYNC
-                            </button>
+                            <button class="btn btn-primary filter-btn active" data-filter="ALL">ALL</button>
+                            <button class="btn btn-secondary filter-btn" data-filter="INFO">INFO</button>
+                            <button class="btn btn-secondary filter-btn" data-filter="WARNING">WARNING</button>
+                            <button class="btn btn-secondary filter-btn" data-filter="ERROR">ERROR</button>
+                            <button class="btn btn-secondary filter-btn" data-filter="MQTT">MQTT</button>
+                            <button class="btn btn-secondary filter-btn" data-filter="FIREBASE">FIREBASE</button>
+                            <button class="btn btn-secondary filter-btn" data-filter="SYNC">SYNC</button>
                         </div>
                     </div>
                     
                     <!-- Log Console -->
-                    <div class="console" id="consoleFull" style="max-height: 600px; padding: 1.25rem; background: #1a1a1a; font-family: 'Courier New', monospace; font-size: 0.875rem; line-height: 1.5; overflow-y: auto;"></div>
+                    <div class="console" id="consoleFull" style="max-height: 600px; min-height: 400px;">
+                        <div style="color: var(--text-muted); text-align: center; padding: 2rem;">No logs yet. System will log events here.</div>
+                    </div>
+                    
+                    <!-- Log Count -->
+                    <div style="padding: 1rem; border-top: 1px solid var(--border-color); text-align: right; color: var(--text-muted); font-size: 0.875rem;">
+                        Total logs: <strong id="logCount">0</strong>
+                    </div>
                 </div>
             </section>
             

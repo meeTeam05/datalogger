@@ -563,3 +563,67 @@ select option {
         gap: 1rem;
     }
 }
+
+/* ====================================================================
+   LOG PAGE STYLES
+   ==================================================================== */
+
+/* Filter Button Styles */
+.filter-btn {
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+    transition: all 0.2s ease;
+    border: 2px solid var(--border-color);
+}
+
+.filter-btn.active {
+    background-color: var(--primary) !important;
+    color: white !important;
+    border-color: var(--primary) !important;
+}
+
+.filter-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px var(--shadow-color);
+}
+
+/* Log Count Badge */
+#logCount {
+    color: var(--primary);
+    font-weight: 700;
+    font-size: 1rem;
+}
+
+/* Log Console Enhanced */
+#consoleFull {
+    overflow-y: auto;
+    line-height: 1.6;
+}
+
+#consoleFull::-webkit-scrollbar {
+    width: 8px;
+}
+
+#consoleFull::-webkit-scrollbar-track {
+    background: var(--bg-tertiary);
+}
+
+#consoleFull::-webkit-scrollbar-thumb {
+    background: var(--primary);
+    border-radius: 4px;
+}
+
+#consoleFull::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-dark);
+}
+
+/* Log Line Hover Effect */
+.log-line {
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    transition: background-color 0.15s ease;
+}
+
+.log-line:hover {
+    background-color: rgba(6, 182, 212, 0.1);
+}
