@@ -1407,8 +1407,8 @@
             renderCalendar();
         });
         
-        // Expose to window for onclick handlers
-        window.adjustTime = function(unit, delta) {
+        // Global handler for inline onclick buttons in index.html
+        function adjustTime(unit, delta) {
             console.log('[TIME] adjustTime called:', { unit, delta });
             if (unit === 'hour') {
                 timePickerHour += delta;
@@ -1427,6 +1427,8 @@
             console.log('[TIME] Updated values:', { hour: timePickerHour, min: timePickerMinute, sec: timePickerSecond });
             updateTimeDisplay();
         }
+        // Also expose on window for completeness
+        window.adjustTime = adjustTime;
         
         function updateTimeDisplay() {
             document.getElementById('displayHour').textContent = String(timePickerHour).padStart(2, '0');
