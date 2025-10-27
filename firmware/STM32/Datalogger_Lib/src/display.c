@@ -367,7 +367,7 @@ void display_update(time_t time_unix, float temperature, float humidity,
     }
 
     // Humidity (Right side) - WHITE for clarity
-    sprintf(buffer, "%.0f", humidity);
+    sprintf(buffer, "%.1f", humidity);
     if (strcmp(buffer, prev_humi_str) != 0 || first_draw)
     {
         // Clear humidity area
