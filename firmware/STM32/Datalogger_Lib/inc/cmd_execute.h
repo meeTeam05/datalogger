@@ -1,11 +1,11 @@
 /**
- * @file command_execute.h
+ * @file cmd_execute.h
  *
  * @brief Header file for command execution functions.
  */
 
-#ifndef COMMAND_EXECUTE_H
-#define COMMAND_EXECUTE_H
+#ifndef CMD_EXECUTE_H
+#define CMD_EXECUTE_H
 
 /* INCLUDES ------------------------------------------------------------------*/
 
@@ -20,4 +20,4 @@
  */
 void COMMAND_EXECUTE(char *commandBuffer);
 
-#endif /* COMMAND_EXECUTE_H */
+#endif /* CMD_EXECUTE_H */

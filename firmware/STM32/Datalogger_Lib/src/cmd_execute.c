@@ -1,14 +1,14 @@
 /**
- * @file command_execute.c
+ * @file cmd_execute.c
  *
  * @brief Implementation of command execution functions.
  */
 
 /* INCLUDES ------------------------------------------------------------------*/
 
+#include <cmd_execute.h>
 #include <stdint.h>
 #include <string.h>
-#include "command_execute.h"
 #include "cmd_func.h"
 #include "cmd_parser.h"
 #include <stm32f1xx_hal.h>
