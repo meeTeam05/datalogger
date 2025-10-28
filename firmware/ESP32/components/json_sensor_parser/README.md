@@ -1,5 +1,17 @@
 # JSON Sensor Parser Component
 
+A lightweight, efficient JSON parser specifically designed for processing sensor data from STM32 microcontrollers.
+
+## Component Files
+```
+json_sensor_parser/
+├── json_sensor_parser.h         # Public API header with structure and function declarations
+├── json_sensor_parser.c         # Implementation of parsing and validation logic
+├── CMakeLists.txt               # ESP-IDF build configuration
+├── component.mk                 # Legacy build system support
+└── README.md                    # This file
+```
+
 ## Overview
 
 Universal JSON sensor data parser for ESP32. Parses JSON-formatted sensor data from STM32, validates measurements, and triggers callbacks for different operating modes.
