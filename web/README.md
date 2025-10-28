@@ -1,488 +1,529 @@
 # Web Dashboard
 
-## Overview
+This directory contains the web-based monitoring and control interface for the DATALOGGER system. The dashboard provides real-time visualization of sensor data from STM32/ESP32 devices via MQTT WebSocket connections, with optional Firebase cloud storage integration.
 
-A real-time IoT web dashboard for monitoring SHT31 temperature and humidity sensors via MQTT WebSocket connections with Firebase data persistence.
-
-This professional-grade web application provides comprehensive monitoring and control capabilities for IoT sensor networks:
-
-- Real-time Data Visualization: Live temperature/humidity charts with statistical analysis
-- **MQTT Protocol**: Bi-directional communication with ESP32 devices (reliable)
-- Firebase Cloud Integration: Persistent data storage and historical analysis
-- Device Control Interface: Remote relay switching and sampling configuration
-- Responsive Design: Optimized for desktop, tablet, and mobile devices
-- State Synchronization: Automatic hardware/software state management
-- **Modular Architecture**: Separated HTML, CSS, and JavaScript for maintainability
-
-## File Structure
+## Directory Contents
 
 ```
 web/
-├── index.html              # Main HTML structure (855 lines)
-├── style.css              # All CSS styling (609 lines)
-├── app.js                 # All JavaScript logic (2148 lines)
-├── README.md              # This documentation
-└── index_original_backup.html  # Backup of monolithic version
+├── index.html                  # Main HTML structure and dashboard layout
+├── style.css                   # All CSS styling and responsive design
+├── app.js                      # JavaScript application logic and MQTT handling
+├── index_original_backup.html  # Backup of previous monolithic version
+└── README.md                   # This file
 ```
 
-### Modular Architecture
+The application architecture follows a modular separation of concerns:
 
-**Benefits of separated files:**
-- ✅ **Easier debugging** - Edit one concern at a time
-- ✅ **Better caching** - Browser caches CSS/JS independently
-- ✅ **Faster development** - Smaller, focused files
-- ✅ **Better IDE support** - Full syntax highlighting per file type
-- ✅ **Version control friendly** - Smaller, meaningful diffs
-- ✅ **Code reusability** - CSS/JS can be shared across pages
+- index.html: HTML structure (855 lines)
+- style.css: CSS styling (609 lines)
+- app.js: JavaScript logic (2148 lines)
 
-**Previous structure:** Single monolithic `index.html` (3572 lines)  
-**Current structure:** 3 modular files for separation of concerns
+Note: index_original_backup.html is retained for reference but is not used in the current implementation.
 
-## Protocols Supported
+## System Architecture
 
-| Protocol | Purpose | Implementation |
-|----------|---------|-----------------|
-| **MQTT** | Device control + state messages | ✅ Working (Mosquitto broker) |
-| **HTTP** | Dashboard + REST API | ✅ Static files |
-| **WebSocket** | Browser real-time updates | ✅ MQTT over WebSocket |
-
-## Architecture
+The web dashboard communicates with the data logger hardware through the MQTT broker:
 
 ```
-┌──────────────────────┐
-│  Web Dashboard       │
-│  (HTML/CSS/JS)       │
-└──────────┬───────────┘
-           │ HTTP(S)
-    ┌──────▼──────────┐
-    │  Node.js Server │
-    │  (Express.js)   │
-    ├─────────────────┤
-    │  HTTP REST      │
-    │  MQTT 1883      │
-    │  CoAP 5683      │
-    └──────┬──────────┘
-           │
-    ┌──────▼────────┐
-    │  Mosquitto    │
-    │  MQTT Broker  │
-    └──────┬────────┘
-           │
-    ┌──────▼─────────────┐
-    │  ESP32 Datalogger  │
-    │  WiFi + MQTT/CoAP  │
-    └─────────────────────┘
-```
-              Firebase Database
+Web Browser (Dashboard) ←→ MQTT Broker (WebSocket Port 8083) ←→ ESP32 Gateway ←→ STM32 Sensor Node
+         ↓
+Firebase Cloud Database (Optional)
 ```
 
-## Features
+Communication protocols:
 
-Real-time monitoring and control interface for STM32-ESP32 datalogger system.
+- HTTP/HTTPS: Static dashboard file delivery
+- WebSocket (MQTT): Real-time bidirectional sensor data and control commands
+- Firebase API: Cloud data persistence and historical retrieval
 
 ## Configuration
 
-### 1. Setup Web Server
+### Running the Web Server
+
+The dashboard consists of static HTML, CSS, and JavaScript files that can be served by any web server.
+
+#### Method 1: Python HTTP Server (Recommended for Development)
+
 ```bash
-# Option A: Python (recommended for development)
 cd web
 python -m http.server 8080
+```
 
-# Option B: Node.js alternative
+Access the dashboard at http://localhost:8080
+
+#### Method 2: Node.js HTTP Server
+
+```bash
 npx http-server -p 8080
-
-# Option C: Node.js with CoAP support (see below)
-npm install
-node server.js
-
-# Access dashboard at http://localhost:8080
 ```
 
-### 2. Configure MQTT Connection
+#### Method 3: PHP Built-in Server
 
-Click the settings button and configure:
-- **MQTT Broker IP**: Your broker's IP address (192.168.1.100)
-- **WebSocket Port**: Default 8083
-- **WebSocket Path**: Default `/mqtt`
-- **Credentials**: Username/password (ask admin)
-
-### 3. Configure CoAP (Optional)
-
-For lightweight sensor data streaming:
-1. See `COAP_INTEGRATION.md` for setup
-2. Run Node.js server to handle CoAP messages
-3. Data will be automatically displayed in dashboard
-
-### 4. Firebase Setup (Optional)
-For cloud data persistence:
-- **Database URL**: Your Firebase Realtime Database URL
-- **API Key**: Firebase project API key  
-- **Project ID**: Firebase project identifier
-
-## Deployment Options
-
-### Development Environment (Quick Start)
 ```bash
-# Local testing - simplest setup
+php -S localhost:8080
+```
+
+### Configuring MQTT Connection
+
+Click the settings gear icon in the dashboard and configure:
+
+- MQTT Broker IP Address: IP address of the Mosquitto broker (example: 192.168.1.100)
+- WebSocket Port: MQTT WebSocket port (default: 8083)
+- WebSocket Path: MQTT WebSocket endpoint path (default: /mqtt)
+- Username: MQTT authentication username
+- Password: MQTT authentication password
+
+Click Save Configuration to apply settings.
+
+### Configuring Firebase (Optional)
+
+For cloud data persistence, configure Firebase settings:
+
+- Database URL: Firebase Realtime Database URL (example: https://your-project.firebaseio.com/)
+- API Key: Firebase project API key
+- Project ID: Firebase project identifier
+
+Firebase integration enables:
+
+- Historical data storage
+- Data persistence across browser sessions
+- Remote data access
+
+## Deployment
+
+### Local Development
+
+For local testing and development:
+
+```bash
 cd web
 python -m http.server 8080
-
-# Access via http://[local-ip]:8080 for network testing
 ```
 
-### Development with CoAP Support
-```bash
-# Install Node.js dependencies
-npm install
+Access via http://localhost:8080 or http://[local-ip]:8080 for network testing.
 
-# Create server.js (see COAP_INTEGRATION.md)
-node server.js
+### Production Deployment with Nginx
 
-# Starts both:
-# - HTTP server: http://localhost:3000
-# - CoAP listener: udp://localhost:5683
-```
+Create Nginx configuration file:
 
-### Production Deployment
-
-#### Static File Hosting
-```bash
-# Nginx configuration
+```nginx
 server {
     listen 80;
-    root /var/www/sht31-dashboard;
+    server_name datalogger.example.com;
+    root /var/www/datalogger/web;
     index index.html;
-    
+
     location / {
         try_files $uri $uri/ =404;
     }
 }
 ```
 
-#### Docker Container
+Deploy files:
+
+```bash
+sudo cp -r web/* /var/www/datalogger/web/
+sudo systemctl restart nginx
+```
+
+### Docker Containerization
+
+Create Dockerfile:
+
 ```dockerfile
 FROM nginx:alpine
 COPY . /usr/share/nginx/html
 EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
 ```
+
+Build and run:
 
 ```bash
-docker build -t sht31-dashboard .
-docker run -p 80:80 sht31-dashboard
+docker build -t datalogger-web .
+docker run -d -p 80:80 datalogger-web
 ```
 
-#### Cloud Platforms
+### Cloud Platform Deployment
 
-**Netlify (Recommended)**
-- Drag and drop deployment
-- Automatic HTTPS
-- CDN distribution
+**Netlify**
+
+- Drag and drop the web directory to Netlify dashboard
+- Automatic HTTPS and CDN distribution provided
 
 **GitHub Pages**
-```bash
-# Create repository and push files
-git add .
-git commit -m "Initial dashboard deployment"
-git push origin main
 
-# Enable Pages in repository settings
+```bash
+git add web/*
+git commit -m "Deploy dashboard"
+git push origin main
 ```
+
+Enable Pages in repository settings, select main branch and /web directory.
 
 **Vercel**
+
 ```bash
+cd web
 npx vercel --prod
-```
-
-## Configuration Reference
-
-### MQTT Settings
-```javascript
-const MQTT_CONFIG = {
-    host: '192.168.1.100',      // Broker IP address
-    port: 8083,                 // WebSocket port
-    path: '/mqtt',              // WebSocket endpoint
-    username: 'DataLogger',     // MQTT username
-    password: 'your-password'   // MQTT password (optional)
-};
-```
-
-### Firebase Configuration
-```javascript
-const FIREBASE_CONFIG = {
-    apiKey: "your-firebase-api-key",
-    databaseURL: "https://your-project.firebaseio.com/",
-    projectId: "your-project-id"
-};
 ```
 
 ## MQTT Topic Structure
 
-| Topic | Direction | Purpose | Example Payload |
-|-------|-----------|---------|-----------------|
-| `esp32/sensor/sht3x/command` | Web → ESP32 | Send sensor commands | `SHT3X SINGLE HIGH` |
-| `esp32/control/relay` | Web → ESP32 | Device power control | `RELAY ON` |
-| `esp32/sensor/sht3x/periodic/temperature` | ESP32 → Web | Continuous temperature data | `23.5` |
-| `esp32/sensor/sht3x/periodic/humidity` | ESP32 → Web | Continuous humidity data | `65.2` |
-| `esp32/sensor/sht3x/single/temperature` | ESP32 → Web | Single temperature reading | `24.1` |
-| `esp32/sensor/sht3x/single/humidity` | ESP32 → Web | Single humidity reading | `58.7` |
-| `esp32/state` | Bi-directional | Device state synchronization | `{"device":"ON","periodic":"OFF","timestamp":123456789}` |
+The dashboard subscribes to and publishes messages on the following MQTT topics:
 
-## Features
+### Subscribed Topics (Dashboard receives data)
 
-### Real-Time Monitoring
-- **Live Charts**: Temperature and humidity visualization with Chart.js
-- **Configurable Interval**: 1 second to 60 minutes periodic sampling interval
-- **Statistical Analysis**: Real-time min/max/average calculations
-- **Current Value Display**: Large, prominent current reading display
+| Topic                          | Data Type | Description                                  |
+| ------------------------------ | --------- | -------------------------------------------- |
+| `datalogger/esp32/sensor/data` | JSON      | Complete sensor data with timestamp and mode |
+| `datalogger/esp32/status`      | JSON      | System status including relay and WiFi state |
+| `datalogger/esp32/relay/state` | String    | Relay state changes (ON/OFF)                 |
 
-### Device Control
-- **Power Management**: Remote relay switching for device control
-- **Operating Modes**: 
-  - Periodic sampling with configurable interval (1s to 60 minutes)
-  - Single-shot readings on demand
-- **State Synchronization**: Automatic UI/hardware state management
-- **Connection Monitoring**: Real-time MQTT and Firebase status
+Example sensor data message:
+
+```json
+{
+  "mode": "PERIODIC",
+  "timestamp": 1729699200,
+  "temperature": 25.5,
+  "humidity": 60.0
+}
+```
+
+Example status message:
+
+```json
+{
+  "device": "ON",
+  "periodic": "OFF"
+}
+```
+
+### Published Topics (Dashboard sends commands)
+
+| Topic                      | Payload Example              | Description                   |
+| -------------------------- | ---------------------------- | ----------------------------- |
+| `datalogger/esp32/command` | `SINGLE`                     | Sensor measurement commands   |
+| `datalogger/esp32/command` | `PERIODIC ON`                | Start periodic measurements   |
+| `datalogger/esp32/command` | `PERIODIC OFF`               | Stop periodic measurements    |
+| `datalogger/esp32/command` | `SET PERIODIC INTERVAL 5000` | Set measurement interval (ms) |
+| `datalogger/esp32/relay`   | `ON`                         | Relay control commands        |
+| `datalogger/esp32/relay`   | `OFF`                        | Relay control commands        |
+
+### Command Examples
+
+Single measurement:
+
+```javascript
+Topic: datalogger / esp32 / command;
+Payload: SINGLE;
+```
+
+Start periodic measurement:
+
+```javascript
+Topic: datalogger/esp32/command
+Payload: PERIODIC ON
+```
+
+Stop periodic measurement:
+
+```javascript
+Topic: datalogger/esp32/command
+Payload: PERIODIC OFF
+```
+
+Set measurement interval to 10 seconds:
+
+```javascript
+Topic: datalogger/esp32/command
+Payload: SET PERIODIC INTERVAL 10000
+```
+
+Relay control:
+
+```javascript
+Topic: datalogger / esp32 / relay;
+Payload: ON; // or OFF
+```
+
+Set RTC time:
+
+```javascript
+Topic: datalogger/esp32/command
+Payload: SET TIME 2025 10 23 14 30 00
+```
+
+Control sensor heater:
+
+```javascript
+Topic: datalogger/esp32/command
+Payload: SHT3X HEATER ENABLE  // or DISABLE
+```
+
+## Dashboard Features and Usage
+
+### Real-Time Data Visualization
+
+The dashboard displays two synchronized charts:
+
+- Temperature chart (left): Shows temperature readings in degrees Celsius
+- Humidity chart (right): Shows relative humidity percentage
+
+Charts automatically update when new data is received via MQTT. Historical data points are limited to 50 entries per chart to maintain performance.
+
+### Statistical Analysis
+
+Current statistics displayed for each measurement:
+
+- Current Value: Most recent sensor reading
+- Minimum: Lowest recorded value in current session
+- Maximum: Highest recorded value in current session
+- Average: Mean of all recorded values in current session
+
+Statistics reset when charts are cleared.
+
+### Device Control Panel
+
+**Relay Control**
+
+- DEVICE ON button: Activates relay output (GPIO4 on ESP32)
+- DEVICE OFF button: Deactivates relay output
+
+**Measurement Control**
+
+- PERIODIC button: Starts periodic measurements at configured interval
+- SINGLE SHOT button: Requests single immediate measurement
+- Interval selector: Choose sampling period from 1 second to 60 minutes
+
+### Connection Status Monitoring
+
+Status indicators show real-time connection state:
+
+- MQTT Status: WebSocket connection to MQTT broker
+- Firebase Status: Connection to Firebase cloud database
+
+Color-coded messages in terminal display:
+
+- Green: Successful operations
+- Yellow: Warnings or state changes
+- Red: Errors or connection failures
+- Blue: Informational messages
 
 ### Data Management
-- **Cloud Storage**: Firebase Realtime Database integration
-- **Historical Data**: Load and visualize past measurements
-- **Data Export**: Chart data clearing and management
-- **Persistent Settings**: Configuration saved across sessions
 
-### User Interface
-- **Responsive Design**: Desktop, tablet, and mobile optimized
-- **Dark Terminal**: Retro-style status display with color-coded messages
-- **Interactive Controls**: Touch-friendly buttons and controls
-- **Visual Feedback**: Animations and state indicators
-- **Modal Configuration**: Comprehensive settings interface
+- Clear Charts button: Removes all data points and resets statistics
+- Firebase integration: Automatically stores data if configured
+- Browser local storage: Saves MQTT and Firebase configuration settings
 
-## Browser Compatibility
+## Browser Requirements
 
-### Minimum Requirements
-- **Chrome**: Version 80+
-- **Firefox**: Version 75+
-- **Safari**: Version 13+
-- **Edge**: Version 80+
+Minimum supported browser versions:
 
-### Required Features
-- WebSocket API support
-- ES6 JavaScript compatibility
-- HTML5 Canvas for charts
+- Chrome 80 or later
+- Firefox 75 or later
+- Safari 13 or later
+- Microsoft Edge 80 or later
+
+Required browser features:
+
+- WebSocket API
+- ES6 JavaScript support
+- HTML5 Canvas element
 - CSS Grid and Flexbox
 - Local Storage API
+- Fetch API
 
 ## Security Considerations
 
-### Production Security
+### Production Deployment Security
+
+For production environments, implement the following security measures:
+
+**Use Encrypted Connections**
+
 ```javascript
-// Secure WebSocket configuration
-const SECURE_MQTT = {
-    protocol: 'wss://',           // Encrypted WebSocket
-    host: 'your-broker.com',
-    port: 443,                    // Standard HTTPS port
-    username: process.env.MQTT_USER,
-    password: process.env.MQTT_PASS
-};
+// Configure WebSocket Secure (WSS) instead of WS
+const mqttBrokerUrl = "wss://your-broker.example.com:443/mqtt";
 ```
 
-### Best Practices
-- **HTTPS/WSS Only**: Use encrypted connections in production
-- **Strong Authentication**: Implement robust MQTT broker authentication
-- **CORS Configuration**: Properly configure broker CORS settings
-- **Input Validation**: Validate all sensor data and user inputs
-- **Rate Limiting**: Implement MQTT topic rate limiting
-- **Secure Headers**: Add security headers for web deployment
+**Enable TLS/SSL on MQTT Broker**
+Configure Mosquitto with TLS certificates:
+
+```
+listener 8084
+protocol websockets
+cafile /path/to/ca.crt
+certfile /path/to/server.crt
+keyfile /path/to/server.key
+```
+
+**Implement Strong Authentication**
+
+- Use strong passwords for MQTT broker authentication
+- Consider implementing OAuth or JWT-based authentication
+- Rotate credentials periodically
+
+**Configure CORS Properly**
+Restrict broker WebSocket access to authorized origins only.
+
+**Input Validation**
+All sensor data and user inputs are validated before processing.
+
+**Rate Limiting**
+Implement MQTT message rate limiting to prevent abuse.
 
 ## Troubleshooting
 
-### Connection Issues
+### MQTT Connection Issues
 
-**MQTT WebSocket Connection Failed**
+**WebSocket Connection Failed**
+
+Symptoms: Cannot connect to MQTT broker, connection timeout
+
+Solutions:
+
+- Verify MQTT broker is running and WebSocket listener is active on port 8083
+- Check broker IP address and port configuration in dashboard settings
+- Test WebSocket connectivity using browser developer console
+- Verify firewall allows WebSocket connections on port 8083
+- Check broker authentication credentials
+
+Command to verify broker WebSocket listener:
+
 ```bash
-# Verify broker WebSocket listener
 netstat -tlnp | grep 8083
-
-# Test WebSocket connectivity
-curl -i -N -H "Connection: Upgrade" \
-     -H "Upgrade: websocket" \
-     -H "Sec-WebSocket-Key: test" \
-     -H "Sec-WebSocket-Version: 13" \
-     http://localhost:8083/mqtt
 ```
 
 **CORS Errors**
-```conf
-# Add to mosquitto.conf
-listener 8083
-protocol websockets
-allow_anonymous false
-password_file /mosquitto/config/auth/passwd.txt
 
-# For development only (not recommended for production)
-# http_dir /usr/share/mosquitto/www
-```
+Symptoms: Browser console shows Cross-Origin Resource Sharing errors
 
-**Firebase Connection Issues**
-- Verify Firebase project configuration
-- Check database rules and permissions
-- Ensure API key has proper permissions
-- Verify network connectivity to Firebase
+Solutions:
 
-### Data Issues
+- Verify mosquitto.conf has proper WebSocket configuration
+- For development, ensure broker allows connections from dashboard origin
+- Check browser developer console for specific CORS error messages
+- Verify mosquitto.conf includes WebSocket protocol listener
+
+**Authentication Failures**
+
+Symptoms: Connection rejected by broker
+
+Solutions:
+
+- Verify username and password in dashboard settings match broker configuration
+- Check broker/config/auth/passwd.txt file contains correct credentials
+- Ensure allow_anonymous is set to false in mosquitto.conf
+- Test authentication with mosquitto_pub command line tool
+
+### Data Display Issues
 
 **Charts Not Updating**
-- Check browser console for JavaScript errors
-- Verify MQTT message reception
-- Confirm Chart.js library loading
-- Check canvas element initialization
+
+Symptoms: No new data points appear on charts
+
+Solutions:
+
+- Check browser JavaScript console for errors
+- Verify MQTT connection status indicator shows connected
+- Confirm ESP32 is sending data (check ESP32 serial monitor)
+- Verify correct MQTT topics are subscribed
+- Check Chart.js library loaded successfully
 
 **Missing Historical Data**
-- Verify Firebase authentication
-- Check database read/write permissions
-- Confirm data structure matches expected format
+
+Symptoms: Firebase data not loading
+
+Solutions:
+
+- Verify Firebase configuration in dashboard settings
+- Check Firebase database rules allow read/write access
+- Confirm Firebase API key has proper permissions
 - Test Firebase connectivity independently
+- Check browser console for Firebase authentication errors
 
 ### Performance Issues
 
 **High Memory Usage**
-```javascript
-// Limit chart data points
-const maxDataPoints = 50;  // Reduce if needed
 
-// Use efficient chart updates
-chart.update('none');  // Skip animations
-```
+Solutions:
+
+- Reduce maximum chart data points (default 50) in app.js
+- Clear charts periodically to free memory
+- Disable Firebase integration if not needed
+- Close unused browser tabs
 
 **Slow Chart Rendering**
+
+Solutions:
+
 - Reduce chart animation duration
-- Limit concurrent data points
-- Implement data throttling for high-frequency updates
+- Lower periodic sampling frequency
+- Implement data throttling for high-rate updates
+- Use chart update without animation: `chart.update('none')`
 
-## Development
+## Firebase Data Structure
 
-### Project Structure
-```
-web/
-├── index.html          # Main dashboard interface
-├── style.css           # Responsive styling and animations
-├── script.js           # Application logic and MQTT handling
-└── Web.md              # This documentation
-```
+## Firebase Data Structure
 
-### Key Components
+When Firebase integration is enabled, sensor data is stored in the following structure:
 
-**MQTT Client Management**
-- Connection handling with automatic reconnection
-- Topic subscription and message routing
-- State synchronization with hardware
-
-**Chart Visualization**
-- Dual-chart layout for temperature/humidity
-- Real-time data streaming
-- Statistical calculations and display
-
-**Firebase Integration**
-- Cloud data persistence
-- Historical data retrieval
-- Connection state management
-
-**Device Control Interface**
-- Relay power switching
-- Sampling mode configuration
-- Periodic interval adjustment (1s to 60 minutes)
-
-### Adding New Features
-
-**Additional Sensor Support**
-1. Extend MQTT topic configuration
-2. Add new chart instances
-3. Update message parsing logic
-4. Modify Firebase data structure
-
-**Enhanced Visualization**
-1. Create new Chart.js configurations
-2. Add statistical analysis functions
-3. Implement data export capabilities
-4. Add customizable chart options
-
-**Mobile App Integration**
-1. Implement PWA manifest
-2. Add service worker for offline support
-3. Optimize touch interactions
-4. Add push notification support
-
-## Performance Optimization
-
-### Resource Management
-- **Memory**: ~10-15MB typical usage
-- **Network**: ~1-2KB/minute at 1Hz sampling
-- **Storage**: ~1MB/day Firebase data
-- **CPU**: Minimal impact with optimized rendering
-
-### Best Practices
-- Limit chart data points (default: 50)
-- Use chart animation skipping for real-time data
-- Implement data throttling for high-frequency sensors
-- Cache Firebase queries when possible
-- Minimize DOM manipulation frequency
-
-## API Reference
-
-### MQTT Commands
-```javascript
-// Device control
-publishMQTT('esp32/control/relay', 'RELAY ON');
-publishMQTT('esp32/control/relay', 'RELAY OFF');
-
-// Sensor commands
-publishMQTT('esp32/sensor/sht3x/command', 'SHT3X SINGLE HIGH');
-publishMQTT('esp32/sensor/sht3x/command', 'SHT3X PERIODIC 1 HIGH');
-publishMQTT('esp32/sensor/sht3x/command', 'SHT3X PERIODIC STOP');
-
-// State synchronization
-publishMQTT('esp32/state', 'REQUEST');
-```
-
-### Firebase Data Structure
 ```json
 {
-  "sht31": {
-    "temperature": {
-      "timestamp": {
-        "value": 23.5,
-        "timestamp": 1640995200000,
-        "date": "2021-12-31T12:00:00.000Z",
-        "source": "periodic"
-      }
-    },
-    "humidity": {
-      "timestamp": {
-        "value": 65.2,
-        "timestamp": 1640995200000,
-        "date": "2021-12-31T12:00:00.000Z",
-        "source": "periodic"
+  "readings": {
+    "YYYY-MM-DD": {
+      "<created_at_timestamp_ms>": {
+        "created_at": <timestamp_ms>,
+        "device": "ESP32_01",
+        "sensor": "SHT31",
+        "mode": "periodic",
+        "status": "success",
+        "temp": 29.51,
+        "humi": 76.35,
+        "time": 946659605
       }
     }
   }
 }
 ```
 
-## Contributing
+Each sensor data entry includes:
 
-### Development Setup
-1. Fork the repository
-2. Clone locally: `git clone <your-fork>`
-3. Create feature branch: `git checkout -b feature-name`
-4. Make changes and test thoroughly
-5. Submit pull request with detailed description
+- temperature: Temperature reading in degrees Celsius (float)
+- humidity: Relative humidity percentage (float)
+- timestamp: Unix timestamp in seconds (integer)
+- mode: Measurement mode (SINGLE or PERIODIC)
 
-### Code Style
-- Use consistent JavaScript ES6+ syntax
-- Follow responsive CSS design patterns
-- Include comprehensive error handling
-- Add appropriate code comments
-- Test across multiple browsers and devices
+System status includes:
+
+- device: Relay state (ON or OFF)
+- periodic: Periodic measurement state (ON or OFF)
+- wifi: WiFi connection status
+- mqtt: MQTT connection status
+- lastUpdate: Last update timestamp
+
+## Performance Characteristics
+
+| Metric               | Typical Value                           |
+| -------------------- | --------------------------------------- |
+| Memory Usage         | 10-15 MB                                |
+| Network Bandwidth    | 1-2 KB per minute at 1 Hz sampling      |
+| Firebase Storage     | Approximately 1 MB per day              |
+| CPU Usage            | Minimal impact with optimized rendering |
+| Maximum Chart Points | 50 data points per chart                |
+
+Performance optimization tips:
+
+- Limit chart data points to reduce memory usage
+- Use chart update without animation for real-time data
+- Implement data throttling for high-frequency sensors
+- Cache Firebase queries when possible
+- Minimize DOM manipulation frequency
 
 ## License
 
-MIT License - see project root for details.
+This component is part of the DATALOGGER project.
+See the LICENSE.md file in the project root directory for licensing information.
