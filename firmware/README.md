@@ -772,13 +772,13 @@ Average power at 5-second periodic mode: ~150-200 mA @ 3.3V = 0.5-0.66 W
 
 ## Documentation References
 
-- STM32 Firmware Details: [STM32/README.md](STM32/README.md)
-- ESP32 Firmware Details: [ESP32/README.md](ESP32/README.md)
-- STM32 Datalogger Library: [STM32/Datalogger_Lib/README.md](STM32/Datalogger_Lib/README.md)
-- ESP32 Components: [ESP32/components/README.md](ESP32/components/README.md)
-- Firmware Architecture: [../documents/firmware/](../documents/firmware/)
-- System Architecture: [../documents/SYSTEM/](../documents/SYSTEM/)
-- Web Dashboard: [../web/README.md](../web/README.md)
+- STM32 Firmware Details: [STM32 Firmware](STM32/README.md)
+- ESP32 Firmware Details: [ESP32 Firmware](ESP32/README.md)
+- STM32 Datalogger Library Details: [STM32 Datalogger Library](STM32/Datalogger_Lib/README.md)
+- ESP32 Components Details: [ESP32 Components](ESP32/components/README.md)
+- Firmware Architecture Details: [Firmware Architecture](../documents/firmware/)
+- System Architecture Details: [System Architecture](../documents/SYSTEM/)
+- Web Dashboard Details: [Web Dashboard](../web/README.md)
 
 ## License
 
