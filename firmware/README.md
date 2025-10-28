@@ -5,14 +5,20 @@ This directory contains the complete firmware implementation for the DATALOGGER 
 ## System Architecture
 
 ```
-                         SD Card Buffer
-                              ^
-                              |
-Sensors (SHT3X, DS3231) --> STM32 --> UART --> ESP32 --> WiFi/MQTT --> Cloud/Web
-                              |                  |
-                              v                  v
-                          LCD Display       Relay Control
-
+                    ┌─────────────┐
+                    │   SD Card   │
+                    └─────────────┘
+                           ↑
+                           │
+┌──────────────┐    ┌──────┴──────┐         ┌─────────┐         ┌──────────────┐
+│    SHT3X     │───→│    STM32    │←─UART─→ │  ESP32  │←─WiFi─→ │  Cloud/Web   │
+│    DS3231    │    └──────┬──────┘         └────┬────┘  MQTT   └──────────────┘
+└──────────────┘           │                     │
+                           ↓                     ↓
+                    ┌─────────────┐       ┌─────────────┐
+                    │LCD Display  │       │    Relay    │
+                    └─────────────┘       │   Control   │
+                                          └─────────────┘
 ```
 
 The system implements a distributed architecture where:
