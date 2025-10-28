@@ -640,26 +640,28 @@ mosquitto_pub -t "datalogger/esp32/command" -m "PERIODIC ON"
 ### Memory Usage
 
 **STM32F103C8T6**
-| Component | Flash | RAM |
-|-----------|-------|-----|
-| HAL Library | ~20 KB | ~1 KB |
-| Sensor Drivers | ~4 KB | ~100 bytes |
-| SD Card System | ~6 KB | ~300 bytes |
-| Display System | ~8 KB | ~500 bytes |
-| Communication | ~5 KB | ~300 bytes |
-| Ring Buffer | - | 256 bytes |
-| Application | ~3 KB | ~1 KB |
-| **Total** | ~46 KB / 64 KB | ~3.5 KB / 20 KB |
+
+| Component      | Flash          | RAM             |
+| -------------- | -------------- | --------------- |
+| HAL Library    | ~20 KB         | ~1 KB           |
+| Sensor Drivers | ~4 KB          | ~100 bytes      |
+| SD Card System | ~6 KB          | ~300 bytes      |
+| Display System | ~8 KB          | ~500 bytes      |
+| Communication  | ~5 KB          | ~300 bytes      |
+| Ring Buffer    | -              | 256 bytes       |
+| Application    | ~3 KB          | ~1 KB           |
+| **Total**      | ~46 KB / 64 KB | ~3.5 KB / 20 KB |
 
 **ESP32**
-| Component | Flash | RAM |
-|-----------|-------|-----|
-| ESP-IDF Core | ~400 KB | ~40 KB |
-| WiFi Stack | ~200 KB | ~60 KB |
-| MQTT Handler | ~50 KB | ~8 KB |
-| Custom Components | ~100 KB | ~10 KB |
-| Application | ~50 KB | ~5 KB |
-| **Total** | ~800 KB / 4 MB | ~123 KB / 520 KB |
+
+| Component         | Flash          | RAM              |
+| ----------------- | -------------- | ---------------- |
+| ESP-IDF Core      | ~400 KB        | ~40 KB           |
+| WiFi Stack        | ~200 KB        | ~60 KB           |
+| MQTT Handler      | ~50 KB         | ~8 KB            |
+| Custom Components | ~100 KB        | ~10 KB           |
+| Application       | ~50 KB         | ~5 KB            |
+| **Total**         | ~800 KB / 4 MB | ~123 KB / 520 KB |
 
 ### Data Rates
 
