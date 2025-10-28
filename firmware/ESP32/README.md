@@ -548,6 +548,7 @@ Each component in the components/ directory contains its own README.md file with
 - Ring Buffer Details: [Circular buffer implementation and usage](components/ring_buffer/README.md)
 - STM32 UART Details: [UART communication protocol and configuration](components/stm32_uart/README.md)
 - WiFi Manager Details: [WiFi connection management and status](components/wifi_manager/README.md)
+- ESP32 Components Library Details: [ESP32 Components Library](ESP32/components/README.md)
 
 ## License
 
