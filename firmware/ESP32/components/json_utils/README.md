@@ -1,5 +1,18 @@
 # JSON Utils Component
 
+A centralized JSON utility library for creating consistent, well-formatted JSON messages across the DATALOGGER system. Provides helper functions for sensor data, system status, and relay control message generation.
+
+## Component Files
+
+```
+json_utils/
+├── json_utils.h                 # Public API header with JSON creation functions
+├── json_utils.c                 # Implementation of JSON formatting utilities
+├── CMakeLists.txt               # ESP-IDF build configuration
+├── component.mk                 # Legacy build system support
+└── README.md                    # This file
+```
+
 ## Overview
 
 Universal JSON utility library for ESP32. Provides centralized JSON creation functions to ensure consistent formatting across all MQTT/CoAP messages in the datalogger system.
@@ -26,6 +39,7 @@ Application Layer
 ## Why JSON Utils?
 
 **Before (Inconsistent):**
+
 ```c
 // File 1
 sprintf(buf, "{\"temp\":%.2f,\"hum\":%.2f}", temp, hum);
@@ -38,13 +52,14 @@ sprintf(buf, "{\"t\":%.1f,\"h\":%.1f}", temp, hum);  // Different precision!
 ```
 
 **After (Consistent):**
+
 ```c
 // All files use same function
 JSON_Utils_CreateSensorData(buf, size, "SINGLE", timestamp, temp, hum);
 // → Guaranteed consistent format
 ```
 
-## Usage
+## Usage Example
 
 ### 1. Sensor Data JSON
 
@@ -126,6 +141,7 @@ int len = JSON_Utils_CreateIntValue(
 ## API Reference
 
 ### Sensor Data
+
 ```c
 int JSON_Utils_CreateSensorData(
     char *buffer,           // Output buffer
@@ -140,11 +156,18 @@ int JSON_Utils_CreateSensorData(
 **Returns**: Number of characters written, or -1 on error
 
 **Example output**:
+
 ```json
-{"mode":"SINGLE","timestamp":1760729112,"temperature":25.50,"humidity":60.00}
+{
+  "mode": "SINGLE",
+  "timestamp": 1760729112,
+  "temperature": 25.5,
+  "humidity": 60.0
+}
 ```
 
 ### System State
+
 ```c
 int JSON_Utils_CreateSystemState(
     char *buffer,           // Output buffer
@@ -158,13 +181,15 @@ int JSON_Utils_CreateSystemState(
 **Returns**: Number of characters written, or -1 on error
 
 **Example output**:
+
 ```json
-{"device":"ON","periodic":"OFF"}
+{ "device": "ON", "periodic": "OFF" }
 ```
 
 **Note**: `timestamp` parameter is deprecated and ignored. Pass 0 for forward compatibility.
 
 ### Simple Message
+
 ```c
 int JSON_Utils_CreateSimpleMessage(
     char *buffer,           // Output buffer
@@ -177,11 +202,13 @@ int JSON_Utils_CreateSimpleMessage(
 **Returns**: Number of characters written, or -1 on error
 
 **Example output**:
+
 ```json
-{"status":"connected"}
+{ "status": "connected" }
 ```
 
 ### Integer Value
+
 ```c
 int JSON_Utils_CreateIntValue(
     char *buffer,           // Output buffer
@@ -194,24 +221,28 @@ int JSON_Utils_CreateIntValue(
 **Returns**: Number of characters written, or -1 on error
 
 **Example output**:
+
 ```json
-{"count":42}
+{ "count": 42 }
 ```
 
 ## Format Standards
 
 ### Sensor Data Format
+
 - **Temperature**: 2 decimal places (e.g., `25.50`)
 - **Humidity**: 2 decimal places (e.g., `60.00`)
 - **Timestamp**: Integer (Unix timestamp)
 - **Mode**: String ("SINGLE" or "PERIODIC")
 
 ### System State Format
+
 - **Device**: String ("ON" or "OFF")
 - **Periodic**: String ("ON" or "OFF")
 - **No timestamp**: Removed for simplicity
 
 ### Key Naming Convention
+
 - Use descriptive names: `temperature` not `temp`
 - Lowercase only: `device` not `Device`
 - No abbreviations unless standard: `humidity` not `hum`
@@ -232,6 +263,7 @@ if (len < 0) {
 ```
 
 **Recommended buffer sizes:**
+
 - Sensor data: 256 bytes
 - System state: 128 bytes
 - Simple message: 128 bytes
@@ -250,6 +282,7 @@ if (len < 0) {
 ```
 
 **Error conditions:**
+
 - `buffer` is NULL
 - `buffer_size` is 0
 - Required string parameter (mode, key, value) is NULL
@@ -270,7 +303,7 @@ if (len < 0) {
 
 void publish_sensor_data(float temp, float hum) {
     char json_msg[256];
-    
+
     // Create JSON using utils
     int len = JSON_Utils_CreateSensorData(
         json_msg, sizeof(json_msg),
@@ -279,12 +312,12 @@ void publish_sensor_data(float temp, float hum) {
         temp,
         hum
     );
-    
+
     if (len > 0) {
         // Publish via MQTT
-        MQTT_Handler_Publish(&mqtt, 
+        MQTT_Handler_Publish(&mqtt,
                            "datalogger/sensor/data",
-                           json_msg, 
+                           json_msg,
                            0, 0, 0);
     }
 }
@@ -296,7 +329,7 @@ void publish_sensor_data(float temp, float hum) {
 void test_json_utils(void) {
     char buffer[256];
     int len;
-    
+
     // Test sensor data
     len = JSON_Utils_CreateSensorData(buffer, sizeof(buffer),
                                       "SINGLE", 1234567890,
@@ -304,20 +337,20 @@ void test_json_utils(void) {
     assert(len > 0);
     assert(strstr(buffer, "\"mode\":\"SINGLE\"") != NULL);
     assert(strstr(buffer, "\"temperature\":25.50") != NULL);
-    
+
     // Test system state
     len = JSON_Utils_CreateSystemState(buffer, sizeof(buffer),
                                        true, false, 0);
     assert(len > 0);
     assert(strstr(buffer, "\"device\":\"ON\"") != NULL);
     assert(strstr(buffer, "\"periodic\":\"OFF\"") != NULL);
-    
+
     // Test buffer overflow
     char small[10];
     len = JSON_Utils_CreateSensorData(small, sizeof(small),
                                       "SINGLE", 0, 0.0, 0.0);
     assert(len < 0);  // Should fail
-    
+
     printf("All tests passed!\n");
 }
 ```
@@ -328,17 +361,19 @@ void test_json_utils(void) {
 **Maintainability**: Update format in one place  
 **Type Safety**: Function parameters enforce correct types  
 **Buffer Safety**: Automatic overflow prevention  
-**Readability**: Clear function names and parameters  
+**Readability**: Clear function names and parameters
 
 ## Migration Guide
 
 **Old code:**
+
 ```c
 sprintf(buf, "{\"mode\":\"%s\",\"timestamp\":%u,\"temperature\":%.2f,\"humidity\":%.2f}",
         mode, timestamp, temp, hum);
 ```
 
 **New code:**
+
 ```c
 JSON_Utils_CreateSensorData(buf, sizeof(buf), mode, timestamp, temp, hum);
 ```
@@ -348,11 +383,12 @@ JSON_Utils_CreateSensorData(buf, sizeof(buf), mode, timestamp, temp, hum);
 - C standard library (stdio.h, string.h)
 - ESP-IDF types (stdint.h, stdbool.h)
 
-## License
-
-MIT License - see project root for details.
-
 ## Related Components
 
-- [JSON Sensor Parser](../json_sensor_parser/README.md) - Parses JSON messages
-- [MQTT Handler](../mqtt_handler/README.md) - Publishes JSON to broker
+- Parses JSON messages: [JSON Sensor Parser](../json_sensor_parser/README.md)
+- Publishes JSON to broker: [MQTT Handler](../mqtt_handler/README.md)
+
+## License
+
+This component is part of the DATALOGGER project.
+See the LICENSE.md file in the project root directory for licensing information.
