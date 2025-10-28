@@ -10,14 +10,15 @@ sequenceDiagram
     participant UART as UART Interface
     participant RingBuf as Ring Buffer
     participant CmdExec as Command Execute
-    participant Parser as Command Parser
+    participant Parser as SINGLE_PARSER
     participant Driver as SHT3X Driver
     participant I2C as I2C Bus
     participant Sensor as SHT3X Sensor
     participant DM as DataManager
     participant RTC as DS3231 RTC
+    participant MQTT as MQTT State
     
-    User->>UART: "SHT3X SINGLE HIGH\n"
+    User->>UART: "SINGLE\n"
     activate UART
     UART->>RingBuf: Store bytes (interrupt)
     deactivate UART
@@ -26,16 +27,14 @@ sequenceDiagram
     
     RingBuf->>CmdExec: UART_Handle() detects complete line
     activate CmdExec
-    CmdExec->>CmdExec: Tokenize: ["SHT3X", "SINGLE", "HIGH"]
-    CmdExec->>CmdExec: Build command string: "SHT3X SINGLE HIGH"
+    CmdExec->>CmdExec: Tokenize: ["SINGLE"]
     CmdExec->>CmdExec: Find in cmdTable[]
-    CmdExec->>Parser: SHT3X_Single_Parser(argc=3, argv)
+    CmdExec->>Parser: SINGLE_PARSER(argc=1, argv)
     deactivate CmdExec
     
     activate Parser
-    Parser->>Parser: Validate argc >= 3
-    Parser->>Parser: Parse argv[2]="HIGH" → SHT3X_HIGH
-    Parser->>Driver: SHT3X_Single(&g_sht3x, SHT3X_HIGH, &temp, &hum)
+    Parser->>Parser: Set repeat = SHT3X_HIGH (default)
+    Parser->>Driver: SHT3X_Single(&g_sht3x, &repeat, &temp, &hum)
     deactivate Parser
     
     activate Driver
@@ -58,19 +57,22 @@ sequenceDiagram
     
     Driver->>Driver: Validate CRC for temperature
     Driver->>Driver: Validate CRC for humidity
-    Driver->>Driver: Convert raw → 23.45°C, 65.20%
-    Driver->>Driver: Store in g_sht3x.temperature, g_sht3x.humidity
-    Driver->>Parser: Return SHT3X_OK, temp=23.45, hum=65.20
+    
+    alt I2C OK and CRC Valid
+        Driver->>Driver: Convert raw → 25.50°C, 60.00%
+        Driver->>Parser: Return SHT3X_OK, temp=25.50, hum=60.00
+    else I2C Error or CRC Failed
+        Driver->>Parser: Return SHT3X_ERROR, temp=0.0, hum=0.0
+    end
     deactivate Driver
     
     activate Parser
-    Parser->>DM: DataManager_UpdateSingle(23.45, 65.20)
+    Parser->>DM: DataManager_UpdateSingle(temp, hum)
     deactivate Parser
     
     activate DM
-    DM->>DM: Store mode = DATALOGGER_MODE_SINGLE
-    DM->>DM: Store temperature = 23.45
-    DM->>DM: Store humidity = 65.20
+    DM->>DM: mode = DATA_MANAGER_MODE_SINGLE
+    DM->>DM: Store temperature, humidity
     DM->>DM: Set data_ready = true
     deactivate DM
     
@@ -83,12 +85,18 @@ sequenceDiagram
     activate RTC
     RTC->>DM: Return time structure
     deactivate RTC
-    DM->>DM: Convert to Unix timestamp: 1728930680
+    DM->>DM: Convert to Unix timestamp: 1729699200
     DM->>DM: Sanitize floats (check NaN/Inf)
-    DM->>DM: Format JSON: {"mode":"SINGLE","timestamp":1728930680,...}
+    
+    DM->>MQTT: Check mqtt_current_state
+    activate MQTT
+    MQTT->>DM: MQTT_STATE_CONNECTED
+    deactivate MQTT
+    
+    DM->>DM: Format JSON: {"mode":"SINGLE","timestamp":1729699200,...}
     DM->>UART: HAL_UART_Transmit(JSON string)
     activate UART
-    UART->>User: {"mode":"SINGLE","timestamp":1728930680,"temperature":23.45,"humidity":65.20}
+    UART->>User: {"mode":"SINGLE","timestamp":1729699200,"temperature":25.50,"humidity":60.00}
     deactivate UART
     DM->>DM: Clear data_ready = false
     deactivate DM
@@ -101,31 +109,30 @@ sequenceDiagram
     participant User
     participant UART as UART Interface
     participant CmdExec as Command Execute
-    participant Parser as Command Parser
+    participant Parser as PERIODIC_ON_PARSER
     participant Driver as SHT3X Driver
     participant I2C as I2C Bus
     participant Sensor as SHT3X Sensor
     participant DM as DataManager
     participant MainLoop as Main Loop
     
-    User->>UART: "SHT3X PERIODIC 1 HIGH\n"
+    User->>UART: "PERIODIC ON\n"
     activate UART
     UART->>CmdExec: Complete command received
     deactivate UART
     
     activate CmdExec
-    CmdExec->>CmdExec: Tokenize: ["SHT3X", "PERIODIC", "1", "HIGH"]
-    CmdExec->>Parser: SHT3X_Periodic_Parser(argc=4, argv)
+    CmdExec->>CmdExec: Tokenize: ["PERIODIC", "ON"]
+    CmdExec->>Parser: PERIODIC_ON_PARSER(argc=2, argv)
     deactivate CmdExec
     
     activate Parser
-    Parser->>Parser: Parse argv[2]="1" → SHT3X_PERIODIC_1MPS
-    Parser->>Parser: Parse argv[3]="HIGH" → SHT3X_HIGH
-    Parser->>Driver: SHT3X_Periodic(&g_sht3x, SHT3X_PERIODIC_1MPS, SHT3X_HIGH)
+    Parser->>Parser: Set mode=1MPS (default), repeat=HIGH (default)
+    Parser->>Driver: SHT3X_Periodic(&g_sht3x, &mode, &repeat, &temp, &hum)
     deactivate Parser
     
     activate Driver
-    Driver->>Driver: Build I2C command: 0x2032
+    Driver->>Driver: Build I2C command: 0x2032 (1MPS HIGH)
     Driver->>I2C: HAL_I2C_Master_Transmit(0x2032)
     activate I2C
     I2C->>Sensor: I2C Write [0x20, 0x32]
@@ -137,13 +144,7 @@ sequenceDiagram
     
     Driver->>Driver: Update currentState = SHT3X_PERIODIC_1MPS
     Driver->>Driver: Update modeRepeat = SHT3X_HIGH
-    Driver->>Parser: Return SHT3X_OK
-    deactivate Driver
-    
-    activate Parser
-    Parser->>Parser: Initialize next_fetch_ms = HAL_GetTick()
-    Parser->>Driver: SHT3X_FetchData(&g_sht3x, &temp, &hum)
-    activate Driver
+    Driver->>Driver: HAL_Delay(100ms) - Wait for first measurement
     
     Driver->>I2C: HAL_I2C_Master_Receive(6 bytes)
     activate I2C
@@ -151,22 +152,28 @@ sequenceDiagram
     I2C->>Driver: Raw data
     deactivate I2C
     
-    Driver->>Driver: Parse & validate data
-    Driver->>Parser: Return temp=23.45, hum=65.20
+    alt I2C OK and CRC Valid
+        Driver->>Driver: Parse & validate data
+        Driver->>Parser: Return SHT3X_OK, temp=25.50, hum=60.00
+    else I2C Error or CRC Failed
+        Driver->>Parser: Return SHT3X_ERROR, temp=0.0, hum=0.0
+    end
     deactivate Driver
     
-    Parser->>DM: DataManager_UpdatePeriodic(23.45, 65.20)
+    activate Parser
+    Parser->>Parser: Initialize next_fetch_ms = HAL_GetTick()
+    Parser->>DM: DataManager_UpdatePeriodic(temp, hum)
     activate DM
-    DM->>DM: Store mode = DATALOGGER_MODE_PERIODIC
+    DM->>DM: mode = DATA_MANAGER_MODE_PERIODIC
     DM->>DM: Store temperature, humidity
     DM->>DM: Set data_ready = true
     DM->>Parser: Return
     deactivate DM
     deactivate Parser
     
-    Note over MainLoop: Main loop continues...
+    Note over MainLoop: Main loop continues every 5 seconds...
     
-    loop Every 5 seconds (periodic_interval_ms)
+    loop Every periodic_interval_ms (default 5000ms)
         MainLoop->>MainLoop: Check SHT3X_IS_PERIODIC_STATE()
         MainLoop->>MainLoop: Check (now >= next_fetch_ms)
         MainLoop->>Driver: SHT3X_FetchData(&g_sht3x, &temp, &hum)
@@ -185,6 +192,9 @@ sequenceDiagram
         DM->>DM: Set data_ready = true
         deactivate DM
         
+        MainLoop->>MainLoop: Toggle PC13 LED
+        MainLoop->>MainLoop: Update next_fetch_ms += periodic_interval_ms
+        
         MainLoop->>DM: DataManager_Print()
         activate DM
         DM->>UART: Transmit JSON
@@ -193,8 +203,6 @@ sequenceDiagram
         deactivate UART
         DM->>DM: Clear data_ready = false
         deactivate DM
-        
-        MainLoop->>MainLoop: Update next_fetch_ms += 5000
     end
 ```
 
@@ -205,7 +213,7 @@ sequenceDiagram
     participant User
     participant UART as UART Interface
     participant CmdExec as Command Execute
-    participant Parser as Command Parser
+    participant Parser as PERIODIC_OFF_PARSER
     participant Driver as SHT3X Driver
     participant I2C as I2C Bus
     participant Sensor as SHT3X Sensor
@@ -213,18 +221,17 @@ sequenceDiagram
     
     Note over Sensor: Currently in periodic mode @ 1Hz
     
-    User->>UART: "SHT3X PERIODIC STOP\n"
+    User->>UART: "PERIODIC OFF\n"
     activate UART
     UART->>CmdExec: Complete command received
     deactivate UART
     
     activate CmdExec
-    CmdExec->>CmdExec: Tokenize: ["SHT3X", "PERIODIC", "STOP"]
-    CmdExec->>Parser: SHT3X_Periodic_Parser(argc=3, argv)
+    CmdExec->>CmdExec: Tokenize: ["PERIODIC", "OFF"]
+    CmdExec->>Parser: PERIODIC_OFF_PARSER(argc=2, argv)
     deactivate CmdExec
     
     activate Parser
-    Parser->>Parser: Check argv[2] == "STOP"
     Parser->>Driver: SHT3X_PeriodicStop(&g_sht3x)
     deactivate Parser
     
@@ -244,9 +251,9 @@ sequenceDiagram
     deactivate Driver
     
     activate Parser
-    Parser->>UART: Print "STOP PERIODIC SUCCEEDED"
+    Parser->>UART: Print "[CMD] PERIODIC OFF"
     activate UART
-    UART->>User: "STOP PERIODIC SUCCEEDED\r\n"
+    UART->>User: "[CMD] PERIODIC OFF\r\n"
     deactivate UART
     deactivate Parser
     
@@ -304,7 +311,7 @@ sequenceDiagram
             CmdExec->>CmdTable: Find matching command
             activate CmdTable
             CmdTable->>CmdTable: Iterate through cmdTable[]
-            CmdTable->>CmdTable: Compare command strings
+            Note over CmdTable: Search for: SINGLE, PERIODIC ON/OFF,<br/>SET TIME, SET PERIODIC INTERVAL,<br/>MQTT CONNECTED/DISCONNECTED, SD CLEAR
             CmdTable->>CmdExec: Return result
             deactivate CmdTable
             
@@ -315,9 +322,8 @@ sequenceDiagram
                 Parser->>CmdExec: Return
                 deactivate Parser
             else Command not found
-                CmdExec->>Parser: Cmd_Default(argc, argv)
+                CmdExec->>Parser: Print "UNKNOWN COMMAND"
                 activate Parser
-                Parser->>Parser: Print "UNKNOWN COMMAND"
                 Parser->>CmdExec: Return
                 deactivate Parser
             end
@@ -343,6 +349,8 @@ sequenceDiagram
     participant State as Internal State
     participant MainLoop as Main Loop
     participant RTC as DS3231 RTC
+    participant MQTT as MQTT State
+    participant SD as SD Card Manager
     participant UART as UART TX
     participant User
     
@@ -381,21 +389,37 @@ sequenceDiagram
         DM->>DM: Sanitize temperature (check NaN/Inf)
         DM->>DM: Sanitize humidity (check NaN/Inf)
         
-        alt mode == SINGLE
-            DM->>DM: Format JSON with mode="SINGLE"
-        else mode == PERIODIC
-            DM->>DM: Format JSON with mode="PERIODIC"
-        end
+        DM->>MQTT: Check mqtt_current_state
+        activate MQTT
         
-        DM->>DM: snprintf(buffer, 128, JSON_format, ...)
-        
-        alt Buffer overflow
-            DM->>UART: Print "JSON BUFFER OVERFLOW"
-        else Buffer OK
-            DM->>UART: HAL_UART_Transmit(&huart1, buffer, len, timeout)
-            activate UART
-            UART->>User: Transmit JSON string
-            deactivate UART
+        alt MQTT_STATE_CONNECTED
+            MQTT->>DM: MQTT_STATE_CONNECTED
+            deactivate MQTT
+            
+            DM->>DM: Format JSON: {"mode":"SINGLE","timestamp":...,"temperature":...}
+            
+            DM->>DM: Check buffer overflow
+            
+            alt Buffer OK
+                DM->>UART: HAL_UART_Transmit(&huart1, JSON, len, timeout)
+                activate UART
+                UART->>User: Transmit JSON string
+                deactivate UART
+            else Buffer overflow
+                DM->>UART: Print "JSON BUFFER OVERFLOW"
+            end
+            
+        else MQTT_STATE_DISCONNECTED
+            MQTT->>DM: MQTT_STATE_DISCONNECTED
+            deactivate MQTT
+            
+            DM->>SD: SDCardManager_WriteData(timestamp, temp, hum, mode)
+            activate SD
+            SD->>SD: Write to circular buffer on SD card
+            SD->>DM: Return success/failure
+            deactivate SD
+            
+            Note over DM: Data buffered to SD card for later transmission
         end
         
         DM->>State: g_datalogger_state.data_ready = false
@@ -413,6 +437,7 @@ sequenceDiagram
     participant I2C as I2C Hardware
     participant Sensor as SHT3X Sensor
     participant Parser as Command Parser
+    participant DM as DataManager
     participant UART
     
     Driver->>HAL: HAL_I2C_Master_Transmit(&hi2c1, addr, data, size, 100)
@@ -430,6 +455,7 @@ sequenceDiagram
         HAL->>Driver: Return HAL_OK
         deactivate HAL
         Driver->>Driver: Continue operation
+        Driver->>Parser: Return SHT3X_OK with valid data
         
     else Timeout (no response)
         Note over Sensor: Sensor not responding
@@ -443,9 +469,9 @@ sequenceDiagram
         
         Driver->>Driver: Check return status
         Driver->>Driver: Log error
-        Driver->>Parser: Return SHT3X_ERROR
-        Parser->>UART: Print "SHT3X SINGLE MODE FAILED"
-        Parser->>Parser: Preserve previous state
+        Driver->>Parser: Return SHT3X_ERROR, temp=0.0, hum=0.0
+        Parser->>DM: DataManager_Update(0.0, 0.0)
+        Note over DM: Stores 0.0 values to indicate sensor failure
         
     else NACK received
         activate Sensor
@@ -463,8 +489,8 @@ sequenceDiagram
         activate HAL
         HAL->>Driver: Return error code
         deactivate HAL
-        Driver->>Parser: Return SHT3X_ERROR
-        Parser->>UART: Print error message
+        Driver->>Parser: Return SHT3X_ERROR, temp=0.0, hum=0.0
+        Parser->>DM: DataManager_Update(0.0, 0.0)
         
     else CRC mismatch
         activate Sensor
@@ -483,10 +509,94 @@ sequenceDiagram
         
         alt CRC mismatch detected
             Driver->>Driver: Log CRC error
-            Driver->>Parser: Return SHT3X_ERROR
-            Parser->>UART: Print "CRC VALIDATION FAILED"
+            Driver->>Parser: Return SHT3X_ERROR, temp=0.0, hum=0.0
+            Parser->>DM: DataManager_Update(0.0, 0.0)
+            Parser->>UART: Print "[ERROR] CRC VALIDATION FAILED"
         end
     end
+```
+
+## MQTT State Change Notification Sequence
+
+```mermaid
+sequenceDiagram
+    participant ESP32
+    participant UART as UART Interface
+    participant CmdExec as Command Execute
+    participant Parser as MQTT Parser
+    participant MQTTState as mqtt_current_state
+    participant MainLoop as Main Loop
+    participant DM as DataManager
+    participant SD as SD Card Manager
+    
+    Note over ESP32: ESP32 detects MQTT connection
+    
+    ESP32->>UART: "MQTT CONNECTED\n"
+    activate UART
+    UART->>CmdExec: Complete command received
+    deactivate UART
+    
+    activate CmdExec
+    CmdExec->>Parser: MQTT_CONNECTED_PARSER(argc, argv)
+    deactivate CmdExec
+    
+    activate Parser
+    Parser->>MQTTState: mqtt_current_state = MQTT_STATE_CONNECTED
+    Parser->>UART: Print "[MQTT] CONNECTED"
+    deactivate Parser
+    
+    Note over MainLoop: Main loop detects MQTT connected
+    
+    loop While buffered data exists
+        MainLoop->>SD: SDCardManager_GetBufferedCount()
+        activate SD
+        SD->>MainLoop: Return count > 0
+        deactivate SD
+        
+        MainLoop->>MainLoop: Wait 100ms between records
+        
+        MainLoop->>SD: SDCardManager_ReadData(&record)
+        activate SD
+        SD->>SD: Read from circular buffer
+        SD->>MainLoop: Return buffered record
+        deactivate SD
+        
+        MainLoop->>DM: sensor_json_format(buffer, record data)
+        activate DM
+        DM->>MainLoop: Return formatted JSON
+        deactivate DM
+        
+        MainLoop->>UART: Transmit buffered JSON
+        activate UART
+        UART->>ESP32: {"mode":"PERIODIC","timestamp":...,"temperature":...}
+        deactivate UART
+        
+        MainLoop->>SD: SDCardManager_RemoveRecord()
+        activate SD
+        SD->>SD: Increment read_index, decrement count
+        SD->>MainLoop: Return success
+        deactivate SD
+    end
+    
+    Note over MainLoop: All buffered data sent
+    
+    Note over ESP32: ESP32 loses MQTT connection
+    
+    ESP32->>UART: "MQTT DISCONNECTED\n"
+    activate UART
+    UART->>CmdExec: Complete command received
+    deactivate UART
+    
+    activate CmdExec
+    CmdExec->>Parser: MQTT_DISCONNECTED_PARSER(argc, argv)
+    deactivate CmdExec
+    
+    activate Parser
+    Parser->>MQTTState: mqtt_current_state = MQTT_STATE_DISCONNECTED
+    Parser->>UART: Print "[MQTT] DISCONNECTED"
+    deactivate Parser
+    
+    Note over MainLoop: Future data will be buffered to SD
 ```
 
 ## System Initialization Sequence
@@ -497,9 +607,12 @@ sequenceDiagram
     participant MCU as STM32 MCU
     participant HAL as HAL Library
     participant I2C as I2C Peripheral
+    participant SPI as SPI Peripherals
     participant UART as UART Peripheral
     participant SHT3X as SHT3X Sensor
     participant RTC as DS3231 RTC
+    participant SD as SD Card Manager
+    participant Display as ILI9225 Display
     participant DM as DataManager
     participant Main as Main Loop
     
@@ -513,13 +626,25 @@ sequenceDiagram
     deactivate HAL
     
     MCU->>MCU: SystemClock_Config()
-    MCU->>MCU: Configure PLL: 64MHz
+    MCU->>MCU: Configure PLL: 72MHz
     
     MCU->>I2C: MX_I2C1_Init()
     activate I2C
     I2C->>I2C: Configure I2C1: 100kHz, PB6/PB7
     I2C->>MCU: Return
     deactivate I2C
+    
+    MCU->>SPI: MX_SPI1_Init()
+    activate SPI
+    SPI->>SPI: Configure SPI1: 18MHz (SD Card)
+    SPI->>MCU: Return
+    deactivate SPI
+    
+    MCU->>SPI: MX_SPI2_Init()
+    activate SPI
+    SPI->>SPI: Configure SPI2: 36MHz (Display)
+    SPI->>MCU: Return
+    deactivate SPI
     
     MCU->>UART: MX_USART1_UART_Init()
     activate UART
@@ -557,22 +682,53 @@ sequenceDiagram
     MCU->>DM: DataManager_Init()
     activate DM
     DM->>DM: Clear g_datalogger_state
-    DM->>DM: mode = DATALOGGER_MODE_IDLE
+    DM->>DM: mode = DATA_MANAGER_MODE_IDLE
     DM->>DM: data_ready = false
     DM->>DM: temperature = 0.0
     DM->>DM: humidity = 0.0
     DM->>MCU: Return
     deactivate DM
     
+    MCU->>MCU: HAL_Delay(200ms) - SD power stabilization
+    
+    MCU->>SD: SDCardManager_Init()
+    activate SD
+    SD->>SD: Initialize SPI & SD card
+    SD->>SD: Read metadata from block 1
+    
+    alt SD card initialized successfully
+        SD->>MCU: Return true
+    else SD card failed
+        SD->>UART: Print "[WARN] SD Card NOT available!"
+        SD->>MCU: Return false (continue anyway)
+    end
+    deactivate SD
+    
+    MCU->>Display: ILI9225_Init()
+    activate Display
+    Display->>Display: Configure SPI2 pins
+    Display->>Display: Send initialization commands
+    Display->>MCU: Return
+    deactivate Display
+    
+    MCU->>MCU: HAL_Delay(50ms) - Display stabilization
+    
+    MCU->>Display: display_init()
+    activate Display
+    Display->>Display: Clear screen
+    Display->>Display: Set default layout
+    Display->>MCU: Return
+    deactivate Display
+    
     MCU->>Main: Enter main loop (while(1))
     deactivate MCU
     
     activate Main
-    Note over Main: System ready for commands
+    Note over Main: System ready - MQTT_STATE_DISCONNECTED by default
     Main->>Main: UART_Handle()
-    Main->>Main: DataManager_Print()
     Main->>Main: Check periodic state
-    Main->>Main: __WFI()
+    Main->>Main: DataManager_Print() or buffer to SD
+    Main->>Main: Display_Update()
     deactivate Main
 ```
 
