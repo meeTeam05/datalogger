@@ -322,7 +322,7 @@ This library only tracks state. Actual MQTT connection management is handled by 
 │   STM32   │ ←──────────────────→  │   ESP32   │ ←────────────────────────→ │ MQTT Broker │
 │ (Sensors) │       Commands        │  (WiFi)   │       Pub/Sub on Topics    │   (Cloud)   │
 └───────────┘                       └───────────┘                            └─────────────┘
-      ↓                                      ↓
+      │                                      │
       │                                      │
 mqtt_manager_get_state()           mqtt_client_is_connected()
       │                                      │
