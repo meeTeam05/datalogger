@@ -31,21 +31,21 @@ STM32 → UART → JSON Parser → Callbacks → MQTT/CoAP
 {
   "mode": "SINGLE",
   "timestamp": 1760729112,
-  "temperature": 25.50,
-  "humidity": 60.00
+  "temperature": 25.5,
+  "humidity": 60.0
 }
 ```
 
 ### Fields
 
-| Field | Type | Description | Range |
-|-------|------|-------------|-------|
-| mode | string | Operating mode | "SINGLE" or "PERIODIC" |
-| timestamp | uint32 | Unix timestamp from RTC | 0+ (0 = RTC failure) |
-| temperature | float | Temperature in Celsius | -40 to 125°C (0.00 = sensor fail) |
-| humidity | float | Relative humidity | 0 to 100% (0.00 = sensor fail) |
+| Field       | Type   | Description             | Range                             |
+| ----------- | ------ | ----------------------- | --------------------------------- |
+| mode        | string | Operating mode          | "SINGLE" or "PERIODIC"            |
+| timestamp   | uint32 | Unix timestamp from RTC | 0+ (0 = RTC failure)              |
+| temperature | float  | Temperature in Celsius  | -40 to 125°C (0.00 = sensor fail) |
+| humidity    | float  | Relative humidity       | 0 to 100% (0.00 = sensor fail)    |
 
-## Usage
+## Usage Example
 
 ### 1. Initialize Parser
 
@@ -56,7 +56,7 @@ json_sensor_parser_t parser;
 
 // Define callbacks
 void on_single_data(const sensor_data_t *data) {
-    printf("SINGLE: T=%.2f°C, H=%.2f%%\n", 
+    printf("SINGLE: T=%.2f°C, H=%.2f%%\n",
            data->temperature, data->humidity);
 }
 
@@ -70,7 +70,7 @@ void on_error(const sensor_data_t *data) {
 }
 
 // Initialize parser
-JSON_Parser_Init(&parser, 
+JSON_Parser_Init(&parser,
                  on_single_data,
                  on_periodic_data,
                  on_error);
@@ -101,6 +101,7 @@ if (data.valid) {
 ## API Reference
 
 ### Initialization
+
 ```c
 bool JSON_Parser_Init(json_sensor_parser_t *parser,
                       sensor_data_callback_t single_callback,
@@ -109,9 +110,10 @@ bool JSON_Parser_Init(json_sensor_parser_t *parser,
 ```
 
 ### Processing
+
 ```c
 // Parse and trigger callbacks
-bool JSON_Parser_ProcessLine(json_sensor_parser_t *parser, 
+bool JSON_Parser_ProcessLine(json_sensor_parser_t *parser,
                               const char *json_line);
 
 // Parse only (no callbacks)
@@ -120,6 +122,7 @@ sensor_data_t JSON_Parser_ParseLine(json_sensor_parser_t *parser,
 ```
 
 ### Utilities
+
 ```c
 // Get mode from string
 sensor_mode_t JSON_Parser_GetMode(const char *mode_str);
@@ -143,13 +146,13 @@ typedef struct {
     sensor_mode_t mode;      // SINGLE or PERIODIC
     uint32_t timestamp;      // Unix timestamp
     bool valid;              // Overall validity flag
-    
+
     // SHT3X sensor data
     bool has_temperature;    // Temperature field present
     float temperature;       // Temperature in °C
     bool has_humidity;       // Humidity field present
     float humidity;          // Humidity in %
-    
+
     // Future extensibility
     // bool has_pressure;
     // float pressure;
@@ -159,16 +162,19 @@ typedef struct {
 ## Validation Rules
 
 ### Temperature
+
 - **Valid range**: -40°C to 125°C
 - **Special value**: 0.00 indicates sensor hardware failure
 - **Out of range**: Data marked as invalid
 
 ### Humidity
+
 - **Valid range**: 0% to 100%
 - **Special value**: 0.00 indicates sensor hardware failure
 - **Out of range**: Data marked as invalid
 
 ### Timestamp
+
 - **Valid**: Any positive Unix timestamp
 - **Special value**: 0 indicates RTC failure
 - **Both timestamp=0 AND T=H=0.00**: Critical hardware failure
@@ -206,10 +212,11 @@ if (JSON_Parser_IsRTCFailed(&data)) {
 To add new sensor types (e.g., pressure, CO2):
 
 1. Update `sensor_data_t` structure:
+
 ```c
 typedef struct {
     // ... existing fields ...
-    
+
     // New sensor field
     bool has_pressure;
     float pressure;  // Pressure in hPa
@@ -217,6 +224,7 @@ typedef struct {
 ```
 
 2. Update parsing logic in `JSON_Parser_ParseLine()`:
+
 ```c
 // Extract pressure (optional)
 float pressure;
@@ -227,12 +235,13 @@ if (json_get_float(json_line, "pressure", &pressure)) {
 ```
 
 3. Update JSON format:
+
 ```json
 {
   "mode": "SINGLE",
   "timestamp": 1760729112,
-  "temperature": 25.50,
-  "humidity": 60.00,
+  "temperature": 25.5,
+  "humidity": 60.0,
   "pressure": 1013.25
 }
 ```
@@ -264,25 +273,29 @@ assert(JSON_Parser_IsSensorFailed(&data3) == true);
 ## Troubleshooting
 
 ### Parser returns invalid data
+
 - Check JSON format (must start with `{` and end with `}`)
 - Verify all required fields present: `mode`, `timestamp`
 - Check field names match exactly (case-sensitive)
 
 ### Callbacks not triggered
+
 - Ensure `JSON_Parser_Init()` called with valid callbacks
 - Use `JSON_Parser_ProcessLine()` not `JSON_Parser_ParseLine()`
 - Check parser initialization succeeded
 
 ### Wrong mode detected
+
 - Mode string must be exactly "SINGLE" or "PERIODIC"
 - Case-sensitive matching
 
-## License
-
-MIT License - see project root for details.
-
 ## Related Components
 
-- [STM32 UART](../stm32_uart/README.md) - Receives JSON from STM32
-- [MQTT Handler](../mqtt_handler/README.md) - Publishes parsed data
-- [JSON Utils](../json_utils/README.md) - Creates JSON messages
+- Receives JSON from STM32: [STM32 UART](../stm32_uart/README.md)
+- Publishes parsed data: [MQTT Handler](../mqtt_handler/README.md)
+- Creates JSON messages: [JSON Utils](../json_utils/README.md)
+
+## License
+
+This component is part of the DATALOGGER project.
+See the LICENSE.md file in the project root directory for licensing information.
