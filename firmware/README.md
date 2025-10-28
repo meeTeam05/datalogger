@@ -782,5 +782,4 @@ Average power at 5-second periodic mode: ~150-200 mA @ 3.3V = 0.5-0.66 W
 
 ## License
 
-- This component is part of the DATALOGGER project.
-- See the LICENSE.md file in the project root directory for licensing information.
+This component is part of the DATALOGGER project. See the LICENSE.md file in the project root directory for licensing information.
