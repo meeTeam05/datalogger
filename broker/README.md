@@ -6,14 +6,15 @@ This directory contains the configuration files and Docker deployment setup for 
 
 ```
 broker/
-├── mosquitto.conf              # Main configuration file
+├── mosquitto.conf              # Main broker configuration file
 ├── config/
 │   └── auth/
 │       └── passwd.txt          # Bcrypt-hashed user credentials
-├── data/                       # Runtime persistence database (excluded from version control)
+├── data/                       # Runtime persistence database (excluded from VCS)
 │   └── mosquitto.db
-└── log/                        # Broker log files (excluded from version control)
-    └── mosquitto.log
+├── log/                        # Broker log files (excluded from VCS)
+│   └── mosquitto.log
+└── README.md                   # This file
 ```
 
 Note: The data and log directories are created automatically at runtime and should not be committed to version control.
