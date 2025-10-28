@@ -1,0 +1,40 @@
+#TODO: WILL ENABLE IN THE FUTURE
+
+menu "CoAP Handler Configuration"
+
+    config ENABLE_COAP
+        bool "Enable CoAP Protocol Support"
+        default n
+        help
+            Enable CoAP client for lightweight IoT communication.
+            CoAP uses UDP with minimal overhead (5KB memory vs 20KB for MQTT).
+            Ideal for sensor data streaming alongside MQTT control messages.
+
+    config COAP_SERVER_IP
+        string "CoAP Server IP Address"
+        default "192.168.1.100"
+        depends on ENABLE_COAP
+        help
+            IP address of your CoAP server (web server).
+            Example: 192.168.1.100 (same as your web server)
+
+    config COAP_SERVER_PORT
+        int "CoAP Server Port"
+        range 1 65535
+        default 5683
+        depends on ENABLE_COAP
+        help
+            UDP port of CoAP server.
+            RFC 7252 standard: 5683
+            DTLS secure: 5684 (if supported)
+
+    config COAP_ENABLE_DTLS
+        bool "Enable DTLS Security (Optional)"
+        default n
+        depends on ENABLE_COAP
+        help
+            Enable DTLS for encrypted CoAP communication.
+            Requires additional libraries and memory.
+            Not needed for local network testing.
+
+endmenu

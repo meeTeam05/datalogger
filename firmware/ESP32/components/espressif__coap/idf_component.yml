@@ -1,0 +1,9 @@
+dependencies:
+  idf: '>=4.4'
+description: Constrained Application Protocol (CoAP) C Library
+repository: git://github.com/espressif/idf-extra-components.git
+repository_info:
+  commit_sha: acfcdcf7a6bf8db1f452d07008a2a1f53ab0e528
+  path: coap
+url: https://github.com/espressif/idf-extra-components/tree/master/coap
+version: 4.3.5~3

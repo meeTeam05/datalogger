@@ -5,10 +5,13 @@ idf_component_register(
         "main.c"
     INCLUDE_DIRS "."
     REQUIRES
-        stm32_uart
         mqtt_handler
+        coap_handler
+        stm32_uart
         relay_control
-        sht3x_parser
+        json_sensor_parser
+        json_utils
+        button_handler
         esp_wifi
         esp_netif
         nvs_flash

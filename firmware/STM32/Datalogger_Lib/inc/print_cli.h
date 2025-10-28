@@ -1,26 +1,34 @@
 /**
  * @file print_cli.h
+ * 
+ * @brief Header file for PRINT_CLI function.
  */
+
 #ifndef PRINT_CLI_H
 #define PRINT_CLI_H
 
 /* INCLUDES ------------------------------------------------------------------*/
-#include "stm32f1xx_hal.h"
+
 #include <stdint.h>
+#include <stm32f1xx_hal.h>
 
 /* DEFINES -------------------------------------------------------------------*/
+
 #define BUFFER_PRINT 128
 
-/* VARIABLES -----------------------------------------------------------------*/
+/* EXTERNAL VARIABLES --------------------------------------------------------*/
+
 extern UART_HandleTypeDef huart1;
 
-/* GLOBAL FUNCTIONS ----------------------------------------------------------*/
-/*
- * @brief
- *
- * @note
- *
- * @param *fmt
+/* PUBLIC API ----------------------------------------------------------------*/
+
+/**
+ * @brief Formatted print function over UART
+ * 
+ * @param fmt Format string (like printf)
+ * @param ... Variable arguments
+ * 
+ * @note Uses HAL_UART_Transmit to send data over UART
  */
 void PRINT_CLI(char *fmt, ...);
 

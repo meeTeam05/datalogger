@@ -1,152 +1,2044 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SHT31 Temperature Monitor</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DataLogger Monitor</title>
+
+    <!-- External CSS -->
+    <link rel="stylesheet" href="style.css" />
+
+    <!-- TailwindCSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Feather Icons -->
+    <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+
+    <!-- Chart.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+
+    <!-- MQTT & Firebase -->
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-    
-    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-    
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>Environmental Monitor</h1>
-            <p>Real-time Monitoring Dashboard</p>
-            
-            <!-- MQTT Connection Status -->
-            <div class="mqtt-status">
-                <div class="connection-status" id="connectionStatus">
-                    <span class="status-dot" id="statusDot"></span>
-                    <span id="statusText">MQTT Disconnected</span>
-                </div>
-                <div class="connection-status" id="firebaseStatus">
-                    <span class="status-dot" id="firebaseDot"></span>
-                    <span id="firebaseText">Firebase Disconnected</span>
-                </div>
-                <button class="settings-btn" id="settingsBtn">⚙️</button>
-            </div>
+  </head>
+  <body>
+    <!-- Sidebar Navigation -->
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-title">
+          <i data-feather="activity"></i>
+          <span>DataLogger</span>
         </div>
+      </div>
 
-        <!-- MQTT Configuration Modal -->
-        <div class="modal" id="mqttModal">
-            <div class="modal-content">
-                <h3>Configuration Settings</h3>
-                
-                <!-- MQTT Settings -->
-                <h4>MQTT Broker Configuration</h4>
-                <div class="config-group">
-                    <label for="mqttIp">IP Address:</label>
-                    <input type="text" id="mqttIp" value="127.0.0.1" placeholder="192.168.1.100">
-                </div>
-                <div class="config-group">
-                    <label for="mqttPort">WebSocket Port:</label>
-                    <input type="text" id="mqttPort" value="8083" placeholder="8083">
-                </div>
-                <div class="config-group">
-                    <label for="mqttPath">WebSocket Path:</label>
-                    <input type="text" id="mqttPath" value="/mqtt" placeholder="/mqtt">
-                </div>
-                <div class="config-group">
-                    <label for="mqttUser">Username:</label>
-                    <input type="text" id="mqttUser" value="DataLogger" placeholder="Required by broker">
-                </div>
-                <div class="config-group">
-                    <label for="mqttPass">Password (optional):</label>
-                    <input type="password" id="mqttPass" placeholder="Leave empty if no password">
-                </div>
-
-                <!-- Firebase Settings -->
-                <h4>Firebase Configuration</h4>
-                <div class="config-group">
-                    <label for="firebaseUrl">Firebase Database URL:</label>
-                    <input type="text" id="firebaseUrl" placeholder="https://your-project.firebaseio.com">
-                </div>
-                <div class="config-group">
-                    <label for="firebaseApiKey">API Key:</label>
-                    <input type="text" id="firebaseApiKey" placeholder="Your Firebase API Key">
-                </div>
-                <div class="config-group">
-                    <label for="firebaseProject">Project ID:</label>
-                    <input type="text" id="firebaseProject" placeholder="your-project-id">
-                </div>
-
-                <div class="modal-buttons">
-                    <button class="cancel-btn" id="cancelBtn">Cancel</button>
-                    <button class="save-btn" id="saveBtn">Save & Connect</button>
-                </div>
-            </div>
+      <nav class="menu">
+        <div class="menu-item active" data-page="dashboard">
+          <i data-feather="grid" class="menu-icon"></i>
+          <span class="menu-text">Dashboard</span>
         </div>
-
-        <div class="controls">
-            <div class="control-group">
-                <label>Frame Rate (Hz)</label>
-                <div class="frame-selector">
-                    <button class="frame-btn" data-rate="0.5">0.5</button>
-                    <button class="frame-btn active" data-rate="1">1</button>
-                    <button class="frame-btn" data-rate="2">2</button>
-                    <button class="frame-btn" data-rate="4">4</button>
-                    <button class="frame-btn" data-rate="10">10</button>
-                </div>
-            </div>
-            
-            <div class="control-group">
-                <label>Operating Mode</label>
-                <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;">
-                    <button class="mode-btn" id="periodicBtn">Periodic</button>
-                    <button class="mode-btn stop-btn" id="stopBtn" style="display: none;">Stop</button>
-                    <button class="mode-btn single-btn" id="singleBtn">Single Read</button>
-                </div>
-            </div>
-            
-            <div class="control-group">
-                <label>Device Control</label>
-                <button class="device-btn" id="deviceBtn">DEVICE OFF</button>
-            </div>
-
-            <div class="control-group">
-                <label>Data Management</label>
-                <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;">
-                    <button class="data-btn" id="loadDataBtn">Load History</button>
-                    <button class="data-btn" id="clearDataBtn">Clear Charts</button>
-                </div>
-            </div>
+        <div class="menu-item" data-page="livedata">
+          <i data-feather="radio" class="menu-icon"></i>
+          <span class="menu-text">Live Data</span>
         </div>
-
-        <div class="current-display" id="currentDisplay">
-            Current: --°C & --% RH
+        <div class="menu-item" data-page="settings">
+          <i data-feather="sliders" class="menu-icon"></i>
+          <span class="menu-text">Device Settings</span>
         </div>
-        
-        <div class="status-display" id="statusDisplay">
-            <div class="status-item">[INIT] SHT31 Temperature Monitor Started</div>
-            <div class="status-item">[INFO] System ready for data acquisition</div>
-            <div class="status-item status-warning">[WARNING] Configure Firebase for data persistence</div>
+        <div class="menu-item" data-page="time">
+          <i data-feather="clock" class="menu-icon"></i>
+          <span class="menu-text">Time Settings</span>
         </div>
-
-        <div class="charts-container">
-            <div class="chart-wrapper">
-                <div class="chart-header">
-                    <div class="chart-title">🌡️ Temperature</div>
-                    <div class="chart-stats" id="tempStats">Min: -- | Max: -- | Avg: --</div>
-                </div>
-                <canvas id="tempChart1" width="400" height="200"></canvas>
-            </div>
-            
-            <div class="chart-wrapper">
-                <div class="chart-header">
-                    <div class="chart-title">💧 Humidity</div>
-                    <div class="chart-stats" id="humiStats">Min: -- | Max: -- | Avg: --</div>
-                </div>
-                <canvas id="tempChart2" width="400" height="200"></canvas>
-            </div>
+        <div class="menu-item" data-page="data">
+          <i data-feather="database" class="menu-icon"></i>
+          <span class="menu-text">Data Management</span>
         </div>
+        <div class="menu-item" data-page="logs">
+          <i data-feather="file-text" class="menu-icon"></i>
+          <span class="menu-text">Logs</span>
+        </div>
+        <div class="menu-item" data-page="config">
+          <i data-feather="settings" class="menu-icon"></i>
+          <span class="menu-text">Settings</span>
+        </div>
+      </nav>
     </div>
 
-    <script src="script.js"></script>
-</body>
+    <!-- Main Content Area -->
+    <div class="content-area">
+      <!-- Header -->
+      <header class="header">
+        <h1 class="header-title">DataLogger Monitor</h1>
+        <div class="header-status">
+          <div class="status-badge disconnected" id="mqttStatus">
+            <span class="status-dot disconnected" id="mqttDot"></span>
+            <span id="mqttText">MQTT Disconnected</span>
+          </div>
+          <div class="status-badge disconnected" id="firebaseStatus">
+            <span class="status-dot disconnected" id="firebaseDot"></span>
+            <span id="firebaseText">Firebase Disconnected</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Main Content -->
+      <main class="main-content">
+        <!-- Dashboard Page -->
+        <section class="page-section active" id="page-dashboard">
+          <!-- Quick Action Buttons -->
+          <div class="card" style="margin-bottom: 1.5rem">
+            <div class="card-header">
+              <i data-feather="zap"></i>
+              Quick Actions
+            </div>
+            <div class="action-buttons">
+              <button class="btn btn-secondary" id="deviceBtn">
+                <i data-feather="power"></i>
+                <span id="deviceBtnText">Device OFF</span>
+              </button>
+              <button class="btn btn-secondary" id="periodicBtn">
+                <i data-feather="repeat"></i>
+                <span id="periodicBtnText">Periodic OFF</span>
+              </button>
+              <button class="btn btn-primary" id="singleBtn">
+                <i data-feather="thermometer"></i>
+                Single Read
+              </button>
+              <button class="btn btn-secondary" id="intervalBtn">
+                <i data-feather="clock"></i>
+                Interval
+              </button>
+              <button class="btn btn-secondary" id="loadHistoryBtn">
+                <i data-feather="download"></i>
+                Load History
+              </button>
+              <button class="btn btn-secondary" id="clearChartsBtn">
+                <i data-feather="trash-2"></i>
+                Clear Charts
+              </button>
+            </div>
+          </div>
+
+          <!-- Current Reading Card -->
+          <div class="card current-reading" style="margin-bottom: 1.5rem">
+            <div class="card-header">
+              <i data-feather="activity"></i>
+              Current Reading
+            </div>
+            <div class="reading-time" id="lastUpdate">Updated at --:--:--</div>
+            <div class="reading-values">
+              <div class="reading-value">
+                <div class="reading-number" id="currentTemp">--</div>
+                <div class="reading-unit">C</div>
+              </div>
+              <div class="reading-value">
+                <div class="reading-number" id="currentHumi">--</div>
+                <div class="reading-unit">%</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- System Console -->
+          <div class="card" style="margin-bottom: 1.5rem">
+            <div class="card-header">
+              <i data-feather="terminal"></i>
+              System Console
+            </div>
+            <div class="console" id="consolePreview"></div>
+          </div>
+
+          <!-- Charts -->
+          <div class="dashboard-grid">
+            <div class="card">
+              <div class="card-header">
+                <i data-feather="trending-up"></i>
+                Temperature (C)
+              </div>
+              <div class="chart-container">
+                <canvas id="tempChart"></canvas>
+              </div>
+              <div class="chart-stats">
+                <div class="chart-stat">
+                  <div class="chart-stat-label">Min</div>
+                  <div class="chart-stat-value" id="tempMin">--</div>
+                </div>
+                <div class="chart-stat">
+                  <div class="chart-stat-label">Max</div>
+                  <div class="chart-stat-value" id="tempMax">--</div>
+                </div>
+                <div class="chart-stat">
+                  <div class="chart-stat-label">Avg</div>
+                  <div class="chart-stat-value" id="tempAvg">--</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <i data-feather="droplet"></i>
+                Humidity (%)
+              </div>
+              <div class="chart-container">
+                <canvas id="humiChart"></canvas>
+              </div>
+              <div class="chart-stats">
+                <div class="chart-stat">
+                  <div class="chart-stat-label">Min</div>
+                  <div class="chart-stat-value" id="humiMin">--</div>
+                </div>
+                <div class="chart-stat">
+                  <div class="chart-stat-label">Max</div>
+                  <div class="chart-stat-value" id="humiMax">--</div>
+                </div>
+                <div class="chart-stat">
+                  <div class="chart-stat-label">Avg</div>
+                  <div class="chart-stat-value" id="humiAvg">--</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Live Data Page -->
+        <section class="page-section" id="page-livedata">
+          <div class="card">
+            <div class="card-header">
+              <i data-feather="radio"></i>
+              Live Data Stream
+            </div>
+
+            <!-- Filter Bar -->
+            <div
+              style="
+                display: flex;
+                gap: 1rem;
+                margin-bottom: 1rem;
+                align-items: center;
+              "
+            >
+              <select
+                id="liveDataFilter"
+                class="form-input"
+                style="width: auto"
+              >
+                <option value="all">All Status</option>
+                <option value="success">Success Only</option>
+                <option value="error">Error Only</option>
+              </select>
+              <button class="btn btn-secondary" id="clearLiveDataBtn">
+                <i data-feather="trash-2"></i>
+                Clear Table
+              </button>
+              <button class="btn btn-secondary" id="exportLiveDataBtn">
+                <i data-feather="download"></i>
+                Export CSV
+              </button>
+            </div>
+
+            <!-- Data Table -->
+            <div style="overflow-x: auto">
+              <table style="width: 100%; border-collapse: collapse">
+                <thead>
+                  <tr
+                    style="
+                      background-color: var(--bg-tertiary);
+                      border-bottom: 2px solid var(--primary);
+                    "
+                  >
+                    <th
+                      style="
+                        padding: 0.75rem;
+                        text-align: left;
+                        font-weight: 600;
+                      "
+                    >
+                      #
+                    </th>
+                    <th
+                      style="
+                        padding: 0.75rem;
+                        text-align: left;
+                        font-weight: 600;
+                      "
+                    >
+                      Time
+                    </th>
+                    <th
+                      style="
+                        padding: 0.75rem;
+                        text-align: left;
+                        font-weight: 600;
+                      "
+                    >
+                      Temp (C)
+                    </th>
+                    <th
+                      style="
+                        padding: 0.75rem;
+                        text-align: left;
+                        font-weight: 600;
+                      "
+                    >
+                      Humidity (%)
+                    </th>
+                    <th
+                      style="
+                        padding: 0.75rem;
+                        text-align: left;
+                        font-weight: 600;
+                      "
+                    >
+                      Mode
+                    </th>
+                    <th
+                      style="
+                        padding: 0.75rem;
+                        text-align: left;
+                        font-weight: 600;
+                      "
+                    >
+                      Status
+                    </th>
+                  </tr>
+                </thead>
+                <tbody id="liveDataTable">
+                  <tr>
+                    <td
+                      colspan="6"
+                      style="
+                        padding: 2rem;
+                        text-align: center;
+                        color: var(--text-muted);
+                      "
+                    >
+                      No data received yet. Waiting for sensor readings...
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div
+              style="
+                margin-top: 1rem;
+                text-align: right;
+                color: var(--text-muted);
+                font-size: 0.875rem;
+              "
+            >
+              Showing <span id="liveDataCount">0</span> entries
+            </div>
+          </div>
+        </section>
+
+        <!-- Device Settings Page -->
+        <section class="page-section" id="page-settings">
+          <div class="card">
+            <div class="card-header">
+              <i data-feather="sliders"></i>
+              Device Component Health
+            </div>
+
+            <div
+              style="
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                gap: 1.5rem;
+                margin-top: 1rem;
+              "
+            >
+              <!-- SHT31 Component Card -->
+              <div
+                class="card"
+                id="component-SHT31"
+                style="background-color: var(--bg-tertiary)"
+              >
+                <div style="text-align: center; margin-bottom: 1rem">
+                  <i
+                    data-feather="thermometer"
+                    style="width: 48px; height: 48px; color: var(--primary)"
+                  ></i>
+                </div>
+                <h3
+                  style="
+                    text-align: center;
+                    font-size: 1.125rem;
+                    font-weight: 600;
+                    margin-bottom: 0.5rem;
+                  "
+                >
+                  SHT31 Sensor
+                </h3>
+                <p
+                  style="
+                    text-align: center;
+                    font-size: 0.875rem;
+                    color: var(--text-muted);
+                    margin-bottom: 1rem;
+                  "
+                >
+                  Temperature & Humidity
+                </p>
+
+                <div
+                  class="status-badge disconnected"
+                  style="margin: 0 auto 1rem; width: fit-content"
+                >
+                  <span class="status-dot disconnected"></span>
+                  <span>Waiting...</span>
+                </div>
+
+                <div
+                  class="component-details"
+                  style="font-size: 0.875rem; color: var(--text-secondary)"
+                >
+                  <p>Temperature: <strong id="sht31-temp">--</strong></p>
+                  <p>Humidity: <strong id="sht31-humi">--</strong></p>
+                  <p>Last Update: <strong id="sht31-time">Never</strong></p>
+                </div>
+              </div>
+
+              <!-- DS3231 Component Card -->
+              <div
+                class="card"
+                id="component-DS3231"
+                style="background-color: var(--bg-tertiary)"
+              >
+                <div style="text-align: center; margin-bottom: 1rem">
+                  <i
+                    data-feather="clock"
+                    style="width: 48px; height: 48px; color: var(--primary)"
+                  ></i>
+                </div>
+                <h3
+                  style="
+                    text-align: center;
+                    font-size: 1.125rem;
+                    font-weight: 600;
+                    margin-bottom: 0.5rem;
+                  "
+                >
+                  DS3231 RTC
+                </h3>
+                <p
+                  style="
+                    text-align: center;
+                    font-size: 0.875rem;
+                    color: var(--text-muted);
+                    margin-bottom: 1rem;
+                  "
+                >
+                  Real-Time Clock
+                </p>
+
+                <div
+                  class="status-badge disconnected"
+                  style="margin: 0 auto 1rem; width: fit-content"
+                >
+                  <span class="status-dot disconnected"></span>
+                  <span>Waiting...</span>
+                </div>
+
+                <div
+                  class="component-details"
+                  style="font-size: 0.875rem; color: var(--text-secondary)"
+                >
+                  <p>Last Sync: <strong id="rtc-time">Never</strong></p>
+                  <p>Status: <strong id="rtc-status">Unknown</strong></p>
+                </div>
+              </div>
+
+              <!-- Reserved Slot -->
+              <div
+                class="card"
+                style="background-color: var(--bg-tertiary); opacity: 0.5"
+              >
+                <div
+                  style="
+                    text-align: center;
+                    padding: 2rem;
+                    color: var(--text-muted);
+                  "
+                >
+                  <i
+                    data-feather="cpu"
+                    style="width: 48px; height: 48px; opacity: 0.5"
+                  ></i>
+                  <p style="margin-top: 1rem">Reserved for future component</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Time Settings Page -->
+        <section class="page-section" id="page-time">
+          <div class="card">
+            <div class="card-header">
+              <i data-feather="clock"></i>
+              System Time Configuration
+            </div>
+
+            <div
+              style="
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 2rem;
+                margin-top: 1.5rem;
+              "
+            >
+              <!-- Date Picker Section -->
+              <div>
+                <h3
+                  style="
+                    font-size: 1rem;
+                    font-weight: 600;
+                    margin-bottom: 1rem;
+                    text-align: center;
+                    color: var(--primary);
+                  "
+                >
+                  Date Selection
+                </h3>
+                <div
+                  style="
+                    background-color: var(--bg-tertiary);
+                    padding: 1.5rem;
+                    border-radius: 0.5rem;
+                  "
+                >
+                  <div
+                    style="
+                      display: flex;
+                      justify-content: space-between;
+                      align-items: center;
+                      margin-bottom: 1rem;
+                    "
+                  >
+                    <button
+                      class="btn btn-secondary"
+                      style="padding: 0.5rem 1rem"
+                      id="prevMonth"
+                    >
+                      <i data-feather="chevron-left"></i>
+                    </button>
+                    <h4
+                      style="font-weight: 600; font-size: 1.125rem"
+                      id="monthYear"
+                    >
+                      January 2025
+                    </h4>
+                    <button
+                      class="btn btn-secondary"
+                      style="padding: 0.5rem 1rem"
+                      id="nextMonth"
+                    >
+                      <i data-feather="chevron-right"></i>
+                    </button>
+                  </div>
+
+                  <div
+                    id="calendar"
+                    style="
+                      display: grid;
+                      grid-template-columns: repeat(7, 1fr);
+                      gap: 0.5rem;
+                      text-align: center;
+                    "
+                  ></div>
+                </div>
+              </div>
+
+              <!-- Time Picker Section -->
+              <div>
+                <h3
+                  style="
+                    font-size: 1rem;
+                    font-weight: 600;
+                    margin-bottom: 1rem;
+                    text-align: center;
+                    color: var(--primary);
+                  "
+                >
+                  Time Selection
+                </h3>
+                <div
+                  style="
+                    background-color: var(--bg-tertiary);
+                    padding: 1.5rem;
+                    border-radius: 0.5rem;
+                  "
+                >
+                  <div style="text-align: center; margin-bottom: 2rem">
+                    <div
+                      style="
+                        font-size: 3rem;
+                        font-weight: 700;
+                        color: var(--primary);
+                        font-family: monospace;
+                      "
+                    >
+                      <span id="displayHour">14</span>:<span id="displayMin"
+                        >23</span
+                      >:<span id="displaySec">45</span>
+                    </div>
+                    <div
+                      style="
+                        font-size: 0.875rem;
+                        color: var(--text-muted);
+                        margin-top: 0.5rem;
+                      "
+                    >
+                      24-hour format
+                    </div>
+                  </div>
+
+                  <div
+                    style="
+                      display: grid;
+                      grid-template-columns: repeat(3, 1fr);
+                      gap: 1rem;
+                    "
+                  >
+                    <div style="text-align: center">
+                      <button
+                        class="btn btn-secondary"
+                        style="width: 100%; margin-bottom: 0.5rem"
+                        onclick="adjustTime('hour', 1)"
+                      >
+                        <i data-feather="chevron-up"></i>
+                      </button>
+                      <div style="font-weight: 600; margin-bottom: 0.5rem">
+                        Hour
+                      </div>
+                      <button
+                        class="btn btn-secondary"
+                        style="width: 100%"
+                        onclick="adjustTime('hour', -1)"
+                      >
+                        <i data-feather="chevron-down"></i>
+                      </button>
+                    </div>
+                    <div style="text-align: center">
+                      <button
+                        class="btn btn-secondary"
+                        style="width: 100%; margin-bottom: 0.5rem"
+                        onclick="adjustTime('min', 1)"
+                      >
+                        <i data-feather="chevron-up"></i>
+                      </button>
+                      <div style="font-weight: 600; margin-bottom: 0.5rem">
+                        Min
+                      </div>
+                      <button
+                        class="btn btn-secondary"
+                        style="width: 100%"
+                        onclick="adjustTime('min', -1)"
+                      >
+                        <i data-feather="chevron-down"></i>
+                      </button>
+                    </div>
+                    <div style="text-align: center">
+                      <button
+                        class="btn btn-secondary"
+                        style="width: 100%; margin-bottom: 0.5rem"
+                        onclick="adjustTime('sec', 1)"
+                      >
+                        <i data-feather="chevron-up"></i>
+                      </button>
+                      <div style="font-weight: 600; margin-bottom: 0.5rem">
+                        Sec
+                      </div>
+                      <button
+                        class="btn btn-secondary"
+                        style="width: 100%"
+                        onclick="adjustTime('sec', -1)"
+                      >
+                        <i data-feather="chevron-down"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div
+              style="
+                display: flex;
+                gap: 1rem;
+                justify-content: center;
+                margin-top: 2rem;
+              "
+            >
+              <button class="btn btn-primary" id="syncTimeBtn">
+                <i data-feather="wifi"></i>
+                Sync from Internet
+              </button>
+              <button class="btn btn-success" id="setManualTimeBtn">
+                <i data-feather="check"></i>
+                Set Time Manually
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Data Management Page -->
+        <section class="page-section" id="page-data">
+          <!-- Statistics Summary -->
+          <div class="card" style="margin-bottom: 1.5rem">
+            <div class="card-header">
+              <i data-feather="bar-chart-2"></i>
+              Data Statistics
+            </div>
+            <div
+              style="
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                gap: 1rem;
+                margin-top: 1rem;
+              "
+            >
+              <div style="text-align: center">
+                <div style="font-size: 0.875rem; color: var(--text-muted)">
+                  Total Readings
+                </div>
+                <div
+                  style="
+                    font-size: 1.5rem;
+                    font-weight: 700;
+                    color: var(--primary);
+                  "
+                  id="statsTotal"
+                >
+                  0
+                </div>
+              </div>
+              <div style="text-align: center">
+                <div style="font-size: 0.875rem; color: var(--text-muted)">
+                  Success Rate
+                </div>
+                <div
+                  style="
+                    font-size: 1.5rem;
+                    font-weight: 700;
+                    color: var(--success);
+                  "
+                  id="statsSuccess"
+                >
+                  --
+                </div>
+              </div>
+              <div style="text-align: center">
+                <div style="font-size: 0.875rem; color: var(--text-muted)">
+                  Avg Temperature
+                </div>
+                <div
+                  style="
+                    font-size: 1.5rem;
+                    font-weight: 700;
+                    color: var(--primary);
+                  "
+                  id="statsAvgTemp"
+                >
+                  --
+                </div>
+              </div>
+              <div style="text-align: center">
+                <div style="font-size: 0.875rem; color: var(--text-muted)">
+                  Avg Humidity
+                </div>
+                <div
+                  style="
+                    font-size: 1.5rem;
+                    font-weight: 700;
+                    color: var(--primary);
+                  "
+                  id="statsAvgHumi"
+                >
+                  --
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Advanced Filters -->
+          <div class="card" style="margin-bottom: 1.5rem">
+            <div class="card-header">
+              <i data-feather="filter"></i>
+              Advanced Filters
+            </div>
+
+            <!-- Row 1: Date Range -->
+            <div
+              style="
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 1rem;
+                margin-bottom: 1rem;
+              "
+            >
+              <div class="form-group" style="margin: 0">
+                <label class="form-label">From Date:</label>
+                <input type="date" class="form-input" id="filterDateFrom" />
+              </div>
+              <div class="form-group" style="margin: 0">
+                <label class="form-label">To Date:</label>
+                <input type="date" class="form-input" id="filterDateTo" />
+              </div>
+            </div>
+
+            <!-- Quick Filter Buttons Row -->
+            <div
+              style="
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 0.5rem;
+                margin-bottom: 1rem;
+              "
+            >
+              <button class="btn btn-secondary" id="quickFilterToday">
+                Today
+              </button>
+              <button class="btn btn-secondary" id="quickFilterWeek">
+                This Week
+              </button>
+              <button class="btn btn-secondary" id="quickFilterMonth">
+                This Month
+              </button>
+              <button class="btn btn-secondary" id="quickFilterAll">
+                All Time
+              </button>
+            </div>
+
+            <!-- Row 2: Filters -->
+            <div
+              style="
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                gap: 1rem;
+                margin-bottom: 1rem;
+              "
+            >
+              <div class="form-group" style="margin: 0">
+                <label class="form-label">Mode:</label>
+                <select class="form-input" id="filterMode">
+                  <option value="">All Modes</option>
+                  <option value="periodic">Periodic</option>
+                  <option value="single">Single</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin: 0">
+                <label class="form-label">Status:</label>
+                <select class="form-input" id="filterStatus">
+                  <option value="">All Status</option>
+                  <option value="success">Success Only</option>
+                  <option value="error">Error Only</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin: 0">
+                <label class="form-label">Sort By:</label>
+                <select class="form-input" id="filterSort">
+                  <option value="time-desc">Time (Newest First)</option>
+                  <option value="time-asc">Time (Oldest First)</option>
+                  <option value="temp-desc">Temperature (High to Low)</option>
+                  <option value="temp-asc">Temperature (Low to High)</option>
+                  <option value="humi-desc">Humidity (High to Low)</option>
+                  <option value="humi-asc">Humidity (Low to High)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Row 3: Value Ranges -->
+            <div
+              style="
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 1rem;
+                margin-bottom: 1rem;
+              "
+            >
+              <div style="display: flex; gap: 0.5rem; align-items: end">
+                <div class="form-group" style="margin: 0; flex: 1">
+                  <label class="form-label">Temp Min (C):</label>
+                  <input
+                    type="number"
+                    class="form-input"
+                    id="filterTempMin"
+                    placeholder="Min"
+                    step="0.1"
+                  />
+                </div>
+                <span style="padding-bottom: 0.75rem">to</span>
+                <div class="form-group" style="margin: 0; flex: 1">
+                  <label class="form-label">Temp Max (C):</label>
+                  <input
+                    type="number"
+                    class="form-input"
+                    id="filterTempMax"
+                    placeholder="Max"
+                    step="0.1"
+                  />
+                </div>
+              </div>
+              <div style="display: flex; gap: 0.5rem; align-items: end">
+                <div class="form-group" style="margin: 0; flex: 1">
+                  <label class="form-label">Humidity Min (%):</label>
+                  <input
+                    type="number"
+                    class="form-input"
+                    id="filterHumiMin"
+                    placeholder="Min"
+                    step="0.1"
+                  />
+                </div>
+                <span style="padding-bottom: 0.75rem">to</span>
+                <div class="form-group" style="margin: 0; flex: 1">
+                  <label class="form-label">Humidity Max (%):</label>
+                  <input
+                    type="number"
+                    class="form-input"
+                    id="filterHumiMax"
+                    placeholder="Max"
+                    step="0.1"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div style="display: flex; gap: 1rem">
+              <button class="btn btn-primary" id="applyFiltersBtn">
+                <i data-feather="search"></i>
+                Apply Filters
+              </button>
+              <button class="btn btn-secondary" id="resetFiltersBtn">
+                <i data-feather="refresh-cw"></i>
+                Reset
+              </button>
+              <div style="flex: 1"></div>
+              <button class="btn btn-secondary" id="exportDataBtn">
+                <i data-feather="download"></i>
+                Export Filtered Data
+              </button>
+            </div>
+          </div>
+
+          <!-- Data Table -->
+          <div class="card">
+            <div class="card-header">
+              <i data-feather="database"></i>
+              Data Records
+            </div>
+
+            <div style="overflow-x: auto">
+              <table style="width: 100%; border-collapse: collapse">
+                <thead>
+                  <tr
+                    style="
+                      background-color: var(--bg-tertiary);
+                      border-bottom: 2px solid var(--primary);
+                    "
+                  >
+                    <th
+                      style="
+                        padding: 0.75rem;
+                        text-align: left;
+                        font-weight: 600;
+                      "
+                    >
+                      #
+                    </th>
+                    <th
+                      style="
+                        padding: 0.75rem;
+                        text-align: left;
+                        font-weight: 600;
+                      "
+                    >
+                      Date & Time
+                    </th>
+                    <th
+                      style="
+                        padding: 0.75rem;
+                        text-align: left;
+                        font-weight: 600;
+                      "
+                    >
+                      Temp (C)
+                    </th>
+                    <th
+                      style="
+                        padding: 0.75rem;
+                        text-align: left;
+                        font-weight: 600;
+                      "
+                    >
+                      Humidity (%)
+                    </th>
+                    <th
+                      style="
+                        padding: 0.75rem;
+                        text-align: left;
+                        font-weight: 600;
+                      "
+                    >
+                      Mode
+                    </th>
+                    <th
+                      style="
+                        padding: 0.75rem;
+                        text-align: left;
+                        font-weight: 600;
+                      "
+                    >
+                      Status
+                    </th>
+                  </tr>
+                </thead>
+                <tbody id="dataManagementTable">
+                  <tr>
+                    <td
+                      colspan="6"
+                      style="
+                        padding: 2rem;
+                        text-align: center;
+                        color: var(--text-muted);
+                      "
+                    >
+                      No data loaded. Click "Apply Filters" to load data from
+                      Firebase.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div
+              style="
+                margin-top: 1rem;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+              "
+            >
+              <div style="color: var(--text-muted); font-size: 0.875rem">
+                Showing <span id="dataManagementCount">0</span> entries
+              </div>
+              <div style="display: flex; gap: 0.5rem">
+                <button
+                  class="btn btn-secondary"
+                  id="loadMoreBtn"
+                  style="display: none"
+                >
+                  Load More
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Logs Page -->
+        <section class="page-section" id="page-logs">
+          <div class="card">
+            <div class="card-header">
+              <i data-feather="file-text"></i>
+              System Logs
+              <span
+                style="
+                  color: var(--text-muted);
+                  font-size: 0.875rem;
+                  margin-left: 0.5rem;
+                "
+              ></span>
+            </div>
+
+            <!-- Filter Controls -->
+            <div
+              style="
+                padding: 1.25rem;
+                border-bottom: 1px solid var(--border-color);
+              "
+            >
+              <div
+                style="
+                  display: flex;
+                  gap: 1rem;
+                  flex-wrap: wrap;
+                  align-items: center;
+                  margin-bottom: 1rem;
+                "
+              >
+                <!-- Search -->
+                <div style="flex: 1; min-width: 200px">
+                  <input
+                    type="text"
+                    id="logSearchInput"
+                    placeholder="Search logs..."
+                    class="form-input"
+                    style="width: 100%"
+                  />
+                </div>
+
+                <!-- Actions -->
+                <button class="btn btn-danger" id="clearLogsBtn">
+                  <i data-feather="trash-2"></i>
+                  Clear All
+                </button>
+                <button class="btn btn-success" id="exportLogsBtn">
+                  <i data-feather="download"></i>
+                  Export CSV
+                </button>
+              </div>
+
+              <!-- Filter Buttons -->
+              <div style="display: flex; gap: 0.5rem; flex-wrap: wrap">
+                <button
+                  class="btn btn-primary filter-btn active"
+                  data-filter="ALL"
+                >
+                  ALL
+                </button>
+                <button class="btn btn-secondary filter-btn" data-filter="INFO">
+                  INFO
+                </button>
+                <button
+                  class="btn btn-secondary filter-btn"
+                  data-filter="WARNING"
+                >
+                  WARNING
+                </button>
+                <button
+                  class="btn btn-secondary filter-btn"
+                  data-filter="ERROR"
+                >
+                  ERROR
+                </button>
+                <button class="btn btn-secondary filter-btn" data-filter="MQTT">
+                  MQTT
+                </button>
+                <button
+                  class="btn btn-secondary filter-btn"
+                  data-filter="FIREBASE"
+                >
+                  FIREBASE
+                </button>
+                <button class="btn btn-secondary filter-btn" data-filter="SYNC">
+                  SYNC
+                </button>
+              </div>
+            </div>
+
+            <!-- Log Console -->
+            <div
+              class="console"
+              id="consoleFull"
+              style="max-height: 600px; min-height: 400px"
+            >
+              <div
+                style="
+                  color: var(--text-muted);
+                  text-align: center;
+                  padding: 2rem;
+                "
+              >
+                No logs yet. System will log events here.
+              </div>
+            </div>
+
+            <!-- Log Count -->
+            <div
+              style="
+                padding: 1rem;
+                border-top: 1px solid var(--border-color);
+                text-align: right;
+                color: var(--text-muted);
+                font-size: 0.875rem;
+              "
+            >
+              Total logs: <strong id="logCount">0</strong>
+            </div>
+          </div>
+        </section>
+
+        <!-- Config/Settings Page -->
+        <section class="page-section" id="page-config">
+          <div class="card">
+            <div class="card-header">
+              <i data-feather="settings"></i>
+              System Configuration
+            </div>
+
+            <!-- Settings Content -->
+            <div style="padding: 1.5rem">
+              <!-- MQTT Settings -->
+              <div style="margin-bottom: 2rem">
+                <h3
+                  style="
+                    font-size: 1.125rem;
+                    font-weight: 700;
+                    margin-bottom: 1rem;
+                    color: var(--primary);
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                  "
+                >
+                  <i data-feather="wifi" style="width: 20px; height: 20px"></i>
+                  MQTT Broker Settings
+                </h3>
+                <div
+                  style="
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                    gap: 1rem;
+                  "
+                >
+                  <div>
+                    <label
+                      style="
+                        display: block;
+                        font-weight: 600;
+                        margin-bottom: 0.5rem;
+                        color: var(--text-primary);
+                      "
+                      >Broker Host</label
+                    >
+                    <input
+                      type="text"
+                      id="mqttHost"
+                      placeholder="192.168.1.100"
+                      style="
+                        width: 100%;
+                        padding: 0.5rem 0.75rem;
+                        border: 1px solid var(--border-color);
+                        border-radius: 0.5rem;
+                        font-size: 0.875rem;
+                        background-color: var(--bg-primary);
+                        color: var(--text-primary);
+                      "
+                    />
+                  </div>
+                  <div>
+                    <label
+                      style="
+                        display: block;
+                        font-weight: 600;
+                        margin-bottom: 0.5rem;
+                        color: var(--text-primary);
+                      "
+                      >Port</label
+                    >
+                    <input
+                      type="number"
+                      id="mqttPort"
+                      placeholder="9001"
+                      style="
+                        width: 100%;
+                        padding: 0.5rem 0.75rem;
+                        border: 1px solid var(--border-color);
+                        border-radius: 0.5rem;
+                        font-size: 0.875rem;
+                        background-color: var(--bg-primary);
+                        color: var(--text-primary);
+                      "
+                    />
+                  </div>
+                  <div>
+                    <label
+                      style="
+                        display: block;
+                        font-weight: 600;
+                        margin-bottom: 0.5rem;
+                        color: var(--text-primary);
+                      "
+                      >Client ID</label
+                    >
+                    <input
+                      type="text"
+                      id="mqttClientId"
+                      placeholder="web_client_1"
+                      style="
+                        width: 100%;
+                        padding: 0.5rem 0.75rem;
+                        border: 1px solid var(--border-color);
+                        border-radius: 0.5rem;
+                        font-size: 0.875rem;
+                        background-color: var(--bg-primary);
+                        color: var(--text-primary);
+                      "
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Firebase Settings -->
+              <div
+                style="
+                  margin-bottom: 2rem;
+                  padding-top: 1.5rem;
+                  border-top: 1px solid var(--border-color);
+                "
+              >
+                <h3
+                  style="
+                    font-size: 1.125rem;
+                    font-weight: 700;
+                    margin-bottom: 1rem;
+                    color: var(--primary);
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                  "
+                >
+                  <i
+                    data-feather="database"
+                    style="width: 20px; height: 20px"
+                  ></i>
+                  Firebase Database Settings
+                </h3>
+                <div
+                  style="
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                    gap: 1rem;
+                  "
+                >
+                  <div>
+                    <label
+                      style="
+                        display: block;
+                        font-weight: 600;
+                        margin-bottom: 0.5rem;
+                        color: var(--text-primary);
+                      "
+                      >API Key</label
+                    >
+                    <input
+                      type="text"
+                      id="firebaseApiKey"
+                      placeholder="AIzaSy..."
+                      style="
+                        width: 100%;
+                        padding: 0.5rem 0.75rem;
+                        border: 1px solid var(--border-color);
+                        border-radius: 0.5rem;
+                        font-size: 0.875rem;
+                        background-color: var(--bg-primary);
+                        color: var(--text-primary);
+                      "
+                    />
+                  </div>
+                  <div>
+                    <label
+                      style="
+                        display: block;
+                        font-weight: 600;
+                        margin-bottom: 0.5rem;
+                        color: var(--text-primary);
+                      "
+                      >Project ID</label
+                    >
+                    <input
+                      type="text"
+                      id="firebaseProjectId"
+                      placeholder="datalogger-xyz"
+                      style="
+                        width: 100%;
+                        padding: 0.5rem 0.75rem;
+                        border: 1px solid var(--border-color);
+                        border-radius: 0.5rem;
+                        font-size: 0.875rem;
+                        background-color: var(--bg-primary);
+                        color: var(--text-primary);
+                      "
+                    />
+                  </div>
+                  <div style="grid-column: 1 / -1">
+                    <label
+                      style="
+                        display: block;
+                        font-weight: 600;
+                        margin-bottom: 0.5rem;
+                        color: var(--text-primary);
+                      "
+                      >Database URL</label
+                    >
+                    <input
+                      type="text"
+                      id="firebaseDbUrl"
+                      placeholder="https://datalogger-xyz.firebaseio.com"
+                      style="
+                        width: 100%;
+                        padding: 0.5rem 0.75rem;
+                        border: 1px solid var(--border-color);
+                        border-radius: 0.5rem;
+                        font-size: 0.875rem;
+                        background-color: var(--bg-primary);
+                        color: var(--text-primary);
+                      "
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Display Preferences -->
+              <div
+                style="
+                  margin-bottom: 2rem;
+                  padding-top: 1.5rem;
+                  border-top: 1px solid var(--border-color);
+                "
+              >
+                <h3
+                  style="
+                    font-size: 1.125rem;
+                    font-weight: 700;
+                    margin-bottom: 1rem;
+                    color: var(--primary);
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                  "
+                >
+                  <i data-feather="eye" style="width: 20px; height: 20px"></i>
+                  Display Preferences
+                </h3>
+                <div
+                  style="
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                    gap: 1rem;
+                  "
+                >
+                  <div>
+                    <label
+                      style="
+                        display: block;
+                        font-weight: 600;
+                        margin-bottom: 0.5rem;
+                        color: var(--text-primary);
+                      "
+                      >Temperature Unit</label
+                    >
+                    <select
+                      id="tempUnit"
+                      style="
+                        width: 100%;
+                        padding: 0.5rem 0.75rem;
+                        border: 1px solid var(--border-color);
+                        border-radius: 0.5rem;
+                        font-size: 0.875rem;
+                        background-color: var(--bg-primary);
+                        color: var(--text-primary);
+                      "
+                    >
+                      <option value="C">Celsius (C)</option>
+                      <option value="F">Fahrenheit (F)</option>
+                      <option value="K">Kelvin (K)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label
+                      style="
+                        display: block;
+                        font-weight: 600;
+                        margin-bottom: 0.5rem;
+                        color: var(--text-primary);
+                      "
+                      >Time Format</label
+                    >
+                    <select
+                      id="timeFormat"
+                      style="
+                        width: 100%;
+                        padding: 0.5rem 0.75rem;
+                        border: 1px solid var(--border-color);
+                        border-radius: 0.5rem;
+                        font-size: 0.875rem;
+                        background-color: var(--bg-primary);
+                        color: var(--text-primary);
+                      "
+                    >
+                      <option value="24h">24-hour</option>
+                      <option value="12h">12-hour (AM/PM)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label
+                      style="
+                        display: block;
+                        font-weight: 600;
+                        margin-bottom: 0.5rem;
+                        color: var(--text-primary);
+                      "
+                      >Date Format</label
+                    >
+                    <select
+                      id="dateFormat"
+                      style="
+                        width: 100%;
+                        padding: 0.5rem 0.75rem;
+                        border: 1px solid var(--border-color);
+                        border-radius: 0.5rem;
+                        font-size: 0.875rem;
+                        background-color: var(--bg-primary);
+                        color: var(--text-primary);
+                      "
+                    >
+                      <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                      <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                      <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Chart Settings -->
+              <div
+                style="
+                  margin-bottom: 2rem;
+                  padding-top: 1.5rem;
+                  border-top: 1px solid var(--border-color);
+                "
+              >
+                <h3
+                  style="
+                    font-size: 1.125rem;
+                    font-weight: 700;
+                    margin-bottom: 1rem;
+                    color: var(--primary);
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                  "
+                >
+                  <i
+                    data-feather="bar-chart-2"
+                    style="width: 20px; height: 20px"
+                  ></i>
+                  Chart Settings
+                </h3>
+                <div
+                  style="
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                    gap: 1rem;
+                  "
+                >
+                  <div>
+                    <label
+                      style="
+                        display: block;
+                        font-weight: 600;
+                        margin-bottom: 0.5rem;
+                        color: var(--text-primary);
+                      "
+                      >Max Data Points</label
+                    >
+                    <input
+                      type="number"
+                      id="chartMaxPoints"
+                      placeholder="50"
+                      min="10"
+                      max="200"
+                      style="
+                        width: 100%;
+                        padding: 0.5rem 0.75rem;
+                        border: 1px solid var(--border-color);
+                        border-radius: 0.5rem;
+                        font-size: 0.875rem;
+                        background-color: var(--bg-primary);
+                        color: var(--text-primary);
+                      "
+                    />
+                  </div>
+                  <div>
+                    <label
+                      style="
+                        display: block;
+                        font-weight: 600;
+                        margin-bottom: 0.5rem;
+                        color: var(--text-primary);
+                      "
+                      >Update Interval (s)</label
+                    >
+                    <input
+                      type="number"
+                      id="chartUpdateInterval"
+                      placeholder="1"
+                      min="1"
+                      max="60"
+                      style="
+                        width: 100%;
+                        padding: 0.5rem 0.75rem;
+                        border: 1px solid var(--border-color);
+                        border-radius: 0.5rem;
+                        font-size: 0.875rem;
+                        background-color: var(--bg-primary);
+                        color: var(--text-primary);
+                      "
+                    />
+                  </div>
+                  <div
+                    style="
+                      display: flex;
+                      align-items: center;
+                      gap: 0.5rem;
+                      padding-top: 1.75rem;
+                    "
+                  >
+                    <input
+                      type="checkbox"
+                      id="chartSkipErrors"
+                      style="width: 18px; height: 18px; cursor: pointer"
+                    />
+                    <label
+                      for="chartSkipErrors"
+                      style="
+                        font-weight: 600;
+                        color: var(--text-primary);
+                        cursor: pointer;
+                      "
+                      >Skip error readings</label
+                    >
+                  </div>
+                </div>
+              </div>
+
+              <!-- Data Settings -->
+              <div
+                style="
+                  margin-bottom: 2rem;
+                  padding-top: 1.5rem;
+                  border-top: 1px solid var(--border-color);
+                "
+              >
+                <h3
+                  style="
+                    font-size: 1.125rem;
+                    font-weight: 700;
+                    margin-bottom: 1rem;
+                    color: var(--primary);
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                  "
+                >
+                  <i
+                    data-feather="hard-drive"
+                    style="width: 20px; height: 20px"
+                  ></i>
+                  Data Management
+                </h3>
+                <div
+                  style="
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                    gap: 1rem;
+                  "
+                >
+                  <div>
+                    <label
+                      style="
+                        display: block;
+                        font-weight: 600;
+                        margin-bottom: 0.5rem;
+                        color: var(--text-primary);
+                      "
+                      >Default Interval (s)</label
+                    >
+                    <input
+                      type="number"
+                      id="dataDefaultInterval"
+                      placeholder="5"
+                      min="1"
+                      style="
+                        width: 100%;
+                        padding: 0.5rem 0.75rem;
+                        border: 1px solid var(--border-color);
+                        border-radius: 0.5rem;
+                        font-size: 0.875rem;
+                        background-color: var(--bg-primary);
+                        color: var(--text-primary);
+                      "
+                    />
+                  </div>
+                  <div>
+                    <label
+                      style="
+                        display: block;
+                        font-weight: 600;
+                        margin-bottom: 0.5rem;
+                        color: var(--text-primary);
+                      "
+                      >Retention Days</label
+                    >
+                    <input
+                      type="number"
+                      id="dataRetentionDays"
+                      placeholder="30"
+                      min="1"
+                      style="
+                        width: 100%;
+                        padding: 0.5rem 0.75rem;
+                        border: 1px solid var(--border-color);
+                        border-radius: 0.5rem;
+                        font-size: 0.875rem;
+                        background-color: var(--bg-primary);
+                        color: var(--text-primary);
+                      "
+                    />
+                  </div>
+                  <div
+                    style="
+                      display: flex;
+                      align-items: center;
+                      gap: 0.5rem;
+                      padding-top: 1.75rem;
+                    "
+                  >
+                    <input
+                      type="checkbox"
+                      id="dataAutoSave"
+                      checked
+                      style="width: 18px; height: 18px; cursor: pointer"
+                    />
+                    <label
+                      for="dataAutoSave"
+                      style="
+                        font-weight: 600;
+                        color: var(--text-primary);
+                        cursor: pointer;
+                      "
+                      >Auto-save to Firebase</label
+                    >
+                  </div>
+                </div>
+              </div>
+
+              <!-- Action Buttons -->
+              <div
+                style="
+                  display: flex;
+                  gap: 1rem;
+                  padding-top: 1.5rem;
+                  border-top: 1px solid var(--border-color);
+                "
+              >
+                <button
+                  onclick="saveSettings()"
+                  style="
+                    padding: 0.75rem 1.5rem;
+                    background: var(--primary);
+                    color: white;
+                    border: none;
+                    border-radius: 0.5rem;
+                    font-weight: 700;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                  "
+                >
+                  Save Settings
+                </button>
+                <button
+                  onclick="exportSettings()"
+                  style="
+                    padding: 0.75rem 1.5rem;
+                    background: var(--bg-tertiary);
+                    color: var(--text-primary);
+                    border: 2px solid var(--border-color);
+                    border-radius: 0.5rem;
+                    font-weight: 700;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                  "
+                >
+                  Export Settings
+                </button>
+                <button
+                  onclick="importSettings()"
+                  style="
+                    padding: 0.75rem 1.5rem;
+                    background: var(--bg-tertiary);
+                    color: var(--text-primary);
+                    border: 2px solid var(--border-color);
+                    border-radius: 0.5rem;
+                    font-weight: 700;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                  "
+                >
+                  Import Settings
+                </button>
+                <button
+                  onclick="restoreDefaults()"
+                  style="
+                    padding: 0.75rem 1.5rem;
+                    background: var(--bg-tertiary);
+                    color: var(--error);
+                    border: 2px solid var(--error);
+                    border-radius: 0.5rem;
+                    font-weight: 700;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    margin-left: auto;
+                  "
+                >
+                  Restore Defaults
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <!-- Footer -->
+      <footer class="footer">
+        <div class="footer-item">
+          <i data-feather="clock" style="width: 16px; height: 16px"></i>
+          System Time: <strong id="footerTime">--:--:--</strong>
+        </div>
+        <div class="footer-item">DataLogger System</div>
+      </footer>
+    </div>
+
+    <!-- Interval Modal -->
+    <div class="modal" id="intervalModal">
+      <div class="modal-content" style="max-width: 400px">
+        <div class="modal-header">Set Periodic Interval</div>
+        <p
+          style="
+            text-align: center;
+            color: var(--text-muted);
+            margin-bottom: 1.5rem;
+          "
+        >
+          Select measurement interval
+        </p>
+
+        <div
+          style="
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+            margin-bottom: 2rem;
+          "
+        >
+          <!-- Minutes Picker -->
+          <div style="text-align: center">
+            <div
+              style="
+                font-weight: 600;
+                margin-bottom: 0.5rem;
+                color: var(--text-secondary);
+              "
+            >
+              Minutes
+            </div>
+            <button
+              class="btn btn-primary"
+              id="minuteUpBtn"
+              style="width: 100%; margin-bottom: 0.5rem"
+            >
+              <i data-feather="chevron-up"></i>
+            </button>
+            <div
+              style="
+                background: var(--bg-tertiary);
+                border: 2px solid var(--primary);
+                border-radius: 0.5rem;
+                padding: 2rem 1rem;
+                font-size: 2rem;
+                font-weight: 700;
+                color: white;
+                min-width: 100px;
+              "
+            >
+              <span id="minuteDisplay">00</span>
+            </div>
+            <button
+              class="btn btn-primary"
+              id="minuteDownBtn"
+              style="width: 100%; margin-top: 0.5rem"
+            >
+              <i data-feather="chevron-down"></i>
+            </button>
+          </div>
+
+          <!-- Seconds Picker -->
+          <div style="text-align: center">
+            <div
+              style="
+                font-weight: 600;
+                margin-bottom: 0.5rem;
+                color: var(--text-secondary);
+              "
+            >
+              Seconds
+            </div>
+            <button
+              class="btn btn-primary"
+              id="secondUpBtn"
+              style="width: 100%; margin-bottom: 0.5rem"
+            >
+              <i data-feather="chevron-up"></i>
+            </button>
+            <div
+              style="
+                background: var(--bg-tertiary);
+                border: 2px solid var(--primary);
+                border-radius: 0.5rem;
+                padding: 2rem 1rem;
+                font-size: 2rem;
+                font-weight: 700;
+                color: white;
+                min-width: 100px;
+              "
+            >
+              <span id="secondDisplay">05</span>
+            </div>
+            <button
+              class="btn btn-primary"
+              id="secondDownBtn"
+              style="width: 100%; margin-top: 0.5rem"
+            >
+              <i data-feather="chevron-down"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="modal-buttons">
+          <button class="btn btn-secondary" id="intervalCancelBtn">
+            Cancel
+          </button>
+          <button class="btn btn-primary" id="intervalSetBtn">
+            Set Interval
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Configuration Modal -->
+    <div class="modal" id="configModal">
+      <div class="modal-content">
+        <div class="modal-header">Configuration Settings</div>
+
+        <h3
+          style="
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-top: 1.5rem;
+            margin-bottom: 1rem;
+            color: var(--primary);
+          "
+        >
+          MQTT Broker Configuration
+        </h3>
+
+        <div class="form-group">
+          <label class="form-label">IP Address:</label>
+          <input
+            type="text"
+            class="form-input"
+            id="mqttIp"
+            value="127.0.0.1"
+            placeholder="192.168.1.100"
+          />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">WebSocket Port:</label>
+          <input
+            type="text"
+            class="form-input"
+            id="mqttPort"
+            value="8083"
+            placeholder="8083"
+          />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">WebSocket Path:</label>
+          <input
+            type="text"
+            class="form-input"
+            id="mqttPath"
+            value="/mqtt"
+            placeholder="/mqtt"
+          />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Username:</label>
+          <input
+            type="text"
+            class="form-input"
+            id="mqttUser"
+            value="DataLogger"
+            placeholder="Required by broker"
+          />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Password (optional):</label>
+          <input
+            type="password"
+            class="form-input"
+            id="mqttPass"
+            placeholder="Leave empty if no password"
+          />
+        </div>
+
+        <h3
+          style="
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-top: 1.5rem;
+            margin-bottom: 1rem;
+            color: var(--primary);
+          "
+        >
+          Firebase Configuration
+        </h3>
+
+        <div class="form-group">
+          <label class="form-label">Database URL:</label>
+          <input
+            type="text"
+            class="form-input"
+            id="firebaseUrl"
+            placeholder="https://your-project.firebaseio.com"
+          />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">API Key:</label>
+          <input
+            type="text"
+            class="form-input"
+            id="firebaseApiKey"
+            placeholder="Your Firebase API Key"
+          />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Project ID:</label>
+          <input
+            type="text"
+            class="form-input"
+            id="firebaseProject"
+            placeholder="your-project-id"
+          />
+        </div>
+
+        <div class="modal-buttons">
+          <button class="btn btn-secondary" id="cancelBtn">Cancel</button>
+          <button class="btn btn-primary" id="saveBtn">Save & Connect</button>
+        </div>
+      </div>
+    </div>
+    <!-- External JavaScript -->
+    <script src="app.js"></script>
+  </body>
 </html>

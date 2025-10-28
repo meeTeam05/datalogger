@@ -54,9 +54,6 @@ dkms.conf
 # debug information files
 *.dwo
 
-# Others
-.vscode
-
 # Broker
 broker/data
 broker/log
@@ -112,6 +109,19 @@ firmware/ESP32/**/*.map
 
 # Custom
 firmware/ESP32/pytest_mqtt5.py
+firmware/ESP32/sdkconfig
+firmware/ESP32/sdkconfig.old
+firmware/ESP32/sdkconfig.defaults
 
-# ignore
-.gitignore
+# Others
+.vscode/
+**/.vscode/
+
+.cache/
+**/.cache/
+
+.metadata/
+**/.metadata/
+
+**/managed_components/**
+firmware/ESP32/dependencies.lock

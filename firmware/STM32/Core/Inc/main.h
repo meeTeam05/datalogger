@@ -57,6 +57,20 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define SD_CS_Pin GPIO_PIN_4
+#define SD_CS_GPIO_Port GPIOA
+#define SD_CLK_Pin GPIO_PIN_5
+#define SD_CLK_GPIO_Port GPIOA
+#define SD_MISO_Pin GPIO_PIN_6
+#define SD_MISO_GPIO_Port GPIOA
+#define SD_MOSI_Pin GPIO_PIN_7
+#define SD_MOSI_GPIO_Port GPIOA
+#define ILI9225_CS_Pin GPIO_PIN_12
+#define ILI9225_CS_GPIO_Port GPIOB
+#define ILI9225_RST_Pin GPIO_PIN_8
+#define ILI9225_RST_GPIO_Port GPIOA
+#define ILI9225_RS_Pin GPIO_PIN_11
+#define ILI9225_RS_GPIO_Port GPIOA
 
 /* USER CODE BEGIN Private defines */
 

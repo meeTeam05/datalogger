@@ -1,0 +1,54 @@
+menu "STM32 Communication (UART)"
+
+    config MQTT_UART_PORT_NUM
+        int "UART port number for STM32 communication"
+        range 0 2 if IDF_TARGET_ESP32 || IDF_TARGET_ESP32S3
+        default 2 if IDF_TARGET_ESP32 || IDF_TARGET_ESP32S3
+        range 0 1
+        default 1
+        help
+            UART port number for communicating with STM32.
+            This is separate from UART0 (console) to avoid mixing logs.
+            UART0: Console/Debug logs
+            UART1/UART2: STM32 communication
+
+    config MQTT_UART_BAUD_RATE
+        int "STM32 UART communication speed"
+        range 9600 921600
+        default 115200
+        help
+            UART communication speed for STM32 communication.
+            Must match STM32 UART configuration.
+            Common values: 9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600
+
+    config MQTT_UART_TXD
+        int "STM32 UART TXD pin number"
+        range 0 39 if IDF_TARGET_ESP32
+        range 0 46 if IDF_TARGET_ESP32S2
+        range 0 48 if IDF_TARGET_ESP32S3
+        range 0 21 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2
+        default 17 if IDF_TARGET_ESP32
+        default 17 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+        default 7 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2
+        help
+            GPIO number for STM32 UART TX pin.
+            Connect this to STM32 RX pin.
+            ESP32: Any GPIO except input-only pins (34-39)
+            Recommended: GPIO 16, 17, 25, 26, 27
+
+    config MQTT_UART_RXD
+        int "STM32 UART RXD pin number"
+        range 0 39 if IDF_TARGET_ESP32
+        range 0 46 if IDF_TARGET_ESP32S2
+        range 0 48 if IDF_TARGET_ESP32S3
+        range 0 21 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2
+        default 16 if IDF_TARGET_ESP32
+        default 16 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+        default 6 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2
+        help
+            GPIO number for STM32 UART RX pin.
+            Connect this to STM32 TX pin.
+            ESP32: Any GPIO
+            Recommended: GPIO 16, 17, 25, 26, 27
+
+endmenu
