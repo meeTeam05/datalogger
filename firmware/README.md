@@ -591,7 +591,7 @@ mosquitto_pub -t "datalogger/esp32/relay" -m "RELAY ON"
 # Turn off relay
 mosquitto_pub -t "datalogger/esp32/relay" -m "RELAY OFF"
 
-# Check GPIO4 with multimeter or LED
+# Check GPIO18 with multimeter or LED
 ```
 
 ### System Integration Test
