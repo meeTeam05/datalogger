@@ -1014,5 +1014,4 @@ mosquitto_pub -h localhost -p 1883 -u DataLogger -P your_password -t "test" -m "
 
 ## License
 
-- This component is part of the DATALOGGER project.
-- See the LICENSE.md file in the project root directory for licensing information.
+This component is part of the DATALOGGER project. See the LICENSE.md file in the project root directory for licensing information.
