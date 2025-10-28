@@ -3,6 +3,7 @@
 A lightweight, efficient JSON parser specifically designed for processing sensor data from STM32 microcontrollers.
 
 ## Component Files
+
 ```
 json_sensor_parser/
 ├── json_sensor_parser.h         # Public API header with structure and function declarations
