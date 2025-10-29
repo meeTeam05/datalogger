@@ -337,8 +337,6 @@ flowchart LR
     style Critical fill:#FF6B6B, color:#000000
 ```
 
----
-
 **Important Notes:**
 
 - **Green nodes**: Start/end points
