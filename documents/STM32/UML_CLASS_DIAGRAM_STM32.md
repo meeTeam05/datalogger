@@ -1,6 +1,6 @@
-# STM32 Data Logger - UML Class Diagram
+# STM32 Data Logger - UML Class Diagrams
 
-This document provides the UML class diagrams showing the structure and relationships of the STM32 firmware components.
+This document provides UML class diagrams describing the structure and relationships of the STM32 firmware components.
 
 ## Complete System Class Diagram
 
@@ -255,7 +255,7 @@ classDiagram
     UART --> RingBuffer : contains rx_buffer
     UART --> CommandExecute : calls
     
-    CommandExecute --> CommandTable : searches
+    CommandExecute --> CommandTable : queries
     CommandTable --> CommandFunction : contains array of
     CommandExecute --> CommandParser : dispatches to
     
@@ -600,7 +600,7 @@ classDiagram
     SDCardManagerPrivate --> sd_buffer_metadata_t : maintains
 ```
 
-## Display Components
+## Display Component
 
 ```mermaid
 classDiagram
@@ -815,21 +815,21 @@ stateDiagram-v2
         MQTT_Connected --> MQTT_Disconnected : MQTT DISCONNECTED command
         
         state MQTT_Connected {
-            [*] --> SendingLive
-            SendingLive --> SendingBuffered : Live data sent
-            SendingBuffered --> SendingLive : Buffer empty
+            [*] --> Direct_Send
+            Direct_Send --> Send_Buffer : Direct data sent
+            Send_Buffer --> Direct_Send : Buffer empty
         }
         
         SD_Ready --> SD_Writing : MQTT disconnected
         SD_Writing --> SD_Ready : Data written
-        SD_Ready --> SD_Reading : MQTT connected & has buffered data
+        SD_Ready --> SD_Reading : MQTT connected & buffered data exists
         SD_Reading --> SD_Ready : Record read
         
         Display_Ready --> Display_Updating : Display update triggered
         Display_Updating --> Display_Ready : Update complete
     }
     
-    Initialized --> Error : HAL Error / Sensor Failure
+    Initialized --> Error : HAL Error / Sensor Error
     Error --> Initialized : Reset/Recovery
 ```
 
@@ -838,25 +838,25 @@ stateDiagram-v2
 **Key Design Patterns:**
 
 1. **Service Locator**: Command table acts as a registry of command handlers
-2. **Strategy Pattern**: Different command parsers implement different handling strategies
+2. **Strategy Pattern**: Different command parsers implement different processing strategies
 3. **State Pattern**: SHT3X driver maintains state (IDLE, SINGLE_SHOT, PERIODIC_*); MQTT manager tracks connection state
 4. **Singleton**: DataManager uses static internal state (g_datalogger_state); WiFi Manager uses global mqtt_current_state
 5. **Observer**: UART interrupt observes hardware and notifies ring buffer
 6. **Producer-Consumer**: Ring buffer mediates between interrupt (producer) and main loop (consumer); SD buffer mediates between STM32 (producer) and ESP32 (consumer)
-7. **Circular Buffer**: SD card uses 204,800-record circular buffer for offline data storage
-8. **Facade**: Display library provides simplified interface to ILI9225 driver
+7. **Circular Buffer**: SD card uses circular buffer of 204,800 records for offline data storage
+8. **Facade**: Display library provides simple interface to ILI9225 driver
 9. **Template Method**: DataManager_Print() uses template for JSON formatting regardless of MQTT state
 
 **Key Relationships:**
 
-- **Composition** (solid diamond): UART contains ring_buffer_t; SDCardManager contains metadata
+- **Composition** (filled diamond): UART contains ring_buffer_t; SDCardManager contains metadata
 - **Association** (solid line): main uses SHT3X driver, SD Manager, Display
 - **Dependency** (dashed line): Parser depends on Driver; DataManager depends on WiFiManager state
 - **Realization** (dashed line with triangle): Handlers implement ICommandHandler
 
 **Critical State Management:**
 
-- **mqtt_current_state**: Global variable shared between main loop and command parsers (default: MQTT_STATE_DISCONNECTED)
+- **mqtt_current_state**: Global variable shared between main loop and command parser (default: MQTT_STATE_DISCONNECTED)
 - **data_ready flag**: Controls when DataManager_Print() outputs data
 - **SD circular buffer**: write_index, read_index, count maintain buffer state across power cycles
 - **force_display_update**: Triggers immediate display refresh (e.g., after SET TIME command)
@@ -865,4 +865,4 @@ stateDiagram-v2
 
 1. **MQTT Connected**: Sensor data → DataManager → UART → ESP32 (+ send buffered SD data)
 2. **MQTT Disconnected**: Sensor data → DataManager → SD Card Manager → SD card (circular buffer)
-3. **MQTT Reconnected**: Buffered SD data → sensor_json_format() → UART → ESP32 (100ms interval between records)
+3. **MQTT Reconnection**: Buffered SD data → sensor_json_format() → UART → ESP32 (100ms spacing between records)

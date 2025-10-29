@@ -2,11 +2,11 @@
 
 This document illustrates the time-ordered interactions between components in the STM32 firmware.
 
-## Single Shot Measurement Sequence
+## Single Measurement Sequence
 
 ```mermaid
 sequenceDiagram
-    participant User
+    participant User as User
     participant UART as UART Interface
     participant RingBuf as Ring Buffer
     participant CmdExec as Command Execute
@@ -27,7 +27,7 @@ sequenceDiagram
     
     RingBuf->>CmdExec: UART_Handle() detects complete line
     activate CmdExec
-    CmdExec->>CmdExec: Tokenize: ["SINGLE"]
+    CmdExec->>CmdExec: Parse: ["SINGLE"]
     CmdExec->>CmdExec: Find in cmdTable[]
     CmdExec->>Parser: SINGLE_PARSER(argc=1, argv)
     deactivate CmdExec
@@ -41,7 +41,7 @@ sequenceDiagram
     Driver->>Driver: Select I2C command: 0x2400
     Driver->>I2C: HAL_I2C_Master_Transmit(0x2400)
     activate I2C
-    I2C->>Sensor: I2C Write [0x24, 0x00]
+    I2C->>Sensor: Write I2C [0x24, 0x00]
     activate Sensor
     deactivate I2C
     
@@ -55,13 +55,13 @@ sequenceDiagram
     I2C->>Driver: Raw data buffer
     deactivate I2C
     
-    Driver->>Driver: Validate CRC for temperature
-    Driver->>Driver: Validate CRC for humidity
+    Driver->>Driver: Check temperature CRC
+    Driver->>Driver: Check humidity CRC
     
-    alt I2C OK and CRC Valid
+    alt I2C OK and CRC valid
         Driver->>Driver: Convert raw → 25.50°C, 60.00%
         Driver->>Parser: Return SHT3X_OK, temp=25.50, hum=60.00
-    else I2C Error or CRC Failed
+    else I2C error or CRC failed
         Driver->>Parser: Return SHT3X_ERROR, temp=0.0, hum=0.0
     end
     deactivate Driver
@@ -86,7 +86,7 @@ sequenceDiagram
     RTC->>DM: Return time structure
     deactivate RTC
     DM->>DM: Convert to Unix timestamp: 1729699200
-    DM->>DM: Sanitize floats (check NaN/Inf)
+    DM->>DM: Sanitize float (check NaN/Inf)
     
     DM->>MQTT: Check mqtt_current_state
     activate MQTT
@@ -106,7 +106,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant User
+    participant User as User
     participant UART as UART Interface
     participant CmdExec as Command Execute
     participant Parser as PERIODIC_ON_PARSER
@@ -118,11 +118,11 @@ sequenceDiagram
     
     User->>UART: "PERIODIC ON\n"
     activate UART
-    UART->>CmdExec: Complete command received
+    UART->>CmdExec: Receive complete command
     deactivate UART
     
     activate CmdExec
-    CmdExec->>CmdExec: Tokenize: ["PERIODIC", "ON"]
+    CmdExec->>CmdExec: Parse: ["PERIODIC", "ON"]
     CmdExec->>Parser: PERIODIC_ON_PARSER(argc=2, argv)
     deactivate CmdExec
     
@@ -135,11 +135,11 @@ sequenceDiagram
     Driver->>Driver: Build I2C command: 0x2032 (1MPS HIGH)
     Driver->>I2C: HAL_I2C_Master_Transmit(0x2032)
     activate I2C
-    I2C->>Sensor: I2C Write [0x20, 0x32]
+    I2C->>Sensor: Write I2C [0x20, 0x32]
     activate Sensor
     Note over Sensor: Enter periodic mode @ 1Hz
     deactivate Sensor
-    I2C->>Driver: ACK received
+    I2C->>Driver: Receive ACK
     deactivate I2C
     
     Driver->>Driver: Update currentState = SHT3X_PERIODIC_1MPS
@@ -152,10 +152,10 @@ sequenceDiagram
     I2C->>Driver: Raw data
     deactivate I2C
     
-    alt I2C OK and CRC Valid
+    alt I2C OK and CRC valid
         Driver->>Driver: Parse & validate data
         Driver->>Parser: Return SHT3X_OK, temp=25.50, hum=60.00
-    else I2C Error or CRC Failed
+    else I2C error or CRC failed
         Driver->>Parser: Return SHT3X_ERROR, temp=0.0, hum=0.0
     end
     deactivate Driver
@@ -210,7 +210,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant User
+    participant User as User
     participant UART as UART Interface
     participant CmdExec as Command Execute
     participant Parser as PERIODIC_OFF_PARSER
@@ -223,11 +223,11 @@ sequenceDiagram
     
     User->>UART: "PERIODIC OFF\n"
     activate UART
-    UART->>CmdExec: Complete command received
+    UART->>CmdExec: Receive complete command
     deactivate UART
     
     activate CmdExec
-    CmdExec->>CmdExec: Tokenize: ["PERIODIC", "OFF"]
+    CmdExec->>CmdExec: Parse: ["PERIODIC", "OFF"]
     CmdExec->>Parser: PERIODIC_OFF_PARSER(argc=2, argv)
     deactivate CmdExec
     
@@ -239,11 +239,11 @@ sequenceDiagram
     Driver->>Driver: Build stop command: 0x3093
     Driver->>I2C: HAL_I2C_Master_Transmit(0x3093)
     activate I2C
-    I2C->>Sensor: I2C Write [0x30, 0x93]
+    I2C->>Sensor: Write I2C [0x30, 0x93]
     activate Sensor
     Note over Sensor: Exit periodic mode → IDLE
     deactivate Sensor
-    I2C->>Driver: ACK received
+    I2C->>Driver: Receive ACK
     deactivate I2C
     
     Driver->>Driver: Update currentState = SHT3X_IDLE
@@ -274,7 +274,7 @@ sequenceDiagram
     participant CmdTable as Command Table
     participant Parser as Parser Function
     
-    HW->>ISR: Byte received interrupt
+    HW->>ISR: Receive byte interrupt
     activate ISR
     ISR->>RingBuf: RingBuffer_Write(byte)
     activate RingBuf
@@ -292,7 +292,7 @@ sequenceDiagram
     loop Until no complete line
         MainLoop->>RingBuf: RingBuffer_Available()
         activate RingBuf
-        RingBuf->>MainLoop: bytes available
+        RingBuf->>MainLoop: available bytes
         deactivate RingBuf
         
         MainLoop->>RingBuf: RingBuffer_Peek()
@@ -301,17 +301,17 @@ sequenceDiagram
         deactivate RingBuf
         
         alt Is newline character
-            MainLoop->>MainLoop: Line complete, null terminate
+            MainLoop->>MainLoop: Complete line, null terminate
             MainLoop->>CmdExec: COMMAND_EXECUTE(line_buffer)
             activate CmdExec
             
-            CmdExec->>CmdExec: Tokenize command string
+            CmdExec->>CmdExec: Parse command string
             CmdExec->>CmdExec: Build command from tokens
             
             CmdExec->>CmdTable: Find matching command
             activate CmdTable
-            CmdTable->>CmdTable: Iterate through cmdTable[]
-            Note over CmdTable: Search for: SINGLE, PERIODIC ON/OFF,<br/>SET TIME, SET PERIODIC INTERVAL,<br/>MQTT CONNECTED/DISCONNECTED, SD CLEAR
+            CmdTable->>CmdTable: Loop through cmdTable[]
+            Note over CmdTable: Search: SINGLE, PERIODIC ON/OFF,<br/>SET TIME, SET PERIODIC INTERVAL,<br/>MQTT CONNECTED/DISCONNECTED, SD CLEAR
             CmdTable->>CmdExec: Return result
             deactivate CmdTable
             
@@ -332,7 +332,7 @@ sequenceDiagram
             deactivate CmdExec
             MainLoop->>MainLoop: Clear line buffer
         else Not newline
-            MainLoop->>MainLoop: Append to line buffer
+            MainLoop->>MainLoop: Add to line buffer
             MainLoop->>RingBuf: RingBuffer_Read()
         end
     end
@@ -352,7 +352,7 @@ sequenceDiagram
     participant MQTT as MQTT State
     participant SD as SD Card Manager
     participant UART as UART TX
-    participant User
+    participant User as User
     
     Parser->>DM: DataManager_UpdateSingle(temp, hum)
     activate DM
@@ -374,7 +374,7 @@ sequenceDiagram
     else data_ready == true
         DM->>RTC: DS3231_Get_Time(&g_ds3231, &current_time)
         activate RTC
-        RTC->>RTC: I2C read time registers
+        RTC->>RTC: Read I2C time registers
         RTC->>DM: Return tm structure
         deactivate RTC
         
@@ -442,7 +442,7 @@ sequenceDiagram
     
     Driver->>HAL: HAL_I2C_Master_Transmit(&hi2c1, addr, data, size, 100)
     activate HAL
-    HAL->>I2C: Configure and start I2C transfer
+    HAL->>I2C: Configure and start I2C transmission
     activate I2C
     I2C->>Sensor: Send START + ADDRESS + DATA
     
@@ -450,7 +450,7 @@ sequenceDiagram
         activate Sensor
         Sensor->>I2C: ACK
         deactivate Sensor
-        I2C->>HAL: Transfer complete
+        I2C->>HAL: Transmission complete
         deactivate I2C
         HAL->>Driver: Return HAL_OK
         deactivate HAL
@@ -471,9 +471,9 @@ sequenceDiagram
         Driver->>Driver: Log error
         Driver->>Parser: Return SHT3X_ERROR, temp=0.0, hum=0.0
         Parser->>DM: DataManager_Update(0.0, 0.0)
-        Note over DM: Stores 0.0 values to indicate sensor failure
+        Note over DM: Store 0.0 values to indicate sensor error
         
-    else NACK received
+    else Receive NACK
         activate Sensor
         Sensor->>I2C: NACK (busy/error)
         deactivate Sensor
@@ -497,7 +497,7 @@ sequenceDiagram
         Sensor->>I2C: Send data with incorrect CRC
         deactivate Sensor
         activate I2C
-        I2C->>HAL: Transfer complete
+        I2C->>HAL: Transmission complete
         deactivate I2C
         activate HAL
         HAL->>Driver: Return HAL_OK
@@ -533,7 +533,7 @@ sequenceDiagram
     
     ESP32->>UART: "MQTT CONNECTED\n"
     activate UART
-    UART->>CmdExec: Complete command received
+    UART->>CmdExec: Receive complete command
     deactivate UART
     
     activate CmdExec
@@ -584,7 +584,7 @@ sequenceDiagram
     
     ESP32->>UART: "MQTT DISCONNECTED\n"
     activate UART
-    UART->>CmdExec: Complete command received
+    UART->>CmdExec: Receive complete command
     deactivate UART
     
     activate CmdExec
@@ -607,7 +607,7 @@ sequenceDiagram
     participant MCU as STM32 MCU
     participant HAL as HAL Library
     participant I2C as I2C Peripheral
-    participant SPI as SPI Peripherals
+    participant SPI as SPI Peripheral
     participant UART as UART Peripheral
     participant SHT3X as SHT3X Sensor
     participant RTC as DS3231 RTC
@@ -696,7 +696,7 @@ sequenceDiagram
     SD->>SD: Initialize SPI & SD card
     SD->>SD: Read metadata from block 1
     
-    alt SD card initialized successfully
+    alt SD card initialization successful
         SD->>MCU: Return true
     else SD card failed
         SD->>UART: Print "[WARN] SD Card NOT available!"
