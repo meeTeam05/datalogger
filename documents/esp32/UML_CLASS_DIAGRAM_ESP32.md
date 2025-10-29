@@ -1,8 +1,8 @@
-# ESP32 IoT Bridge - UML Class Diagram
+# ESP32 Firmware - UML Class Diagrams
 
-This document provides the UML class diagrams showing the structure and relationships of the ESP32 firmware components.
+This document provides UML class diagrams showing the structure and relationships of components within the ESP32 firmware.
 
-## Complete System Class Diagram
+## Overall System Class Diagram
 
 ```mermaid
 classDiagram
@@ -201,26 +201,26 @@ classDiagram
 
     STM32_UART --> RingBuffer : contains
 
-    JSON_Sensor_Parser --> sensor_data_t : produces
+    JSON_Sensor_Parser --> sensor_data_t : creates
     JSON_Sensor_Parser --> sensor_mode_t : uses
     JSON_Sensor_Parser ..> JSON_Utils : may use
 
     main --> sensor_data_t : processes
 ```
 
-## Component Dependencies
+## Component Dependencies Diagram
 
 ```mermaid
 graph TB
-    Main["main.c"]
-    WiFi["WiFi Manager"]
-    UART["STM32 UART"]
-    MQTT["MQTT Handler"]
-    Relay["Relay Control"]
-    Parser["JSON Sensor Parser"]
-    Utils["JSON Utils"]
-    Button["Button Handler"]
-    RingBuf["Ring Buffer"]
+    Main[main.c]
+    WiFi[WiFi Manager]
+    UART[STM32 UART]
+    MQTT[MQTT Handler]
+    Relay[Relay Control]
+    Parser[JSON Sensor Parser]
+    Utils[JSON Utils]
+    Button[Button Handler]
+    RingBuf[Ring Buffer]
 
     Main --> WiFi
     Main --> UART
@@ -231,20 +231,20 @@ graph TB
     Main --> Utils
 
     UART --> RingBuf
-    Parser --> Utils
+    Parser ..> Utils
 
-    WiFi -.-> Main
-    UART -.-> Main
-    MQTT -.-> Main
-    Relay -.-> Main
-    Parser -.-> Main
-    Button -.-> Main
+    WiFi -.->|wifi_event_callback| Main
+    UART -.->|stm32_data_callback| Main
+    MQTT -.->|mqtt_data_callback| Main
+    Relay -.->|relay_state_callback| Main
+    Parser -.->|sensor_data_callback| Main
+    Button -.->|button_press_callback| Main
 
-    style Main fill:#90EE90, color:#000000
-    style WiFi fill:#87CEEB, color:#000000
-    style MQTT fill:#87CEEB, color:#000000
-    style Parser fill:#FFD700, color:#000000
-    style Relay fill:#DDA0DD, color:#000000
+    style Main fill:#90EE90
+    style WiFi fill:#87CEEB
+    style MQTT fill:#87CEEB
+    style Parser fill:#FFD700
+    style Relay fill:#DDA0DD
 ```
 
 ## Object Lifecycle Diagram
@@ -264,7 +264,7 @@ stateDiagram-v2
         [*] --> Components_Init
 
         WiFi_Init --> WiFi_Connecting : WiFi_Connect()
-        WiFi_Connecting --> WiFi_Connected : connection success
+        WiFi_Connecting --> WiFi_Connected : connection successful
         WiFi_Connecting --> WiFi_Failed : max retries
         WiFi_Connected --> WiFi_Disconnected : connection lost
         WiFi_Disconnected --> WiFi_Connecting : retry
@@ -289,38 +289,38 @@ stateDiagram-v2
     Initialized --> Running : start_services()
 
     state Running {
-        [*] --> MainLoop
+        [*] --> Main_Loop
 
-        MainLoop --> MonitorWiFi
-        MonitorWiFi --> CheckMQTT
-        CheckMQTT --> ProcessCallbacks
-        ProcessCallbacks --> MainLoop
+        Main_Loop --> Monitor_WiFi
+        Monitor_WiFi --> Check_MQTT
+        Check_MQTT --> Process_Callbacks
+        Process_Callbacks --> Main_Loop
 
-        state ProcessCallbacks {
-            [*] --> WaitEvent
-            WaitEvent --> WiFiEvent : WiFi state change
-            WaitEvent --> MQTTEvent : MQTT message
-            WaitEvent --> UARTEvent : STM32 data
-            WaitEvent --> ButtonEvent : Button press
-            WaitEvent --> RelayEvent : Relay state change
+        state Process_Callbacks {
+            [*] --> Wait_Event
+            Wait_Event --> WiFi_Event : WiFi state change
+            Wait_Event --> MQTT_Event : MQTT message
+            Wait_Event --> UART_Event : STM32 data
+            Wait_Event --> Button_Event : Button press
+            Wait_Event --> Relay_Event : Relay state change
 
-            WiFiEvent --> [*]
-            MQTTEvent --> [*]
-            UARTEvent --> [*]
-            ButtonEvent --> [*]
-            RelayEvent --> [*]
+            WiFi_Event --> [*]
+            MQTT_Event --> [*]
+            UART_Event --> [*]
+            Button_Event --> [*]
+            Relay_Event --> [*]
         }
     }
 
     Running --> [*] : system shutdown
 ```
 
-## Data Flow Diagram
+## ESP32 Data Flow Diagram
 
 ```mermaid
 graph LR
-    subgraph STM32_to_Cloud
-        STM32[STM32 Hardware]
+    subgraph STM32_to_Cloud["STM32 → Cloud"]
+        STM32_HW[STM32 Hardware]
         UART_RX[UART RX]
         RingBuf[Ring Buffer]
         LineExtract[Line Extraction]
@@ -330,7 +330,7 @@ graph LR
         MQTTPub[MQTT Publish]
         Broker[MQTT Broker]
 
-        STM32 -->|UART 115200| UART_RX
+        STM32_HW -->|UART 115200| UART_RX
         UART_RX --> RingBuf
         RingBuf --> LineExtract
         LineExtract --> JSONParse
@@ -340,105 +340,96 @@ graph LR
         MQTTPub --> Broker
     end
 
-    subgraph Cloud_to_STM32
-        Web[Web Interface]
+    subgraph Cloud_to_STM32["Cloud → STM32"]
         Broker2[MQTT Broker]
         MQTTSub[MQTT Subscribe]
         TopicRoute[Topic Router]
         UART_TX[UART TX]
-        STM32_2[STM32 Hardware]
+        STM32_HW2[STM32 Hardware]
 
-        Web --> Broker2
         Broker2 --> MQTTSub
         MQTTSub --> TopicRoute
         TopicRoute -->|command| UART_TX
-        UART_TX -->|UART 115200| STM32_2
+        UART_TX -->|UART 115200| STM32_HW2
     end
 
-    subgraph Relay_Control
-        WebRelay[Web / Button]
+    subgraph Relay_Control["Relay Control"]
         MQTTCtrl[MQTT Control]
         RelayHW[Relay Hardware]
         StateUpdate[State Update]
         StatePub[State Publish]
         BrokerState[MQTT Broker]
 
-        WebRelay --> MQTTCtrl
         MQTTCtrl --> RelayHW
         RelayHW --> StateUpdate
         StateUpdate --> StatePub
         StatePub --> BrokerState
     end
 
-    style STM32 fill:#90EE90, color:#000000
-    style Broker fill:#87CEEB, color:#000000
-    style Web fill:#FFD700, color:#000000
-    style RelayHW fill:#DDA0DD, color:#000000
+    style STM32_HW fill:#90EE90
+    style Broker fill:#87CEEB
+    style RelayHW fill:#DDA0DD
 ```
 
 ## MQTT Topic Architecture
 
 ```mermaid
 graph TB
-    subgraph MQTT_Broker[MQTT Broker: 192.168.1.39:1883]
-        subgraph Subscribe[ESP32 Subscribes To]
+    subgraph MQTT_Broker["MQTT Broker: 192.168.1.39:1883"]
+        subgraph Subscribe["ESP32 Subscribe"]
             T1[datalogger/stm32/command]
             T2[datalogger/esp32/relay/control]
             T3[datalogger/esp32/system/state]
         end
 
-        subgraph Publish[ESP32 Publishes To]
+        subgraph Publish["ESP32 Publish"]
             T4[datalogger/stm32/single/data]
             T5[datalogger/stm32/periodic/data]
             T6[datalogger/esp32/system/state]
         end
     end
 
-    Web[Web Interface] -->|commands| T1
-    Web -->|relay ON/OFF| T2
-    Web -->|state sync request| T3
-
     T1 -->|forward to STM32| ESP32_1[ESP32]
     T2 -->|process relay command| ESP32_2[ESP32]
-    T3 -->|respond with state| ESP32_3[ESP32]
+    T3 -->|respond state| ESP32_3[ESP32]
 
     ESP32_4[ESP32] -->|sensor data| T4
     ESP32_5[ESP32] -->|sensor data| T5
-    ESP32_6[ESP32] -->|state changes| T6
+    ESP32_6[ESP32] -->|state change| T6
 
-    T4 --> Web2[Web Interface]
-    T5 --> Web2
-    T6 --> Web2
-
-    style MQTT_Broker fill:#87CEEB, color:#000000
-    style Web fill:#FFD700, color:#000000
-    style ESP32_1 fill:#90EE90, color:#000000
-    style ESP32_2 fill:#90EE90, color:#000000
-    style ESP32_3 fill:#90EE90, color:#000000
-    style ESP32_4 fill:#90EE90, color:#000000
-    style ESP32_5 fill:#90EE90, color:#000000
-    style ESP32_6 fill:#90EE90, color:#000000
+    style MQTT_Broker fill:#87CEEB
+    style ESP32_1 fill:#90EE90
+    style ESP32_2 fill:#90EE90
+    style ESP32_3 fill:#90EE90
+    style ESP32_4 fill:#90EE90
+    style ESP32_5 fill:#90EE90
+    style ESP32_6 fill:#90EE90
 ```
 
-## Hardware GPIO Configuration
+## GPIO Hardware Configuration
 
 ```mermaid
 graph LR
     subgraph ESP32_WROOM_32
-        subgraph UART1[UART1 - STM32]
+        subgraph UART1["UART1 - STM32"]
             TX[GPIO17 - TX]
             RX[GPIO16 - RX]
         end
 
-        subgraph Relay_GPIO[Relay Control]
+        subgraph Relay_GPIO["Relay Control"]
             R[GPIO4 - Relay]
         end
 
-        subgraph Button_GPIO[Button Inputs]
+        subgraph Button_GPIO["Button Inputs"]
             B1[GPIO5 - Relay Toggle]
             B2[GPIO16 - Single Measure]
             B3[GPIO17 - Periodic Toggle]
             B4[GPIO4 - Interval Adjust]
+        end
+
+        subgraph LED_GPIO["Status LEDs"]
+            L1[GPIO_WiFi - WiFi LED]
+            L2[GPIO_MQTT - MQTT LED]
         end
     end
 
@@ -452,10 +443,14 @@ graph LR
     B3 -.->|pull-up, active low| GND3[GND]
     B4 -.->|pull-up, active low| GND4[GND]
 
-    style ESP32_WROOM_32 fill:#90EE90, color:#000000
-    style UART1 fill:#87CEEB, color:#000000
-    style Relay_GPIO fill:#DDA0DD, color:#000000
-    style Button_GPIO fill:#FFD700, color:#000000
+    L1 --> WiFi_LED[WiFi Status LED]
+    L2 --> MQTT_LED[MQTT Status LED]
+
+    style ESP32_WROOM_32 fill:#90EE90
+    style UART1 fill:#87CEEB
+    style Relay_GPIO fill:#DDA0DD
+    style Button_GPIO fill:#FFD700
+    style LED_GPIO fill:#98FB98
 ```
 
 ## Configuration Constants
@@ -504,50 +499,22 @@ classDiagram
         +Debounce_Time: 200ms
     }
 
+    class LED_Config {
+        +WiFi_LED: GPIO_Configurable
+        +MQTT_LED: GPIO_Configurable
+        +Active_Level: HIGH
+    }
+
     class Timing_Config {
         +WiFi_Stabilization_Delay: 4000ms
         +Main_Loop_Delay: 100ms
         +Status_Log_Interval: 30000ms
+        +Button_Debounce_Time: 50ms
+        +STM32_Boot_Wait: 500ms
     }
 ```
 
-## State Synchronization Flow
-
-```mermaid
-sequenceDiagram
-    participant Main
-    participant State as Global State
-    participant MQTT
-    participant Broker
-    participant Web
-
-    Note over State: g_device_on<br/>g_periodic_active<br/>mqtt_current_state
-
-    Main->>State: Update g_device_on = true
-    activate Main
-    State->>State: Detect change
-    State->>Main: state_changed = true
-    Main->>MQTT: Check if connected
-    activate MQTT
-    MQTT->>Main: connected = true
-    deactivate MQTT
-    Main->>Main: create_state_message()
-    Main->>MQTT: MQTT_Handler_Publish<br/>(datalogger/esp32/system/state, retain=1)
-    activate MQTT
-    MQTT->>Broker: Publish JSON state
-    activate Broker
-    Broker->>Web: Forward state message
-    activate Web
-    Web->>Web: Update UI
-    deactivate Web
-    deactivate Broker
-    deactivate MQTT
-    deactivate Main
-
-    Note over Main,Web: State synchronized across system
-```
-
-## Error Handling and Retry Logic
+## Retry Logic and Error Handling
 
 ```mermaid
 stateDiagram-v2
@@ -555,12 +522,12 @@ stateDiagram-v2
 
     state WiFi_Retry_Logic {
         [*] --> Attempt_1
-        Attempt_1 --> Attempt_2 : failed (2s delay)
-        Attempt_2 --> Attempt_3 : failed (2s delay)
-        Attempt_3 --> Attempt_4 : failed (2s delay)
-        Attempt_4 --> Attempt_5 : failed (2s delay)
-        Attempt_5 --> Manual_Retry : failed (2s delay)
-        Manual_Retry --> Attempt_1 : retry (5s interval)
+        Attempt_1 --> Attempt_2 : failed (delay 2s)
+        Attempt_2 --> Attempt_3 : failed (delay 2s)
+        Attempt_3 --> Attempt_4 : failed (delay 2s)
+        Attempt_4 --> Attempt_5 : failed (delay 2s)
+        Attempt_5 --> Manual_Retry : failed (delay 2s)
+        Manual_Retry --> Attempt_1 : retry (interval 5s)
 
         Attempt_1 --> [*] : success
         Attempt_2 --> [*] : success
@@ -573,13 +540,13 @@ stateDiagram-v2
 
     state MQTT_Retry_Logic {
         [*] --> First_Attempt
-        First_Attempt --> Retry_1 : failed (1s delay)
-        Retry_1 --> Retry_2 : failed (2s delay)
-        Retry_2 --> Retry_3 : failed (4s delay)
-        Retry_3 --> Retry_4 : failed (8s delay)
-        Retry_4 --> Retry_5 : failed (16s delay)
-        Retry_5 --> Retry_Max : failed (32s delay)
-        Retry_Max --> Retry_Max : failed (60s max delay)
+        First_Attempt --> Retry_1 : failed (delay 1s)
+        Retry_1 --> Retry_2 : failed (delay 2s)
+        Retry_2 --> Retry_3 : failed (delay 4s)
+        Retry_3 --> Retry_4 : failed (delay 8s)
+        Retry_4 --> Retry_5 : failed (delay 16s)
+        Retry_5 --> Retry_Max : failed (delay 32s)
+        Retry_Max --> Retry_Max : failed (delay 60s max)
 
         First_Attempt --> [*] : success
         Retry_1 --> [*] : success
@@ -593,21 +560,107 @@ stateDiagram-v2
     MQTT_Retry_Logic --> [*]
 ```
 
+## Overall ESP32 State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> Startup
+
+    state Startup {
+        [*] --> Init_NVS
+        Init_NVS --> Init_EventLoop
+        Init_EventLoop --> Init_NetIf
+        Init_NetIf --> Init_WiFi
+        Init_WiFi --> Init_UART
+        Init_UART --> Init_LED
+        Init_LED --> Connect_WiFi
+        Connect_WiFi --> Init_Components
+        Init_Components --> Start_Services
+        Start_Services --> [*]
+    }
+
+    Startup --> Operating : initialization successful
+    Startup --> Init_Error : initialization failed
+
+    state Operating {
+        [*] --> Main_Loop
+
+        state Main_Loop {
+            [*] --> Check_WiFi
+            Check_WiFi --> Manage_MQTT
+            Manage_MQTT --> Process_Events
+            Process_Events --> Delay_100ms
+            Delay_100ms --> Check_WiFi
+        }
+
+        Main_Loop --> WiFi_States : WiFi event
+        Main_Loop --> MQTT_States : MQTT event
+        Main_Loop --> Button_States : Button event
+        Main_Loop --> Relay_States : Relay event
+
+        state WiFi_States {
+            [*] --> Disconnected
+            Disconnected --> Connecting : retry
+            Connecting --> Connected : success
+            Connecting --> Failed : max retries
+            Connected --> Disconnected : lost connection
+            Failed --> Connecting : manual retry
+        }
+
+        state MQTT_States {
+            [*] --> MQTT_Disconnected
+            MQTT_Disconnected --> MQTT_Connecting : WiFi stable 4s
+            MQTT_Connecting --> MQTT_Connected : broker connected
+            MQTT_Connecting --> MQTT_Disconnected : failed
+            MQTT_Connected --> MQTT_Disconnected : WiFi lost
+        }
+
+        state Button_States {
+            [*] --> Button_Idle
+            Button_Idle --> Button_Pressed : interrupt
+            Button_Pressed --> Button_Debounce : 50ms wait
+            Button_Debounce --> Button_Released : confirm release
+            Button_Released --> Button_Process : execute action
+            Button_Process --> Button_Idle
+        }
+
+        state Relay_States {
+            [*] --> Relay_OFF
+            Relay_OFF --> Relay_ON : command/button
+            Relay_ON --> Relay_OFF : command/button
+            Relay_ON --> State_Update : state change
+            Relay_OFF --> State_Update : state change
+            State_Update --> MQTT_Publish : if connected
+            MQTT_Publish --> [*]
+        }
+
+        WiFi_States --> Main_Loop
+        MQTT_States --> Main_Loop
+        Button_States --> Main_Loop
+        Relay_States --> Main_Loop
+    }
+
+    Init_Error --> Restart : ESP32 restart
+    Restart --> [*]
+
+    Operating --> [*] : system shutdown
+```
+
 ## Summary
 
-The ESP32 firmware architecture is built around a component-based design with clear separation of concerns:
+The ESP32 firmware architecture is built on a component-based design with clear separation of concerns:
 
-- **Main Application**: Orchestrates all components and manages application state
-- **WiFi Manager**: Handles WiFi connectivity with automatic retry logic
+- **Main Application (main)**: Orchestrates all components and manages application state
+- **WiFi Manager**: Handles WiFi connection with automatic retry logic
 - **UART Handler**: Manages line-based communication with STM32 via ring buffer
 - **MQTT Handler**: Provides MQTT client with exponential backoff retry
-- **Relay Control**: Controls relay GPIO with state callbacks
+- **Relay Control**: Controls GPIO relay with state callbacks
 - **JSON Parser**: Parses sensor data with mode-specific routing
 - **JSON Utils**: Provides centralized JSON formatting utilities
 - **Button Handler**: Monitors button presses with debouncing
 - **Ring Buffer**: Circular buffer for UART data reception
 
-All components use callback-based event handling for loose coupling and operate within the FreeRTOS task model. The architecture ensures reliable WiFi/MQTT connectivity, proper STM32 communication, and responsive user interaction through buttons and web interface.
+All components use callback-based event handling for loose coupling and operate within the FreeRTOS task model. The architecture ensures reliable WiFi/MQTT connectivity, proper STM32 communication, and responsive user interaction via buttons.
 
 **Key Features:**
 
@@ -617,3 +670,5 @@ All components use callback-based event handling for loose coupling and operate 
 - Device state protection (buttons disabled when relay OFF)
 - State synchronization via MQTT retained messages
 - Automatic WiFi reconnection with 5 retry attempts
+- Hardware and software debouncing for buttons
+- Ring buffer for reliable UART reception
