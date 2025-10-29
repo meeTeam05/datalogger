@@ -1,13 +1,13 @@
 # Complete Firmware System - UML and Architecture Diagrams
 
-This document provides the UML class diagrams and architecture views of the complete integrated firmware system.
+This document provides the UML class diagrams and architecture views of the complete integrated firmware system (ESP32 and STM32 coordination).
 
-## Complete System Architecture
+## Firmware Architecture Overview
 
 ```mermaid
 graph TB
     subgraph External[External Systems]
-        User[User/Web Interface]
+        User[External Clients<br/>Web/Mobile Apps]
         Power[Power Supply]
         Network[WiFi Network]
         Broker[MQTT Broker<br/>192.168.1.39:1883]
@@ -79,7 +79,7 @@ graph TB
     Buttons --> ESP32_Button
     RelayHW -.->|Controls Power| STM32
     
-    User -.->|HTTP/WebSocket| Broker
+    User -.->|MQTT Protocol| Broker
     
     style STM32 fill:#FFE4B5
     style ESP32 fill:#B0E0E6
@@ -91,7 +91,7 @@ graph TB
 
 ```mermaid
 classDiagram
-    %% STM32 Classes
+    %% STM32 Firmware Classes
     class STM32_Main {
         +I2C_HandleTypeDef hi2c1
         +SPI_HandleTypeDef hspi1, hspi2
@@ -171,7 +171,7 @@ classDiagram
         +Display_ShowBufferCount(uint32_t) void
     }
     
-    %% ESP32 Classes
+    %% ESP32 Firmware Classes
     class ESP32_Main {
         +wifi_manager_t g_wifi_manager
         +stm32_uart_t g_stm32_uart
@@ -318,49 +318,6 @@ graph LR
     style STM32_Processing fill:#FFE4B5
     style ESP32_Processing fill:#B0E0E6
     style Output fill:#DDA0DD
-```
-
-## Communication Protocol Architecture
-
-```mermaid
-sequenceDiagram
-    participant STM32
-    participant UART as UART Link<br/>115200 baud
-    participant ESP32
-    participant MQTT as MQTT Protocol<br/>v5.0
-    participant Broker as MQTT Broker
-    
-    Note over STM32,Broker: Command Flow (Web → STM32)
-    
-    Broker->>MQTT: PUBLISH datalogger/stm32/command
-    MQTT->>ESP32: MQTT message
-    ESP32->>ESP32: Route by topic
-    ESP32->>UART: Text command + '\n'
-    UART->>STM32: UART RX interrupt
-    STM32->>STM32: Parse and execute
-    
-    Note over STM32,Broker: Data Flow (STM32 → Web)
-    
-    STM32->>STM32: Collect sensor data
-    STM32->>UART: JSON + '\n'
-    UART->>ESP32: UART RX interrupt
-    ESP32->>ESP32: JSON parse
-    ESP32->>MQTT: PUBLISH with QoS
-    MQTT->>Broker: Forward message
-    
-    Note over STM32,Broker: State Synchronization
-    
-    ESP32->>ESP32: State change detected
-    ESP32->>MQTT: PUBLISH with retain=1
-    MQTT->>Broker: Store retained
-    Broker->>Broker: Persist state
-    
-    Note over STM32,Broker: MQTT Status Notification
-    
-    ESP32->>ESP32: MQTT state change
-    ESP32->>UART: "MQTT CONNECTED" or<br/>"MQTT DISCONNECTED"
-    UART->>STM32: Command
-    STM32->>STM32: Switch TX mode
 ```
 
 ## State Machine Architecture
@@ -712,7 +669,7 @@ gantt
 
 ```mermaid
 C4Deployment
-    title Deployment Diagram - IoT Data Logger System
+    title Firmware Deployment Diagram - ESP32 and STM32 Coordination
     
     Deployment_Node(device, "IoT Device", "Hardware"){
         Deployment_Node(stm32, "STM32F103C8T6", "Microcontroller"){
@@ -737,18 +694,12 @@ C4Deployment
         }
     }
     
-    Deployment_Node(cloud, "Web Interface", "Browser"){
-        Container(web, "Dashboard", "HTML/JS", "Monitoring UI")
-    }
-    
     Rel(stm32_fw, esp32_fw, "UART 115200", "JSON")
     Rel(stm32_fw, sht3x, "I2C", "Read data")
     Rel(stm32_fw, rtc, "I2C", "Get time")
     Rel(stm32_fw, sd, "SPI", "Buffer data")
     Rel(stm32_fw, display, "SPI", "Show status")
     Rel(esp32_fw, mqtt, "MQTT", "Pub/Sub")
-    Rel(mqtt, web, "WebSocket", "Real-time")
-    Rel(web, mqtt, "HTTP", "Commands")
 ```
 
 ---

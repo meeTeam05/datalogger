@@ -972,6 +972,51 @@ sequenceDiagram
 
 ---
 
+## Communication Protocol Sequence
+
+```mermaid
+sequenceDiagram
+    participant STM32
+    participant UART as UART Link<br/>115200 baud
+    participant ESP32
+    participant MQTT as MQTT Protocol<br/>v5.0
+    participant Broker as MQTT Broker
+    
+    Note over STM32,Broker: Command Flow (Web → STM32)
+    
+    Broker->>MQTT: PUBLISH datalogger/stm32/command
+    MQTT->>ESP32: MQTT message
+    ESP32->>ESP32: Route by topic
+    ESP32->>UART: Text command + '\n'
+    UART->>STM32: UART RX interrupt
+    STM32->>STM32: Parse and execute
+    
+    Note over STM32,Broker: Data Flow (STM32 → Web)
+    
+    STM32->>STM32: Collect sensor data
+    STM32->>UART: JSON + '\n'
+    UART->>ESP32: UART RX interrupt
+    ESP32->>ESP32: JSON parse
+    ESP32->>MQTT: PUBLISH with QoS
+    MQTT->>Broker: Forward message
+    
+    Note over STM32,Broker: State Synchronization
+    
+    ESP32->>ESP32: State change detected
+    ESP32->>MQTT: PUBLISH with retain=1
+    MQTT->>Broker: Store retained
+    Broker->>Broker: Persist state
+    
+    Note over STM32,Broker: MQTT Status Notification
+    
+    ESP32->>ESP32: MQTT state change
+    ESP32->>UART: "MQTT CONNECTED" or<br/>"MQTT DISCONNECTED"
+    UART->>STM32: Command
+    STM32->>STM32: Switch TX mode
+```
+
+---
+
 ## Key Sequence Patterns
 
 ### Communication Protocol
