@@ -59,6 +59,8 @@ command_function_t cmdTable[] = {
 	{.cmdString = "SD CLEAR", // Clear SD card buffer
 	 .func = SD_CLEAR_PARSER},
 
-	{.cmdString = NULL, .func = NULL}, // Table terminator
+	{.cmdString = NULL, // Table terminator
+	 .func = NULL},
 
+	/*End of cmdTable */
 };

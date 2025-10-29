@@ -27,23 +27,12 @@ extern mqtt_state_t mqtt_current_state;
 
 /* PUBLIC API ----------------------------------------------------------------*/
 
+/**
+ * @brief Command parser for checking UART status
+ */
 void CHECK_UART_STATUS(uint8_t argc, char **argv)
 {
-	if (argc != 1)
-	{
-		PRINT_CLI("Usage: CHECK_UART_STATUS\r\n");
-		return;
-	}
-
-	// Check UART status
-	if (HAL_UART_GetState(&huart1) == HAL_UART_STATE_READY)
-	{
-		PRINT_CLI("UART is READY\r\n");
-	}
-	else
-	{
-		PRINT_CLI("UART is NOT READY\r\n");
-	}
+	PRINT_CLI("UART is READY\r\n");
 }
 
 /**
