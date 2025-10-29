@@ -1,15 +1,101 @@
-# UML Diagrams - Firmware System
+# Firmware System - UML and Architecture Diagrams
 
-This document contains only UML diagrams for the firmware system.
+This document provides the UML class diagrams and architecture views of the complete integrated firmware system (ESP32 and STM32 coordination).
 
-## 1. Class Diagram - Complete System
+## Firmware Architecture Overview
+
+```mermaid
+graph TB
+    subgraph External[External Systems]
+        User[External Clients<br/>Web/Mobile Apps]
+        Power[Power Supply]
+        Network[WiFi Network]
+        Broker[MQTT Broker<br/>192.168.1.39:1883]
+    end
+
+    subgraph STM32[STM32F103C8T6 Microcontroller]
+        direction TB
+        STM32_Main[Main Application]
+        STM32_UART[UART Handler]
+        STM32_I2C[I2C Handler]
+        STM32_SPI[SPI Handler]
+        STM32_CMD[Command Parser]
+        STM32_DM[Data Manager]
+        STM32_SD[SD Card Manager]
+        STM32_Display[Display Manager]
+
+        STM32_Main --> STM32_UART
+        STM32_Main --> STM32_I2C
+        STM32_Main --> STM32_SPI
+        STM32_UART --> STM32_CMD
+        STM32_CMD --> STM32_DM
+        STM32_DM --> STM32_SD
+        STM32_Main --> STM32_Display
+    end
+
+    subgraph ESP32[ESP32-WROOM-32 Module]
+        direction TB
+        ESP32_Main[Main Application]
+        ESP32_WiFi[WiFi Manager]
+        ESP32_MQTT[MQTT Handler]
+        ESP32_UART2[UART Handler]
+        ESP32_Relay[Relay Control]
+        ESP32_JSON[JSON Parser]
+        ESP32_Button[Button Handler]
+
+        ESP32_Main --> ESP32_WiFi
+        ESP32_Main --> ESP32_MQTT
+        ESP32_Main --> ESP32_UART2
+        ESP32_Main --> ESP32_Relay
+        ESP32_Main --> ESP32_JSON
+        ESP32_Main --> ESP32_Button
+    end
+
+    subgraph Sensors[Sensors and Peripherals]
+        SHT3X[SHT3X Temp/Humidity<br/>0x44 I2C]
+        RTC[DS3231 RTC<br/>0x68 I2C]
+        SD[SD Card<br/>SPI1 18MHz]
+        TFT[ILI9225 Display<br/>SPI2 36MHz]
+        RelayHW[Relay Module<br/>GPIO4]
+        Buttons[4x Buttons<br/>GPIO 5,16,17,4]
+    end
+
+    Power --> STM32
+    Power --> ESP32
+
+    STM32_I2C <--> SHT3X
+    STM32_I2C <--> RTC
+    STM32_SPI <--> SD
+    STM32_SPI <--> TFT
+
+    STM32_UART <-->|UART1 115200 baud<br/>JSON Protocol| ESP32_UART2
+
+    ESP32_WiFi <--> Network
+    Network <--> Broker
+    ESP32_MQTT <--> Broker
+    Broker <--> User
+
+    ESP32_Relay --> RelayHW
+    Buttons --> ESP32_Button
+    RelayHW -.->|Controls Power| STM32
+
+    User -.->|MQTT Protocol| Broker
+
+    style STM32 fill:#FFE4B5
+    style ESP32 fill:#B0E0E6
+    style External fill:#E0E0E0
+    style Sensors fill:#F0E68C
+```
+
+## System Class Diagram
 
 ```mermaid
 classDiagram
-    %% STM32 Classes
+    %% STM32 Firmware Classes
     class STM32_Main {
         +I2C_HandleTypeDef hi2c1
-        +SPI_HandleTypeDef hspi1, hspi2
+        +SPI_HandleTypeDef hspi1
+        +SPI_HandleTypeDef hspi2
         +UART_HandleTypeDef huart1
         +sht3x_t g_sht3x
         +ds3231_t g_ds3231
@@ -86,7 +172,7 @@ classDiagram
         +Display_ShowBufferCount(uint32_t) void
     }
 
-    %% ESP32 Classes
+    %% ESP32 Firmware Classes
     class ESP32_Main {
         +wifi_manager_t g_wifi_manager
         +stm32_uart_t g_stm32_uart
@@ -151,7 +237,7 @@ classDiagram
         +Button_StartTask() bool
     }
 
-    %% Relationships
+    %% STM32 Internal Relationships
     STM32_Main --> STM32_UART : uses
     STM32_Main --> STM32_SHT3X : uses
     STM32_Main --> STM32_DS3231 : uses
@@ -163,6 +249,7 @@ classDiagram
     STM32_CommandParser --> STM32_DataManager : updates
     STM32_DataManager --> STM32_SDCardManager : buffers to
 
+    %% ESP32 Internal Relationships
     ESP32_Main --> ESP32_WiFiManager : uses
     ESP32_Main --> ESP32_MQTT_Handler : uses
     ESP32_Main --> ESP32_UART : uses
@@ -170,429 +257,500 @@ classDiagram
     ESP32_Main --> ESP32_JSONParser : uses
     ESP32_Main --> ESP32_ButtonHandler : uses
 
-    ESP32_UART -.->|UART Communication| STM32_UART : bidirectional
-    ESP32_RelayControl -.->|Power Control| STM32_Main : controls
+    %% Cross-System Communication
+    ESP32_UART ..> STM32_UART : UART Communication
+    STM32_UART ..> ESP32_UART : UART Communication
+    ESP32_RelayControl ..> STM32_Main : Power Control
+
+    note for STM32_Main "STM32 Microcontroller\nHandles sensor data collection,\nSD card buffering, and display"
+    note for ESP32_Main "ESP32 Microcontroller\nHandles WiFi, MQTT communication,\nand relay control"
 ```
 
-## 2. Sequence Diagram - Command Flow
+## Data Flow Architecture
 
 ```mermaid
-sequenceDiagram
-    participant Web as Web Interface
-    participant Broker as MQTT Broker
-    participant ESP32
-    participant UART as UART Link
-    participant STM32
-    participant Sensor as SHT3X
-
-    Note over Web,Sensor: Command Flow (Web → STM32)
-
-    Web->>Broker: PUBLISH datalogger/stm32/command<br/>"SINGLE"
-    Broker->>ESP32: MQTT message
-    ESP32->>ESP32: Route command by topic
-    ESP32->>UART: "SINGLE\n"
-    UART->>STM32: UART RX interrupt
-    STM32->>STM32: Parse command
-    STM32->>Sensor: I2C read request
-    Sensor-->>STM32: Temperature & Humidity
-    STM32->>STM32: Format JSON with timestamp
-    STM32->>UART: JSON + "\n"
-    UART->>ESP32: UART RX interrupt
-    ESP32->>ESP32: Parse JSON
-    ESP32->>Broker: PUBLISH datalogger/stm32/single/data
-    Broker->>Web: Forward sensor data
-```
-
-## 3. Sequence Diagram - Periodic Mode
-
-```mermaid
-sequenceDiagram
-    participant Web as Web Interface
-    participant Broker as MQTT Broker
-    participant ESP32
-    participant UART as UART Link
-    participant STM32
-    participant Sensor as SHT3X
-
-    Note over Web,Sensor: Periodic Mode Flow
-
-    Web->>Broker: PUBLISH "PERIODIC ON"
-    Broker->>ESP32: Command
-    ESP32->>UART: "PERIODIC ON\n"
-    UART->>STM32: Command received
-    STM32->>Sensor: Start periodic mode
-
-    loop Every 5 seconds
-        Sensor-->>STM32: Auto measurement
-        STM32->>STM32: Fetch data via I2C
-        STM32->>STM32: Format JSON
-        STM32->>UART: JSON + "\n"
-        UART->>ESP32: Data received
-        ESP32->>ESP32: Parse JSON
-        ESP32->>Broker: PUBLISH periodic data
-        Broker->>Web: Display data
+graph LR
+    subgraph Input[Data Input Sources]
+        Sensor[SHT3X Sensor<br/>Temperature & Humidity]
+        Time[DS3231 RTC<br/>Timestamp]
+        WebCmd[Web Commands<br/>via MQTT]
+        ButtonCmd[Button Presses<br/>GPIO]
     end
 
-    Web->>Broker: PUBLISH "PERIODIC OFF"
-    Broker->>ESP32: Command
-    ESP32->>UART: "PERIODIC OFF\n"
-    UART->>STM32: Command received
-    STM32->>Sensor: Stop periodic mode
+    subgraph STM32_Processing[STM32 Processing]
+        I2C[I2C Read<br/>100kHz]
+        Parse[JSON Format<br/>with Timestamp]
+        Route{MQTT<br/>Connected?}
+        Buffer[SD Card Buffer<br/>204,800 records]
+
+        Sensor --> I2C
+        Time --> I2C
+        I2C --> Parse
+        Parse --> Route
+        Route -->|No| Buffer
+    end
+
+    subgraph ESP32_Processing[ESP32 Processing]
+        UARTRx[UART RX<br/>Ring Buffer]
+        JSONParse[JSON Parser<br/>Mode Detection]
+        MQTTPub[MQTT Publish<br/>QoS 0/1]
+        CmdRoute[Command Router<br/>Topic-based]
+        StateSync[State Manager<br/>Retained Messages]
+
+        Route -->|Yes| UARTRx
+        UARTRx --> JSONParse
+        JSONParse --> MQTTPub
+
+        WebCmd --> CmdRoute
+        ButtonCmd --> CmdRoute
+        CmdRoute --> StateSync
+    end
+
+    subgraph Output[Data Output]
+        Cloud[MQTT Broker<br/>Cloud]
+        Display[TFT Display<br/>ILI9225]
+        LED[Status LEDs<br/>WiFi/MQTT]
+        RelayOut[Relay Output<br/>Device Control]
+
+        MQTTPub --> Cloud
+        Parse --> Display
+        StateSync --> Display
+        StateSync --> LED
+        CmdRoute --> RelayOut
+    end
+
+    Buffer -.->|On Reconnect| UARTRx
+
+    style Input fill:#90EE90
+    style STM32_Processing fill:#FFE4B5
+    style ESP32_Processing fill:#B0E0E6
+    style Output fill:#DDA0DD
 ```
 
-## 4. Sequence Diagram - MQTT Connection Status
-
-```mermaid
-sequenceDiagram
-    participant STM32
-    participant UART as UART Link
-    participant ESP32
-    participant WiFi as WiFi Network
-    participant Broker as MQTT Broker
-
-    Note over STM32,Broker: ESP32 Initialization
-
-    ESP32->>WiFi: Connect to network
-    WiFi-->>ESP32: Connected
-    ESP32->>ESP32: Wait 4s for stability
-    ESP32->>Broker: MQTT Connect
-    Broker-->>ESP32: Connection accepted
-    ESP32->>UART: "MQTT CONNECTED\n"
-    UART->>STM32: Status notification
-    STM32->>STM32: Switch to LIVE mode
-
-    Note over STM32,Broker: Connection Lost
-
-    Broker->>ESP32: Disconnect
-    ESP32->>UART: "MQTT DISCONNECTED\n"
-    UART->>STM32: Status notification
-    STM32->>STM32: Switch to BUFFER mode
-
-    Note over STM32,Broker: Reconnection
-
-    ESP32->>Broker: Retry connection
-    Broker-->>ESP32: Connected
-    ESP32->>UART: "MQTT CONNECTED\n"
-    UART->>STM32: Status notification
-    STM32->>STM32: Switch to LIVE mode
-    STM32->>STM32: Flush SD buffer
-```
-
-## 5. State Diagram - STM32 Operation
-
-```mermaid
-stateDiagram-v2
-    [*] --> Init
-
-    Init --> Idle : Initialization complete
-
-    state Idle {
-        [*] --> WaitingCommand
-        WaitingCommand --> ProcessCommand : Command received
-        ProcessCommand --> WaitingCommand : Command executed
-    }
-
-    Idle --> SingleMeasure : SINGLE command
-    Idle --> PeriodicMode : PERIODIC ON
-
-    state SingleMeasure {
-        [*] --> ReadSensor
-        ReadSensor --> FormatData : Data acquired
-        FormatData --> CheckMQTT : JSON ready
-
-        state CheckMQTT <<choice>>
-        CheckMQTT --> SendUART : MQTT connected
-        CheckMQTT --> BufferSD : MQTT disconnected
-
-        SendUART --> [*]
-        BufferSD --> [*]
-    }
-
-    state PeriodicMode {
-        [*] --> StartPeriodic
-        StartPeriodic --> WaitInterval : Timer started
-        WaitInterval --> FetchData : 5s elapsed
-        FetchData --> CheckMQTT2 : Data ready
-
-        state CheckMQTT2 <<choice>>
-        CheckMQTT2 --> SendUART2 : MQTT connected
-        CheckMQTT2 --> BufferSD2 : MQTT disconnected
-
-        SendUART2 --> WaitInterval
-        BufferSD2 --> WaitInterval
-
-        WaitInterval --> StopPeriodic : PERIODIC OFF
-        StopPeriodic --> [*]
-    }
-
-    SingleMeasure --> Idle : Completed
-    PeriodicMode --> Idle : Stopped
-
-    Idle --> SetTime : SET TIME command
-    SetTime --> Idle : Time updated
-
-    Idle --> ClearSD : SD CLEAR command
-    ClearSD --> Idle : SD cleared
-```
-
-## 6. State Diagram - ESP32 Operation
+## State Machine Architecture
 
 ```mermaid
 stateDiagram-v2
     [*] --> PowerOn
 
-    PowerOn --> InitWiFi : System init
+    state PowerOn {
+        [*] --> STM32_Init
+        [*] --> ESP32_Init
 
-    state InitWiFi {
-        [*] --> Disconnected
-        Disconnected --> Connecting : Start connect
-        Connecting --> Connected : Success
-        Connecting --> RetryWait : Failed
-        RetryWait --> Connecting : After 2s delay
-        Connected --> Disconnected : Connection lost
+        STM32_Init --> STM32_Idle : Init complete
+        ESP32_Init --> ESP32_Connecting : Init complete
+
+        state STM32_Idle {
+            [*] --> WaitingCommand
+            WaitingCommand --> SingleMeasure : SINGLE
+            WaitingCommand --> PeriodicMeasure : PERIODIC ON
+            SingleMeasure --> WaitingCommand : Done
+            PeriodicMeasure --> WaitingCommand : PERIODIC OFF
+        }
+
+        state ESP32_Connecting {
+            [*] --> WiFi_Disconnected
+            WiFi_Disconnected --> WiFi_Connecting : Connect attempt
+            WiFi_Connecting --> WiFi_Connected : Success
+            WiFi_Connecting --> WiFi_Failed : Max retries
+            WiFi_Failed --> WiFi_Connecting : Retry 5s
+            WiFi_Connected --> MQTT_Disconnected : 4s stable
+
+            MQTT_Disconnected --> MQTT_Connecting : Start
+            MQTT_Connecting --> MQTT_Connected : Success
+            MQTT_Connecting --> MQTT_Disconnected : Fail + backoff
+            MQTT_Connected --> MQTT_Disconnected : WiFi lost
+        }
     }
 
-    InitWiFi --> InitMQTT : WiFi stable 4s
+    state SystemOperational {
+        state STM32_Operation {
+            [*] --> DataCollection
+            DataCollection --> DataReady : Measurement complete
+            DataReady --> CheckMQTT : data_ready flag
+            CheckMQTT --> LiveTransmit : MQTT connected
+            CheckMQTT --> BufferToSD : MQTT disconnected
+            LiveTransmit --> DataCollection
+            BufferToSD --> DataCollection
+        }
 
-    state InitMQTT {
-        [*] --> MQTT_Disconnected
-        MQTT_Disconnected --> MQTT_Connecting : Attempt connect
-        MQTT_Connecting --> MQTT_Connected : Success
-        MQTT_Connecting --> MQTT_Backoff : Failed
-        MQTT_Backoff --> MQTT_Connecting : Exponential backoff
-        MQTT_Connected --> MQTT_Disconnected : WiFi lost
+        state ESP32_Operation {
+            [*] --> MonitorState
+            MonitorState --> ProcessCommand : MQTT message
+            MonitorState --> ProcessData : UART data
+            MonitorState --> ProcessButton : Button press
+            ProcessCommand --> UpdateState
+            ProcessData --> PublishMQTT
+            ProcessButton --> UpdateState
+            UpdateState --> MonitorState
+            PublishMQTT --> MonitorState
+        }
     }
 
-    InitMQTT --> Operational : MQTT connected
-
-    state Operational {
-        [*] --> Monitoring
-
-        Monitoring --> HandleMQTT : MQTT message
-        Monitoring --> HandleUART : UART data
-        Monitoring --> HandleButton : Button press
-
-        HandleMQTT --> RouteCommand : Parse topic
-        RouteCommand --> SendSTM32 : STM32 command
-        RouteCommand --> ControlRelay : Relay command
-        RouteCommand --> PublishState : State request
-
-        HandleUART --> ParseJSON : Extract data
-        ParseJSON --> PublishMQTT : Valid JSON
-        ParseJSON --> LogError : Invalid JSON
-
-        HandleButton --> ToggleDevice : Button 1
-        HandleButton --> ToggleRelay : Button 2
-        HandleButton --> SendCommand : Button 3/4
-
-        SendSTM32 --> Monitoring
-        ControlRelay --> PublishState
-        PublishState --> Monitoring
-        PublishMQTT --> Monitoring
-        LogError --> Monitoring
-        ToggleDevice --> PublishState
-        ToggleRelay --> PublishState
-        SendCommand --> Monitoring
-    }
-
-    Operational --> InitMQTT : Connection lost
+    PowerOn --> SystemOperational : Both ready
+    SystemOperational --> ErrorRecovery : Error detected
+    ErrorRecovery --> SystemOperational : Recovered
 ```
 
-## 7. Component Diagram
+## Hardware Configuration Diagram
 
 ```mermaid
 graph TB
-    subgraph STM32_System["STM32 System"]
-        STM32_Main["Main Application"]
-        STM32_HAL["HAL Drivers"]
-        STM32_Peripherals["Peripheral Handlers"]
-        STM32_Middleware["Middleware"]
+    subgraph STM32_HW[STM32F103C8T6 Hardware]
+        STM32_MCU[ARM Cortex-M3<br/>72MHz<br/>64KB Flash<br/>20KB RAM]
 
-        STM32_Main --> STM32_HAL
-        STM32_Main --> STM32_Peripherals
-        STM32_Main --> STM32_Middleware
+        STM32_I2C[I2C1<br/>PB6: SCL<br/>PB7: SDA<br/>100kHz]
 
-        STM32_Peripherals --> STM32_HAL
-        STM32_Middleware --> STM32_HAL
+        STM32_SPI1[SPI1 SD Card<br/>PA5: SCK<br/>PA6: MISO<br/>PA7: MOSI<br/>18MHz]
+
+        STM32_SPI2[SPI2 Display<br/>PB13: SCK<br/>PB14: MISO<br/>PB15: MOSI<br/>36MHz]
+
+        STM32_UART[UART1<br/>PA9: TX<br/>PA10: RX<br/>115200 baud]
+
+        STM32_MCU --> STM32_I2C
+        STM32_MCU --> STM32_SPI1
+        STM32_MCU --> STM32_SPI2
+        STM32_MCU --> STM32_UART
     end
 
-    subgraph ESP32_System["ESP32 System"]
-        ESP32_Main["Main Application"]
-        ESP32_IDF["ESP-IDF"]
-        ESP32_Network["Network Stack"]
-        ESP32_Drivers["Device Drivers"]
+    subgraph ESP32_HW[ESP32-WROOM-32 Hardware]
+        ESP32_MCU[Xtensa LX6<br/>240MHz<br/>4MB Flash<br/>520KB RAM]
 
-        ESP32_Main --> ESP32_IDF
-        ESP32_Main --> ESP32_Network
-        ESP32_Main --> ESP32_Drivers
+        ESP32_WiFi[WiFi Radio<br/>802.11 b/g/n<br/>2.4GHz]
 
-        ESP32_Network --> ESP32_IDF
-        ESP32_Drivers --> ESP32_IDF
+        ESP32_UART_HW[UART1<br/>GPIO17: TX<br/>GPIO16: RX<br/>115200 baud]
+
+        ESP32_GPIO[GPIO<br/>GPIO4: Relay<br/>GPIO5: Button1<br/>GPIO16: Button2<br/>GPIO17: Button3<br/>GPIO4: Button4]
+
+        ESP32_MCU --> ESP32_WiFi
+        ESP32_MCU --> ESP32_UART_HW
+        ESP32_MCU --> ESP32_GPIO
     end
 
-    subgraph External_Systems["External Systems"]
-        MQTT_Broker["MQTT Broker"]
-        Web_UI["Web Interface"]
-        Sensors["Physical Sensors"]
+    subgraph Peripherals_HW[Peripherals]
+        SHT3X_HW[SHT3X Sensor<br/>I2C Address: 0x44<br/>±0.2°C, ±2%RH]
+        RTC_HW[DS3231 RTC<br/>I2C Address: 0x68<br/>±2ppm accuracy]
+        SD_HW[SD Card<br/>FAT32<br/>Circular Buffer]
+        Display_HW[ILI9225 TFT<br/>176x220 pixels<br/>2.2 inch]
+        Relay_HW[Relay Module<br/>Active HIGH<br/>Controls STM32 power]
+        Buttons_HW[4x Tactile Buttons<br/>Active LOW<br/>Pull-up enabled]
     end
 
-    STM32_Peripherals <-->|I2C/SPI| Sensors
-    STM32_Peripherals <-->|UART| ESP32_Drivers
-    ESP32_Network <-->|WiFi/MQTT| MQTT_Broker
-    MQTT_Broker <-->|WebSocket/HTTP| Web_UI
+    STM32_I2C <--> SHT3X_HW
+    STM32_I2C <--> RTC_HW
+    STM32_SPI1 <--> SD_HW
+    STM32_SPI2 <--> Display_HW
 
-    style STM32_System fill:#FFE4B5
-    style ESP32_System fill:#B0E0E6
-    style External_Systems fill:#E0E0E0
+    STM32_UART <--> ESP32_UART_HW
+
+    ESP32_GPIO --> Relay_HW
+    Buttons_HW --> ESP32_GPIO
+    Relay_HW -.->|Power Control| STM32_MCU
+
+    ESP32_WiFi <--> Network[WiFi Network<br/>SSID: WiFi network name]
+
+    style STM32_HW fill:#FFE4B5
+    style ESP32_HW fill:#B0E0E6
+    style Peripherals_HW fill:#F0E68C
 ```
 
-## 8. Deployment Diagram
+## MQTT Topic and Message Architecture
 
 ```mermaid
 graph TB
-    subgraph Physical_Device["IoT Device Hardware"]
-        subgraph STM32_Node["STM32F103C8T6<br/>Microcontroller"]
-            STM32_FW["STM32 Firmware<br/>C/HAL"]
+    subgraph Broker[MQTT Broker: 192.168.1.39:1883]
+        direction TB
+
+        subgraph Subscribe[ESP32 Subscribes]
+            T1["datalogger/stm32/command<br/>QoS: 1"]
+            T2["datalogger/esp32/relay/control<br/>QoS: 1"]
+            T3["datalogger/esp32/system/state<br/>QoS: 1"]
         end
 
-        subgraph ESP32_Node["ESP32-WROOM-32<br/>WiFi Module"]
-            ESP32_FW["ESP32 Firmware<br/>C/ESP-IDF"]
-        end
-
-        subgraph Sensor_Node["Sensor Hardware"]
-            SHT3X["SHT3X<br/>I2C 0x44"]
-            DS3231["DS3231<br/>I2C 0x68"]
-            SD_Card["SD Card<br/>SPI"]
-            Display["ILI9225<br/>SPI"]
-        end
-    end
-
-    subgraph Network_Infrastructure["Network Layer"]
-        Router["WiFi Router<br/>SSID: Redmi Note 9 Pro"]
-
-        subgraph Server_Node["Server: 192.168.1.39"]
-            MQTT["Mosquitto Broker<br/>Port 1883<br/>MQTT v5.0"]
+        subgraph Publish[ESP32 Publishes]
+            T4["datalogger/stm32/single/data<br/>QoS: 0, Retain: 0"]
+            T5["datalogger/stm32/periodic/data<br/>QoS: 0, Retain: 0"]
+            T6["datalogger/esp32/system/state<br/>QoS: 1, Retain: 1"]
         end
     end
 
-    subgraph Client_Device["User Device"]
-        Browser["Web Browser<br/>Dashboard UI<br/>HTML/CSS/JS"]
+    subgraph Messages[Message Formats]
+        direction TB
+
+        CMD1["Commands:<br/>SINGLE<br/>PERIODIC ON<br/>PERIODIC OFF<br/>SET TIME"]
+
+        CMD2["Relay Commands:<br/>ON<br/>OFF<br/>TOGGLE"]
+
+        CMD3["State Request:<br/>REQUEST"]
+
+        DATA1["Single Data:<br/>mode: SINGLE<br/>timestamp: ...<br/>temperature: ...<br/>humidity: ..."]
+
+        DATA2["Periodic Data:<br/>mode: PERIODIC<br/>timestamp: ...<br/>temperature: ...<br/>humidity: ..."]
+
+        DATA3["System State:<br/>device: ON/OFF<br/>periodic: ON/OFF<br/>timestamp: ..."]
     end
 
-    STM32_FW <-->|UART 115200| ESP32_FW
-    STM32_FW <-->|I2C| SHT3X
-    STM32_FW <-->|I2C| DS3231
-    STM32_FW <-->|SPI| SD_Card
-    STM32_FW <-->|SPI| Display
+    T1 -.-> CMD1
+    T2 -.-> CMD2
+    T3 -.-> CMD3
+    T4 -.-> DATA1
+    T5 -.-> DATA2
+    T6 -.-> DATA3
 
-    ESP32_FW <-->|WiFi 2.4GHz| Router
-    Router <-->|TCP/IP| MQTT
-    MQTT <-->|WebSocket| Browser
+    Web[Web Interface] -->|Publish| T1
+    Web -->|Publish| T2
+    Web -->|Publish| T3
 
-    style Physical_Device fill:#F0E68C
-    style Network_Infrastructure fill:#87CEEB
-    style Client_Device fill:#90EE90
-    style STM32_Node fill:#FFE4B5
-    style ESP32_Node fill:#B0E0E6
+    T4 -->|Subscribe| Web
+    T5 -->|Subscribe| Web
+    T6 -->|Subscribe| Web
+
+    style Broker fill:#87CEEB
+    style Messages fill:#FFE4B5
+    style Web fill:#90EE90
 ```
 
-## 9. Activity Diagram - Single Measurement Flow
+## Memory and Resource Management
 
 ```mermaid
-stateDiagram-v2
-    [*] --> ReceiveCommand
+classDiagram
+    class STM32_Memory {
+        +Flash: 64KB
+        +RAM: 20KB
+        +Stack: 4KB
+        +Heap: ~10KB
+        +Peripherals: Memory-mapped
+    }
 
-    ReceiveCommand --> ValidateCommand : SINGLE command
-    ValidateCommand --> InitSensor : Valid
-    ValidateCommand --> [*] : Invalid
+    class STM32_Resources {
+        +I2C1: 100kHz
+        +SPI1: 18MHz SD Card
+        +SPI2: 36MHz Display
+        +UART1: 115200 baud
+        +Timers: SysTick, TIM2
+        +RTC: DS3231 external
+    }
 
-    InitSensor --> ReadI2C : SHT3X ready
-    InitSensor --> ReturnError : Init failed
+    class ESP32_Memory {
+        +Flash: 4MB
+        +SRAM: 520KB
+        +PSRAM: None
+        +RTC_Memory: 8KB
+        +Stack_per_task: 4KB
+    }
 
-    ReadI2C --> GetTimestamp : Data received
-    ReadI2C --> ReturnZero : Read timeout
+    class ESP32_Resources {
+        +WiFi: 802.11 b/g/n
+        +UART1: 115200 baud
+        +GPIO: 4x input, 1x output
+        +FreeRTOS: Multi-tasking
+        +Timers: Hardware timers
+    }
 
-    GetTimestamp --> FormatJSON : RTC success
-    GetTimestamp --> UseZeroTime : RTC failed
+    class RingBuffer {
+        +Size: 512-1024 bytes
+        +Usage: UART RX
+        +Type: Circular
+        +Thread-safe: ISR access
+    }
 
-    UseZeroTime --> FormatJSON
-    ReturnZero --> FormatJSON
+    class SDCardBuffer {
+        +Capacity: 204,800 records
+        +Record_size: ~80 bytes
+        +Total: ~16MB
+        +Type: Circular FAT32
+        +Persistence: Non-volatile
+    }
 
-    FormatJSON --> CheckMQTTStatus : JSON ready
-
-    state CheckMQTTStatus <<choice>>
-    CheckMQTTStatus --> TransmitUART : Connected
-    CheckMQTTStatus --> BufferToSD : Disconnected
-
-    TransmitUART --> UpdateDisplay
-    BufferToSD --> UpdateDisplay
-
-    UpdateDisplay --> [*]
-    ReturnError --> [*]
+    STM32_Memory --> RingBuffer : allocates
+    STM32_Memory --> SDCardBuffer : manages
+    ESP32_Memory --> RingBuffer : allocates
 ```
 
-## 10. Activity Diagram - ESP32 Message Routing
+## Error Handling and Recovery Architecture
 
 ```mermaid
-stateDiagram-v2
-    [*] --> MessageReceived
+graph TB
+    subgraph Errors[Error Types]
+        E1[I2C Sensor Timeout]
+        E2[RTC Communication Fail]
+        E3[SD Card Mount Fail]
+        E4[WiFi Connection Lost]
+        E5[MQTT Broker Disconnect]
+        E6[UART Buffer Overflow]
+        E7[JSON Parse Error]
+    end
 
-    state MessageReceived <<choice>>
-    MessageReceived --> MQTTMessage : From MQTT
-    MessageReceived --> UARTMessage : From UART
-    MessageReceived --> ButtonEvent : From GPIO
+    subgraph Recovery[Recovery Strategies]
+        R1[Return 0.0 values<br/>Continue operation<br/>Retry next cycle]
 
-    MQTTMessage --> ParseTopic
+        R2[Use timestamp=0<br/>Continue operation<br/>Retry next query]
 
-    state ParseTopic <<choice>>
-    ParseTopic --> STM32Command : /stm32/command
-    ParseTopic --> RelayCommand : /relay/control
-    ParseTopic --> StateRequest : /system/state
+        R3[Disable SD buffering<br/>MQTT-only mode<br/>Log to display]
 
-    STM32Command --> ForwardUART
-    RelayCommand --> ControlRelay
-    StateRequest --> PublishState
+        R4[Auto-retry 5x @ 2s<br/>Manual retry @ 5s<br/>Continue until success]
 
-    UARTMessage --> ParseJSON
+        R5[Exponential backoff<br/>min 60s, 2^retry<br/>Infinite retries]
 
-    state ParseJSON <<choice>>
-    ParseJSON --> PublishSingle : mode: SINGLE
-    ParseJSON --> PublishPeriodic : mode: PERIODIC
-    ParseJSON --> LogError : Invalid JSON
+        R6[Discard oldest data<br/>Log overflow<br/>Continue reception]
 
-    ButtonEvent --> IdentifyButton
+        R7[Log parse error<br/>Discard message<br/>Continue processing]
+    end
 
-    state IdentifyButton <<choice>>
-    IdentifyButton --> ToggleDevice : Button 1
-    IdentifyButton --> ToggleRelay : Button 2
-    IdentifyButton --> SendSingle : Button 3
-    IdentifyButton --> SendPeriodic : Button 4
+    subgraph Monitoring[Error Monitoring]
+        M1[Display Status]
+        M2[LED Indicators]
+        M3[MQTT Error Reports]
+        M4[Buffered Error Data]
+    end
 
-    ForwardUART --> [*]
-    ControlRelay --> PublishState
-    PublishState --> [*]
-    PublishSingle --> [*]
-    PublishPeriodic --> [*]
-    LogError --> [*]
-    ToggleDevice --> PublishState
-    ToggleRelay --> PublishState
-    SendSingle --> ForwardUART
-    SendPeriodic --> ForwardUART
+    E1 --> R1
+    E2 --> R2
+    E3 --> R3
+    E4 --> R4
+    E5 --> R5
+    E6 --> R6
+    E7 --> R7
+
+    R1 --> M1
+    R2 --> M1
+    R3 --> M1
+    R4 --> M2
+    R5 --> M2
+    R6 --> M1
+    R7 --> M1
+
+    R1 --> M3
+    R3 --> M3
+    R4 --> M3
+    R5 --> M3
+
+    R1 --> M4
+    R2 --> M4
+
+    style Errors fill:#FF6B6B
+    style Recovery fill:#90EE90
+    style Monitoring fill:#FFD700
 ```
 
-## Diagram Summary
+## System Timing and Synchronization
 
-This document contains **10 UML diagrams**:
+```mermaid
+gantt
+    title System Timing Diagram
+    dateFormat X
+    axisFormat %L ms
 
-1. **Class Diagram** - Complete system classes and relationships
-2. **Sequence Diagram** - Command flow from web to sensor
-3. **Sequence Diagram** - Periodic mode operation
-4. **Sequence Diagram** - MQTT connection management
-5. **State Diagram** - STM32 operation states
-6. **State Diagram** - ESP32 operation states
-7. **Component Diagram** - System components and dependencies
-8. **Deployment Diagram** - Physical deployment architecture
-9. **Activity Diagram** - Single measurement workflow
-10. **Activity Diagram** - ESP32 message routing logic
+    section STM32
+    System Init           :0, 500
+    SHT3X Single 15ms     :600, 615
+    I2C Read              :615, 620
+    Format JSON           :620, 625
+    UART Transmit 10ms    :625, 635
 
-These diagrams follow standard UML notation and provide comprehensive views of the firmware system architecture.
+    section ESP32
+    System Init           :0, 1000
+    WiFi Connect 10s      :1000, 11000
+    Wait 4s Stable        :11000, 15000
+    MQTT Connect 2s       :15000, 17000
+    UART Process          :635, 645
+    JSON Parse            :645, 650
+    MQTT Publish          :650, 655
+
+    section Periodic
+    Fetch Interval 5s     :20000, 25000
+    Next Fetch            :25000, 30000
+    Next Fetch            :30000, 35000
+
+    section Delays
+    WiFi Retry 2s         :milestone, 2000
+    Manual Retry 5s       :milestone, 5000
+    MQTT Backoff 1s       :milestone, 1000
+    MQTT Backoff 2s       :milestone, 2000
+    MQTT Backoff 4s       :milestone, 4000
+    STM32 Boot 500ms      :milestone, 500
+    Button Debounce 200ms :milestone, 200
+```
+
+## Deployment Architecture
+
+```mermaid
+C4Deployment
+    title Firmware Deployment Diagram - ESP32 and STM32 Coordination
+
+    Deployment_Node(device, "IoT Device", "Hardware"){
+        Deployment_Node(stm32, "STM32F103C8T6", "Microcontroller"){
+            Container(stm32_fw, "STM32 Firmware", "C, HAL", "Data collection and buffering")
+        }
+
+        Deployment_Node(esp32, "ESP32-WROOM-32", "WiFi Module"){
+            Container(esp32_fw, "ESP32 Firmware", "C, ESP-IDF", "IoT bridge and MQTT client")
+        }
+
+        Deployment_Node(sensors, "Sensors", "Hardware"){
+            Container(sht3x, "SHT3X", "I2C", "Temperature & Humidity")
+            Container(rtc, "DS3231", "I2C", "Real-time clock")
+            Container(sd, "SD Card", "SPI", "Data buffering")
+            Container(display, "ILI9225", "SPI", "Status display")
+        }
+    }
+
+    Deployment_Node(network, "Local Network", "WiFi"){
+        Deployment_Node(broker, "MQTT Broker", "Mosquitto"){
+            Container(mqtt, "MQTT Server", "v5.0", "Message broker")
+        }
+    }
+
+    Rel(stm32_fw, esp32_fw, "UART 115200", "JSON")
+    Rel(stm32_fw, sht3x, "I2C", "Read data")
+    Rel(stm32_fw, rtc, "I2C", "Get time")
+    Rel(stm32_fw, sd, "SPI", "Buffer data")
+    Rel(stm32_fw, display, "SPI", "Show status")
+    Rel(esp32_fw, mqtt, "MQTT", "Pub/Sub")
+```
+
+## System Characteristics
+
+### Performance Metrics
+
+- **Measurement Rate**: 0.2 Hz to 1 Hz (configurable 5s-60s intervals)
+- **Sensor Accuracy**: ±0.2°C, ±2%RH (SHT3X)
+- **RTC Accuracy**: ±2ppm (DS3231)
+- **Communication Latency**: <100ms (STM32 → Web)
+- **Buffer Capacity**: 204,800 records (~16MB SD card)
+- **UART Throughput**: ~11.5 KB/s (115200 baud)
+- **MQTT Throughput**: Limited by network, typically <1KB/s for sensor data
+
+### Reliability Features
+
+- **Sensor Failure**: Graceful degradation with 0.0 values
+- **Communication Loss**: SD card buffering (>14 days @ 5s intervals)
+- **Power Interruption**: Non-volatile SD card storage
+- **Network Instability**: Automatic WiFi/MQTT reconnection
+- **Data Integrity**: CRC validation for sensor data
+- **Clock Drift**: RTC with backup battery
+
+### Scalability
+
+- **Single Device**: Current implementation
+- **Multi-Device**: MQTT topic hierarchy ready
+- **Extended Sensors**: Modular driver architecture
+- **Cloud Services**: MQTT broker can forward to cloud
+- **Historical Data**: SD card provides local time-series storage
+
+### Power Consumption
+
+- **STM32 Active**: ~20mA @ 72MHz
+- **STM32 Sleep**: Not implemented (always active)
+- **ESP32 Active**: ~160mA (WiFi on), ~80mA (WiFi off)
+- **ESP32 Sleep**: Not implemented (always active)
+- **Total System**: ~200mA @ 5V (relay ON)
+- **Relay Control**: Enables power-saving by powering down STM32
+
+### Security Considerations
+
+- **MQTT Authentication**: Username/password (admin/password)
+- **Network**: WPA2 WiFi encryption
+- **Physical**: Relay can disconnect STM32 power
+- **Data Privacy**: Local network only (no internet by default)
+- **Future**: TLS/SSL for MQTT can be enabled
