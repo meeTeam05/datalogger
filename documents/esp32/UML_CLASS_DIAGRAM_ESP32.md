@@ -212,15 +212,15 @@ classDiagram
 
 ```mermaid
 graph TB
-    Main[main.c]
-    WiFi[WiFi Manager]
-    UART[STM32 UART]
-    MQTT[MQTT Handler]
-    Relay[Relay Control]
-    Parser[JSON Sensor Parser]
-    Utils[JSON Utils]
-    Button[Button Handler]
-    RingBuf[Ring Buffer]
+    Main["main.c"]
+    WiFi["WiFi Manager"]
+    UART["STM32 UART"]
+    MQTT["MQTT Handler"]
+    Relay["Relay Control"]
+    Parser["JSON Sensor Parser"]
+    Utils["JSON Utils"]
+    Button["Button Handler"]
+    RingBuf["Ring Buffer"]
 
     Main --> WiFi
     Main --> UART
@@ -231,7 +231,7 @@ graph TB
     Main --> Utils
 
     UART --> RingBuf
-    Parser ..> Utils
+    Parser --> Utils
 
     WiFi -.-> Main
     UART -.-> Main
@@ -240,11 +240,11 @@ graph TB
     Parser -.-> Main
     Button -.-> Main
 
-    style Main fill:#90EE90
-    style WiFi fill:#87CEEB
-    style MQTT fill:#87CEEB
-    style Parser fill:#FFD700
-    style Relay fill:#DDA0DD
+    style Main fill:#90EE90, color:#000000
+    style WiFi fill:#87CEEB, color:#000000
+    style MQTT fill:#87CEEB, color:#000000
+    style Parser fill:#FFD700, color:#000000
+    style Relay fill:#DDA0DD, color:#000000
 ```
 
 ## Object Lifecycle Diagram
