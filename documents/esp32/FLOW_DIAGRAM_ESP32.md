@@ -56,11 +56,11 @@ flowchart TD
     LogStatus --> Delay[Delay 100ms]
     Delay --> MainLoop
 
-    style Start fill:#90EE90
-    style MainLoop fill:#FFD700
-    style CheckWiFiState fill:#FFD700
-    style CheckMQTTState fill:#FFD700
-    style Restart fill:#FF6B6B
+    style Start fill:#90EE90, color:#000000
+    style MainLoop fill:#FFD700, color:#000000
+    style CheckWiFiState fill:#FFD700, color:#000000
+    style CheckMQTTState fill:#FFD700, color:#000000
+    style Restart fill:#FF6B6B, color:#000000
 ```
 
 ## MQTT Data Received Flow
