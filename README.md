@@ -578,10 +578,10 @@ For detailed component-specific documentation, please refer to:
 ### Technical Diagrams
 
 - **Firmware Diagrams**: [documents/firmware/](documents/firmware/) - 31 comprehensive flowcharts, sequences, and UML diagrams
-- **STM32 Diagrams**: [documents/STM32/](documents/STM32/) - 15 flowcharts, 10 sequences, 11 architecture diagrams
-- **ESP32 Diagrams**: [documents/ESP32/](documents/ESP32/) - 15 flowcharts, 10 sequences, 11 architecture diagrams
-- **Web Dashboard Diagrams**: [documents/WEB/](documents/WEB/) - 15 flowcharts, 10 sequences, 11 architecture diagrams
-- **System-Level Diagrams**: [documents/SYSTEM/](documents/SYSTEM/) - Complete system architecture and data flow
+- **STM32 Diagrams**: [documents/stm32/](documents/stm32/) - 15 flowcharts, 10 sequences, 11 architecture diagrams
+- **ESP32 Diagrams**: [documents/esp32/](documents/esp32/) - 15 flowcharts, 10 sequences, 11 architecture diagrams
+- **Web Dashboard Diagrams**: [documents/web/](documents/web/) - 15 flowcharts, 10 sequences, 11 architecture diagrams
+- **System-Level Diagrams**: [documents/system/](documents/system/) - Complete system architecture and data flow
 
 ## License
 
