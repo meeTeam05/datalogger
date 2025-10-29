@@ -370,10 +370,10 @@ graph LR
         StatePub --> BrokerState
     end
 
-    style STM32 fill:#90EE90
-    style Broker fill:#87CEEB
-    style Web fill:#FFD700
-    style RelayHW fill:#DDA0DD
+    style STM32 fill:#90EE90, color:#000000
+    style Broker fill:#87CEEB, color:#000000
+    style Web fill:#FFD700, color:#000000
+    style RelayHW fill:#DDA0DD, color:#000000
 ```
 
 ## MQTT Topic Architecture
@@ -410,14 +410,14 @@ graph TB
     T5 --> Web2
     T6 --> Web2
 
-    style MQTT_Broker fill:#87CEEB
-    style Web fill:#FFD700
-    style ESP32_1 fill:#90EE90
-    style ESP32_2 fill:#90EE90
-    style ESP32_3 fill:#90EE90
-    style ESP32_4 fill:#90EE90
-    style ESP32_5 fill:#90EE90
-    style ESP32_6 fill:#90EE90
+    style MQTT_Broker fill:#87CEEB, color:#000000
+    style Web fill:#FFD700, color:#000000
+    style ESP32_1 fill:#90EE90, color:#000000
+    style ESP32_2 fill:#90EE90, color:#000000
+    style ESP32_3 fill:#90EE90, color:#000000
+    style ESP32_4 fill:#90EE90, color:#000000
+    style ESP32_5 fill:#90EE90, color:#000000
+    style ESP32_6 fill:#90EE90, color:#000000
 ```
 
 ## Hardware GPIO Configuration
@@ -425,7 +425,7 @@ graph TB
 ```mermaid
 graph LR
     subgraph ESP32_WROOM_32
-        subgraph UART1[UART1 - STM32 Communication]
+        subgraph UART1[UART1 - STM32]
             TX[GPIO17 - TX]
             RX[GPIO16 - RX]
         end
@@ -452,10 +452,10 @@ graph LR
     B3 -.->|pull-up, active low| GND3[GND]
     B4 -.->|pull-up, active low| GND4[GND]
 
-    style ESP32_WROOM_32 fill:#90EE90
-    style UART1 fill:#87CEEB
-    style Relay_GPIO fill:#DDA0DD
-    style Button_GPIO fill:#FFD700
+    style ESP32_WROOM_32 fill:#90EE90, color:#000000
+    style UART1 fill:#87CEEB, color:#000000
+    style Relay_GPIO fill:#DDA0DD, color:#000000
+    style Button_GPIO fill:#FFD700, color:#000000
 ```
 
 ## Configuration Constants
