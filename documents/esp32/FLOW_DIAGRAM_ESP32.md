@@ -322,9 +322,9 @@ flowchart LR
     Decision{Decision - Diamond}
     Critical[Critical State Change - Rectangle]
 
-    style Start fill:#90EE90
-    style Decision fill:#FFD700
-    style Critical fill:#FF6B6B
+    style Start fill:#90EE90, color:#000000
+    style Decision fill:#FFD700, color:#000000
+    style Critical fill:#FF6B6B, color:#000000
 ```
 
 ---
