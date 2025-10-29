@@ -1,98 +1,12 @@
-# Firmware System - UML and Architecture Diagrams
+# STM32 Data Logger - UML Class Diagrams
 
-This document provides the UML class diagrams and architecture views of the complete integrated firmware system (ESP32 and STM32 coordination).
+This document provides detailed UML class diagrams describing the structure and relationships of the STM32 firmware components.
 
-## Firmware Architecture Overview
-
-```mermaid
-graph TB
-    subgraph External[External Systems]
-        User[External Clients<br/>Web/Mobile Apps]
-        Power[Power Supply]
-        Network[WiFi Network]
-        Broker[MQTT Broker<br/>192.168.1.39:1883]
-    end
-
-    subgraph STM32[STM32F103C8T6 Microcontroller]
-        direction TB
-        STM32_Main[Main Application]
-        STM32_UART[UART Handler]
-        STM32_I2C[I2C Handler]
-        STM32_SPI[SPI Handler]
-        STM32_CMD[Command Parser]
-        STM32_DM[Data Manager]
-        STM32_SD[SD Card Manager]
-        STM32_Display[Display Manager]
-
-        STM32_Main --> STM32_UART
-        STM32_Main --> STM32_I2C
-        STM32_Main --> STM32_SPI
-        STM32_UART --> STM32_CMD
-        STM32_CMD --> STM32_DM
-        STM32_DM --> STM32_SD
-        STM32_Main --> STM32_Display
-    end
-
-    subgraph ESP32[ESP32-WROOM-32 Module]
-        direction TB
-        ESP32_Main[Main Application]
-        ESP32_WiFi[WiFi Manager]
-        ESP32_MQTT[MQTT Handler]
-        ESP32_UART2[UART Handler]
-        ESP32_Relay[Relay Control]
-        ESP32_JSON[JSON Parser]
-        ESP32_Button[Button Handler]
-
-        ESP32_Main --> ESP32_WiFi
-        ESP32_Main --> ESP32_MQTT
-        ESP32_Main --> ESP32_UART2
-        ESP32_Main --> ESP32_Relay
-        ESP32_Main --> ESP32_JSON
-        ESP32_Main --> ESP32_Button
-    end
-
-    subgraph Sensors[Sensors and Peripherals]
-        SHT3X[SHT3X Temp/Humidity<br/>0x44 I2C]
-        RTC[DS3231 RTC<br/>0x68 I2C]
-        SD[SD Card<br/>SPI1 18MHz]
-        TFT[ILI9225 Display<br/>SPI2 36MHz]
-        RelayHW[Relay Module<br/>GPIO4]
-        Buttons[4x Buttons<br/>GPIO 5,16,17,4]
-    end
-
-    Power --> STM32
-    Power --> ESP32
-
-    STM32_I2C <--> SHT3X
-    STM32_I2C <--> RTC
-    STM32_SPI <--> SD
-    STM32_SPI <--> TFT
-
-    STM32_UART <-->|UART1 115200 baud<br/>JSON Protocol| ESP32_UART2
-
-    ESP32_WiFi <--> Network
-    Network <--> Broker
-    ESP32_MQTT <--> Broker
-    Broker <--> User
-
-    ESP32_Relay --> RelayHW
-    Buttons --> ESP32_Button
-    RelayHW -.->|Controls Power| STM32
-
-    User -.->|MQTT Protocol| Broker
-
-    style STM32 fill:#FFE4B5
-    style ESP32 fill:#B0E0E6
-    style External fill:#E0E0E0
-    style Sensors fill:#F0E68C
-```
-
-## System Class Diagram
+## Complete System Class Diagram
 
 ```mermaid
 classDiagram
-    %% STM32 Firmware Classes
-    class STM32_Main {
+    class main {
         +I2C_HandleTypeDef hi2c1
         +SPI_HandleTypeDef hspi1
         +SPI_HandleTypeDef hspi2
@@ -100,657 +14,781 @@ classDiagram
         +sht3x_t g_sht3x
         +ds3231_t g_ds3231
         +mqtt_state_t mqtt_current_state
+        +uint32_t next_fetch_ms
         +uint32_t periodic_interval_ms
+        +bool force_display_update
+        -float outT
+        -float outRH
+        -uint32_t last_fetch_ms
         +main() int
         +SystemClock_Config() void
+        -MX_GPIO_Init() void
+        -MX_I2C1_Init() void
+        -MX_SPI1_Init() void
+        -MX_SPI2_Init() void
+        -MX_USART1_UART_Init() void
     }
 
-    class STM32_UART {
+    class UART {
         -UART_HandleTypeDef* huart
         -ring_buffer_t rx_buffer
-        +UART_Init() void
+        -char line_buffer[128]
+        -uint16_t line_index
+        +UART_Init(UART_HandleTypeDef*) void
         +UART_Handle() void
         +UART_RxCallback(uint8_t) void
+        -assemble_line() bool
     }
 
-    class STM32_CommandParser {
+    class RingBuffer {
+        -uint8_t* buffer
+        -volatile uint16_t head
+        -volatile uint16_t tail
+        -uint16_t size
+        +RingBuffer_Init(ring_buffer_t*, uint8_t*, uint16_t) void
+        +RingBuffer_Write(ring_buffer_t*, uint8_t) bool
+        +RingBuffer_Read(ring_buffer_t*, uint8_t*) bool
+        +RingBuffer_Available(ring_buffer_t*) uint16_t
+        +RingBuffer_Peek(ring_buffer_t*, uint8_t*) bool
+        +RingBuffer_Clear(ring_buffer_t*) void
+        +RingBuffer_IsFull(ring_buffer_t*) bool
+        +RingBuffer_IsEmpty(ring_buffer_t*) bool
+    }
+
+    class CommandExecute {
         +COMMAND_EXECUTE(char*) void
-        +SINGLE_PARSER() void
-        +PERIODIC_ON_PARSER() void
-        +PERIODIC_OFF_PARSER() void
-        +SET_TIME_PARSER() void
-        +MQTT_CONNECTED_PARSER() void
-        +MQTT_DISCONNECTED_PARSER() void
-        +SD_CLEAR_PARSER() void
+        -tokenize_string(char*, char**, uint8_t) uint8_t
+        -find_command(uint8_t, char**) command_function_t*
     }
 
-    class STM32_DataManager {
-        -data_manager_state_t state
-        -data_manager_mode_t mode
+    class CommandTable {
+        +command_function_t cmdTable[]
+        +GET_CMD_TABLE_SIZE() uint8_t
+    }
+
+    class CommandFunction {
+        +const char* cmdString
+        +void (*func)(uint8_t, char**)
+    }
+
+    class CommandParser {
+        +SINGLE_PARSER(uint8_t, char**) void
+        +PERIODIC_ON_PARSER(uint8_t, char**) void
+        +PERIODIC_OFF_PARSER(uint8_t, char**) void
+        +SET_TIME_PARSER(uint8_t, char**) void
+        +SET_PERIODIC_INTERVAL_PARSER(uint8_t, char**) void
+        +MQTT_CONNECTED_PARSER(uint8_t, char**) void
+        +MQTT_DISCONNECTED_PARSER(uint8_t, char**) void
+        +SD_CLEAR_PARSER(uint8_t, char**) void
+        +SHT3X_Heater_Parser(uint8_t, char**) void
+        +SHT3X_ART_Parser(uint8_t, char**) void
+        +DS3231_Set_Time_Parser(uint8_t, char**) void
+    }
+
+    class SHT3XDriver {
+        -I2C_HandleTypeDef* hi2c
+        -uint8_t device_address
+        -float temperature
+        -float humidity
+        -sht3x_mode_t currentState
+        -sht3x_repeat_t modeRepeat
+        +SHT3X_Init(sht3x_t*, I2C_HandleTypeDef*, uint8_t) void
+        +SHT3X_Single(sht3x_t*, sht3x_repeat_t*, float*, float*) SHT3X_StatusTypeDef
+        +SHT3X_Periodic(sht3x_t*, sht3x_mode_t*, sht3x_repeat_t*, float*, float*) SHT3X_StatusTypeDef
+        +SHT3X_FetchData(sht3x_t*, float*, float*) SHT3X_StatusTypeDef
+        +SHT3X_PeriodicStop(sht3x_t*) SHT3X_StatusTypeDef
+        +SHT3X_Heater(sht3x_t*, sht3x_heater_mode_t*) SHT3X_StatusTypeDef
+        +SHT3X_ART(sht3x_t*) SHT3X_StatusTypeDef
+        +SHT3X_SoftReset(sht3x_t*) SHT3X_StatusTypeDef
+        -calculate_crc(uint8_t*, uint8_t) uint8_t
+        -parse_raw_data(uint8_t*, float*, float*) SHT3X_StatusTypeDef
+    }
+
+    class SHT3XEnums {
+        <<enumeration>>
+        SHT3X_OK
+        SHT3X_ERROR
+    }
+
+    class SHT3XMode {
+        <<enumeration>>
+        SHT3X_IDLE
+        SHT3X_SINGLE_SHOT
+        SHT3X_PERIODIC_05MPS
+        SHT3X_PERIODIC_1MPS
+        SHT3X_PERIODIC_2MPS
+        SHT3X_PERIODIC_4MPS
+        SHT3X_PERIODIC_10MPS
+    }
+
+    class SHT3XRepeat {
+        <<enumeration>>
+        SHT3X_HIGH
+        SHT3X_MEDIUM
+        SHT3X_LOW
+    }
+
+    class SHT3XHeater {
+        <<enumeration>>
+        SHT3X_HEATER_ENABLE
+        SHT3X_HEATER_DISABLE
+    }
+
+    class DS3231Driver {
+        -I2C_HandleTypeDef* hi2c
+        -uint8_t device_address
+        +DS3231_Init(ds3231_t*, I2C_HandleTypeDef*) void
+        +DS3231_Set_Time(ds3231_t*, struct tm*) DS3231_StatusTypeDef
+        +DS3231_Get_Time(ds3231_t*, struct tm*) DS3231_StatusTypeDef
+        -bcd_to_decimal(uint8_t) uint8_t
+        -decimal_to_bcd(uint8_t) uint8_t
+    }
+
+    class DataManager {
+        -data_manager_state_t g_datalogger_state
         +DataManager_Init() void
         +DataManager_UpdateSingle(float, float) void
         +DataManager_UpdatePeriodic(float, float) void
         +DataManager_Print() bool
+        +DataManager_IsDataReady() bool
+        +DataManager_ClearDataReady() void
+        +DataManager_GetState() data_manager_state_t*
     }
 
-    class STM32_SDCardManager {
-        -sd_card_state_t state
-        -uint32_t write_pointer
-        -uint32_t read_pointer
-        -uint32_t record_count
+    class DataManagerState {
+        -data_manager_mode_t mode
+        -uint32_t timestamp
+        -sensor_data_sht3x_t sht3x
+        -bool data_ready
+    }
+
+    class DataManagerMode {
+        <<enumeration>>
+        DATA_MANAGER_MODE_IDLE
+        DATA_MANAGER_MODE_SINGLE
+        DATA_MANAGER_MODE_PERIODIC
+    }
+
+    class SensorDataSHT3X {
+        +float temperature
+        +float humidity
+        +bool valid
+    }
+
+    class WiFiManager {
+        +mqtt_state_t mqtt_current_state
+        +mqtt_manager_get_state() mqtt_state_t
+    }
+
+    class MQTTState {
+        <<enumeration>>
+        MQTT_STATE_DISCONNECTED
+        MQTT_STATE_CONNECTED
+    }
+
+    class SDCardManager {
+        -sd_buffer_metadata_t metadata
+        -uint8_t last_error
+        -bool initialized
         +SDCardManager_Init() bool
-        +SDCardManager_WriteData(char*) bool
-        +SDCardManager_ReadData(char*) bool
+        +SDCardManager_WriteData(uint32_t, float, float, const char*) bool
+        +SDCardManager_ReadData(sd_data_record_t*) bool
+        +SDCardManager_GetBufferedCount() uint32_t
         +SDCardManager_RemoveRecord() bool
-        +SDCardManager_Clear() bool
+        +SDCardManager_ClearBuffer() bool
+        +SDCardManager_IsReady() bool
+        +SDCardManager_GetLastError() uint8_t
     }
 
-    class STM32_SHT3X {
-        -I2C_HandleTypeDef* hi2c
-        -float temperature
-        -float humidity
-        -sht3x_mode_t currentState
-        +SHT3X_Init() void
-        +SHT3X_Single() SHT3X_StatusTypeDef
-        +SHT3X_Periodic() SHT3X_StatusTypeDef
-        +SHT3X_FetchData() SHT3X_StatusTypeDef
-        +SHT3X_PeriodicStop() SHT3X_StatusTypeDef
+    class SDDataRecord {
+        +uint32_t timestamp
+        +float temperature
+        +float humidity
+        +char mode[16]
+        +uint32_t sequence_num
+        +uint8_t padding[480]
     }
 
-    class STM32_DS3231 {
-        -I2C_HandleTypeDef* hi2c
-        +DS3231_Init() void
-        +DS3231_Set_Time(struct tm*) DS3231_StatusTypeDef
-        +DS3231_Get_Time(struct tm*) DS3231_StatusTypeDef
+    class SDBufferMetadata {
+        +uint32_t write_index
+        +uint32_t read_index
+        +uint32_t count
+        +uint32_t sequence_num
     }
 
-    class STM32_Display {
-        +Display_Init() void
-        +Display_Update() void
-        +Display_ShowSensorData(float, float) void
-        +Display_ShowMQTTState(bool) void
-        +Display_ShowBufferCount(uint32_t) void
+    class ILI9225Driver {
+        -SPI_HandleTypeDef* hspi
+        +ILI9225_Init() void
+        +ILI9225_Clear(uint16_t) void
+        +ILI9225_DrawPixel(uint16_t, uint16_t, uint16_t) void
+        +ILI9225_FillRect(uint16_t, uint16_t, uint16_t, uint16_t, uint16_t) void
+        +ILI9225_DrawString(uint16_t, uint16_t, const char*, uint16_t, uint16_t) void
+        -ILI9225_WriteCommand(uint8_t) void
+        -ILI9225_WriteData(uint16_t) void
     }
 
-    %% ESP32 Firmware Classes
-    class ESP32_Main {
-        +wifi_manager_t g_wifi_manager
-        +stm32_uart_t g_stm32_uart
-        +mqtt_handler_t g_mqtt_handler
-        +relay_control_t g_relay
-        +bool g_device_on
-        +bool g_periodic_active
-        +app_main() void
-        +initialize_components() void
-        +update_and_publish_state() void
+    class Display {
+        +display_init() void
+        +display_update(time_t, float, float, bool, bool, int) void
+        +display_clear() void
     }
 
-    class ESP32_WiFiManager {
-        -wifi_state_t current_state
-        -uint8_t retry_count
-        +WiFi_Init() bool
-        +WiFi_Connect() bool
-        +WiFi_GetState() wifi_state_t
-        +WiFi_IsConnected() bool
+    class SensorJSONOutput {
+        +sensor_json_format(char*, size_t, const char*, float, float, uint32_t) int
+        -sanitize_float(float, float) float
     }
 
-    class ESP32_MQTT_Handler {
-        -esp_mqtt_client_handle_t client
-        -bool connected
-        -int retry_count
-        +MQTT_Handler_Init() bool
-        +MQTT_Handler_Start() bool
-        +MQTT_Handler_Subscribe() bool
-        +MQTT_Handler_Publish() bool
+    class PrintCLI {
+        -char stringBuffer[256]
+        +PRINT_CLI(const char*, ...) void
     }
 
-    class ESP32_UART {
-        -int uart_num
-        -ring_buffer_t rx_buffer
-        -stm32_data_callback_t callback
-        +STM32_UART_Init() bool
-        +STM32_UART_SendCommand() bool
-        +STM32_UART_ProcessData() void
-    }
+    %% Relationships
+    main --> UART : uses
+    main --> SHT3XDriver : uses g_sht3x
+    main --> DS3231Driver : uses g_ds3231
+    main --> DataManager : uses
+    main --> WiFiManager : uses mqtt_current_state
+    main --> SDCardManager : uses
+    main --> Display : uses
 
-    class ESP32_RelayControl {
-        -int gpio_num
-        -bool state
-        -relay_state_callback_t callback
-        +Relay_Init() bool
-        +Relay_SetState(bool) bool
-        +Relay_Toggle() bool
-    }
+    UART --> RingBuffer : contains rx_buffer
+    UART --> CommandExecute : calls
 
-    class ESP32_JSONParser {
-        -sensor_data_callback_t single_callback
-        -sensor_data_callback_t periodic_callback
-        +JSON_Parser_Init() bool
-        +JSON_Parser_ProcessLine() bool
-        +JSON_Parser_IsValid() bool
-    }
+    CommandExecute --> CommandTable : queries
+    CommandTable --> CommandFunction : contains array of
+    CommandExecute --> CommandParser : dispatches to
 
-    class ESP32_ButtonHandler {
-        -gpio_num_t gpio_num
-        -button_press_callback_t callback
-        +Button_Init() bool
-        +Button_StartTask() bool
-    }
+    CommandParser --> SHT3XDriver : calls
+    CommandParser --> DS3231Driver : calls
+    CommandParser --> DataManager : updates
+    CommandParser --> WiFiManager : updates
+    CommandParser --> SDCardManager : calls
+    CommandParser --> PrintCLI : uses
 
-    %% STM32 Internal Relationships
-    STM32_Main --> STM32_UART : uses
-    STM32_Main --> STM32_SHT3X : uses
-    STM32_Main --> STM32_DS3231 : uses
-    STM32_Main --> STM32_DataManager : uses
-    STM32_Main --> STM32_SDCardManager : uses
-    STM32_Main --> STM32_Display : uses
-    STM32_UART --> STM32_CommandParser : triggers
-    STM32_CommandParser --> STM32_SHT3X : controls
-    STM32_CommandParser --> STM32_DataManager : updates
-    STM32_DataManager --> STM32_SDCardManager : buffers to
+    SHT3XDriver --> SHT3XEnums : returns
+    SHT3XDriver --> SHT3XMode : uses
+    SHT3XDriver --> SHT3XRepeat : uses
+    SHT3XDriver --> SHT3XHeater : uses
 
-    %% ESP32 Internal Relationships
-    ESP32_Main --> ESP32_WiFiManager : uses
-    ESP32_Main --> ESP32_MQTT_Handler : uses
-    ESP32_Main --> ESP32_UART : uses
-    ESP32_Main --> ESP32_RelayControl : uses
-    ESP32_Main --> ESP32_JSONParser : uses
-    ESP32_Main --> ESP32_ButtonHandler : uses
+    DataManager --> DataManagerState : contains
+    DataManagerState --> DataManagerMode : uses
+    DataManagerState --> SensorDataSHT3X : contains
 
-    %% Cross-System Communication
-    ESP32_UART ..> STM32_UART : UART Communication
-    STM32_UART ..> ESP32_UART : UART Communication
-    ESP32_RelayControl ..> STM32_Main : Power Control
+    DataManager --> SensorJSONOutput : uses
+    DataManager --> DS3231Driver : uses for timestamp
+    DataManager --> WiFiManager : checks state
+    DataManager --> SDCardManager : buffers when offline
+    DataManager --> PrintCLI : uses
 
-    note for STM32_Main "STM32 Microcontroller\nHandles sensor data collection,\nSD card buffering, and display"
-    note for ESP32_Main "ESP32 Microcontroller\nHandles WiFi, MQTT communication,\nand relay control"
+    WiFiManager --> MQTTState : uses
+
+    SDCardManager --> SDDataRecord : manages
+    SDCardManager --> SDBufferMetadata : maintains
+
+    Display --> ILI9225Driver : uses
+
+    SensorJSONOutput --> PrintCLI : uses
 ```
 
-## Data Flow Architecture
+## Core Component Details
 
-```mermaid
-graph LR
-    subgraph Input[Data Input Sources]
-        Sensor[SHT3X Sensor<br/>Temperature & Humidity]
-        Time[DS3231 RTC<br/>Timestamp]
-        WebCmd[Web Commands<br/>via MQTT]
-        ButtonCmd[Button Presses<br/>GPIO]
-    end
-
-    subgraph STM32_Processing[STM32 Processing]
-        I2C[I2C Read<br/>100kHz]
-        Parse[JSON Format<br/>with Timestamp]
-        Route{MQTT<br/>Connected?}
-        Buffer[SD Card Buffer<br/>204,800 records]
-
-        Sensor --> I2C
-        Time --> I2C
-        I2C --> Parse
-        Parse --> Route
-        Route -->|No| Buffer
-    end
-
-    subgraph ESP32_Processing[ESP32 Processing]
-        UARTRx[UART RX<br/>Ring Buffer]
-        JSONParse[JSON Parser<br/>Mode Detection]
-        MQTTPub[MQTT Publish<br/>QoS 0/1]
-        CmdRoute[Command Router<br/>Topic-based]
-        StateSync[State Manager<br/>Retained Messages]
-
-        Route -->|Yes| UARTRx
-        UARTRx --> JSONParse
-        JSONParse --> MQTTPub
-
-        WebCmd --> CmdRoute
-        ButtonCmd --> CmdRoute
-        CmdRoute --> StateSync
-    end
-
-    subgraph Output[Data Output]
-        Cloud[MQTT Broker<br/>Cloud]
-        Display[TFT Display<br/>ILI9225]
-        LED[Status LEDs<br/>WiFi/MQTT]
-        RelayOut[Relay Output<br/>Device Control]
-
-        MQTTPub --> Cloud
-        Parse --> Display
-        StateSync --> Display
-        StateSync --> LED
-        CmdRoute --> RelayOut
-    end
-
-    Buffer -.->|On Reconnect| UARTRx
-
-    style Input fill:#90EE90
-    style STM32_Processing fill:#FFE4B5
-    style ESP32_Processing fill:#B0E0E6
-    style Output fill:#DDA0DD
-```
-
-## State Machine Architecture
-
-```mermaid
-stateDiagram-v2
-    [*] --> PowerOn
-
-    state PowerOn {
-        [*] --> STM32_Init
-        [*] --> ESP32_Init
-
-        STM32_Init --> STM32_Idle : Init complete
-        ESP32_Init --> ESP32_Connecting : Init complete
-
-        state STM32_Idle {
-            [*] --> WaitingCommand
-            WaitingCommand --> SingleMeasure : SINGLE
-            WaitingCommand --> PeriodicMeasure : PERIODIC ON
-            SingleMeasure --> WaitingCommand : Done
-            PeriodicMeasure --> WaitingCommand : PERIODIC OFF
-        }
-
-        state ESP32_Connecting {
-            [*] --> WiFi_Disconnected
-            WiFi_Disconnected --> WiFi_Connecting : Connect attempt
-            WiFi_Connecting --> WiFi_Connected : Success
-            WiFi_Connecting --> WiFi_Failed : Max retries
-            WiFi_Failed --> WiFi_Connecting : Retry 5s
-            WiFi_Connected --> MQTT_Disconnected : 4s stable
-
-            MQTT_Disconnected --> MQTT_Connecting : Start
-            MQTT_Connecting --> MQTT_Connected : Success
-            MQTT_Connecting --> MQTT_Disconnected : Fail + backoff
-            MQTT_Connected --> MQTT_Disconnected : WiFi lost
-        }
-    }
-
-    state SystemOperational {
-        state STM32_Operation {
-            [*] --> DataCollection
-            DataCollection --> DataReady : Measurement complete
-            DataReady --> CheckMQTT : data_ready flag
-            CheckMQTT --> LiveTransmit : MQTT connected
-            CheckMQTT --> BufferToSD : MQTT disconnected
-            LiveTransmit --> DataCollection
-            BufferToSD --> DataCollection
-        }
-
-        state ESP32_Operation {
-            [*] --> MonitorState
-            MonitorState --> ProcessCommand : MQTT message
-            MonitorState --> ProcessData : UART data
-            MonitorState --> ProcessButton : Button press
-            ProcessCommand --> UpdateState
-            ProcessData --> PublishMQTT
-            ProcessButton --> UpdateState
-            UpdateState --> MonitorState
-            PublishMQTT --> MonitorState
-        }
-    }
-
-    PowerOn --> SystemOperational : Both ready
-    SystemOperational --> ErrorRecovery : Error detected
-    ErrorRecovery --> SystemOperational : Recovered
-```
-
-## Hardware Configuration Diagram
-
-```mermaid
-graph TB
-    subgraph STM32_HW[STM32F103C8T6 Hardware]
-        STM32_MCU[ARM Cortex-M3<br/>72MHz<br/>64KB Flash<br/>20KB RAM]
-
-        STM32_I2C[I2C1<br/>PB6: SCL<br/>PB7: SDA<br/>100kHz]
-
-        STM32_SPI1[SPI1 SD Card<br/>PA5: SCK<br/>PA6: MISO<br/>PA7: MOSI<br/>18MHz]
-
-        STM32_SPI2[SPI2 Display<br/>PB13: SCK<br/>PB14: MISO<br/>PB15: MOSI<br/>36MHz]
-
-        STM32_UART[UART1<br/>PA9: TX<br/>PA10: RX<br/>115200 baud]
-
-        STM32_MCU --> STM32_I2C
-        STM32_MCU --> STM32_SPI1
-        STM32_MCU --> STM32_SPI2
-        STM32_MCU --> STM32_UART
-    end
-
-    subgraph ESP32_HW[ESP32-WROOM-32 Hardware]
-        ESP32_MCU[Xtensa LX6<br/>240MHz<br/>4MB Flash<br/>520KB RAM]
-
-        ESP32_WiFi[WiFi Radio<br/>802.11 b/g/n<br/>2.4GHz]
-
-        ESP32_UART_HW[UART1<br/>GPIO17: TX<br/>GPIO16: RX<br/>115200 baud]
-
-        ESP32_GPIO[GPIO<br/>GPIO4: Relay<br/>GPIO5: Button1<br/>GPIO16: Button2<br/>GPIO17: Button3<br/>GPIO4: Button4]
-
-        ESP32_MCU --> ESP32_WiFi
-        ESP32_MCU --> ESP32_UART_HW
-        ESP32_MCU --> ESP32_GPIO
-    end
-
-    subgraph Peripherals_HW[Peripherals]
-        SHT3X_HW[SHT3X Sensor<br/>I2C Address: 0x44<br/>±0.2°C, ±2%RH]
-        RTC_HW[DS3231 RTC<br/>I2C Address: 0x68<br/>±2ppm accuracy]
-        SD_HW[SD Card<br/>FAT32<br/>Circular Buffer]
-        Display_HW[ILI9225 TFT<br/>176x220 pixels<br/>2.2 inch]
-        Relay_HW[Relay Module<br/>Active HIGH<br/>Controls STM32 power]
-        Buttons_HW[4x Tactile Buttons<br/>Active LOW<br/>Pull-up enabled]
-    end
-
-    STM32_I2C <--> SHT3X_HW
-    STM32_I2C <--> RTC_HW
-    STM32_SPI1 <--> SD_HW
-    STM32_SPI2 <--> Display_HW
-
-    STM32_UART <--> ESP32_UART_HW
-
-    ESP32_GPIO --> Relay_HW
-    Buttons_HW --> ESP32_GPIO
-    Relay_HW -.->|Power Control| STM32_MCU
-
-    ESP32_WiFi <--> Network[WiFi Network<br/>SSID: WiFi network name]
-
-    style STM32_HW fill:#FFE4B5
-    style ESP32_HW fill:#B0E0E6
-    style Peripherals_HW fill:#F0E68C
-```
-
-## MQTT Topic and Message Architecture
-
-```mermaid
-graph TB
-    subgraph Broker[MQTT Broker: 192.168.1.39:1883]
-        direction TB
-
-        subgraph Subscribe[ESP32 Subscribes]
-            T1["datalogger/stm32/command<br/>QoS: 1"]
-            T2["datalogger/esp32/relay/control<br/>QoS: 1"]
-            T3["datalogger/esp32/system/state<br/>QoS: 1"]
-        end
-
-        subgraph Publish[ESP32 Publishes]
-            T4["datalogger/stm32/single/data<br/>QoS: 0, Retain: 0"]
-            T5["datalogger/stm32/periodic/data<br/>QoS: 0, Retain: 0"]
-            T6["datalogger/esp32/system/state<br/>QoS: 1, Retain: 1"]
-        end
-    end
-
-    subgraph Messages[Message Formats]
-        direction TB
-
-        CMD1["Commands:<br/>SINGLE<br/>PERIODIC ON<br/>PERIODIC OFF<br/>SET TIME"]
-
-        CMD2["Relay Commands:<br/>ON<br/>OFF<br/>TOGGLE"]
-
-        CMD3["State Request:<br/>REQUEST"]
-
-        DATA1["Single Data:<br/>mode: SINGLE<br/>timestamp: ...<br/>temperature: ...<br/>humidity: ..."]
-
-        DATA2["Periodic Data:<br/>mode: PERIODIC<br/>timestamp: ...<br/>temperature: ...<br/>humidity: ..."]
-
-        DATA3["System State:<br/>device: ON/OFF<br/>periodic: ON/OFF<br/>timestamp: ..."]
-    end
-
-    T1 -.-> CMD1
-    T2 -.-> CMD2
-    T3 -.-> CMD3
-    T4 -.-> DATA1
-    T5 -.-> DATA2
-    T6 -.-> DATA3
-
-    Web[Web Interface] -->|Publish| T1
-    Web -->|Publish| T2
-    Web -->|Publish| T3
-
-    T4 -->|Subscribe| Web
-    T5 -->|Subscribe| Web
-    T6 -->|Subscribe| Web
-
-    style Broker fill:#87CEEB
-    style Messages fill:#FFE4B5
-    style Web fill:#90EE90
-```
-
-## Memory and Resource Management
+### UART and Ring Buffer Component
 
 ```mermaid
 classDiagram
-    class STM32_Memory {
-        +Flash: 64KB
-        +RAM: 20KB
-        +Stack: 4KB
-        +Heap: ~10KB
-        +Peripherals: Memory-mapped
+    class ring_buffer_t {
+        +uint8_t* buffer
+        +volatile uint16_t head
+        +volatile uint16_t tail
+        +uint16_t size
     }
 
-    class STM32_Resources {
-        +I2C1: 100kHz
-        +SPI1: 18MHz SD Card
-        +SPI2: 36MHz Display
-        +UART1: 115200 baud
-        +Timers: SysTick, TIM2
-        +RTC: DS3231 external
+    class UARTModule {
+        -UART_HandleTypeDef* huart
+        -ring_buffer_t rx_buffer
+        -uint8_t rx_buffer_storage[256]
+        -char line_buffer[128]
+        -uint16_t line_index
+        +UART_Init(UART_HandleTypeDef*) void
+        +UART_Handle() void
+        +UART_RxCallback(uint8_t) void
+        -assemble_line() bool
     }
 
-    class ESP32_Memory {
-        +Flash: 4MB
-        +SRAM: 520KB
-        +PSRAM: None
-        +RTC_Memory: 8KB
-        +Stack_per_task: 4KB
+    class RingBufferAPI {
+        <<interface>>
+        +RingBuffer_Init(ring_buffer_t*, uint8_t*, uint16_t) void
+        +RingBuffer_Write(ring_buffer_t*, uint8_t) bool
+        +RingBuffer_Read(ring_buffer_t*, uint8_t*) bool
+        +RingBuffer_Available(ring_buffer_t*) uint16_t
+        +RingBuffer_Peek(ring_buffer_t*, uint8_t*) bool
+        +RingBuffer_Clear(ring_buffer_t*) void
+        +RingBuffer_IsFull(ring_buffer_t*) bool
+        +RingBuffer_IsEmpty(ring_buffer_t*) bool
     }
 
-    class ESP32_Resources {
-        +WiFi: 802.11 b/g/n
-        +UART1: 115200 baud
-        +GPIO: 4x input, 1x output
-        +FreeRTOS: Multi-tasking
-        +Timers: Hardware timers
-    }
-
-    class RingBuffer {
-        +Size: 512-1024 bytes
-        +Usage: UART RX
-        +Type: Circular
-        +Thread-safe: ISR access
-    }
-
-    class SDCardBuffer {
-        +Capacity: 204,800 records
-        +Record_size: ~80 bytes
-        +Total: ~16MB
-        +Type: Circular FAT32
-        +Persistence: Non-volatile
-    }
-
-    STM32_Memory --> RingBuffer : allocates
-    STM32_Memory --> SDCardBuffer : manages
-    ESP32_Memory --> RingBuffer : allocates
+    UARTModule --> ring_buffer_t : uses
+    UARTModule ..> RingBufferAPI : calls
+    RingBufferAPI ..> ring_buffer_t : operates on
 ```
 
-## Error Handling and Recovery Architecture
+### Command Processing Component
 
 ```mermaid
-graph TB
-    subgraph Errors[Error Types]
-        E1[I2C Sensor Timeout]
-        E2[RTC Communication Fail]
-        E3[SD Card Mount Fail]
-        E4[WiFi Connection Lost]
-        E5[MQTT Broker Disconnect]
-        E6[UART Buffer Overflow]
-        E7[JSON Parse Error]
-    end
-
-    subgraph Recovery[Recovery Strategies]
-        R1[Return 0.0 values<br/>Continue operation<br/>Retry next cycle]
-
-        R2[Use timestamp=0<br/>Continue operation<br/>Retry next query]
-
-        R3[Disable SD buffering<br/>MQTT-only mode<br/>Log to display]
-
-        R4[Auto-retry 5x @ 2s<br/>Manual retry @ 5s<br/>Continue until success]
-
-        R5[Exponential backoff<br/>min 60s, 2^retry<br/>Infinite retries]
-
-        R6[Discard oldest data<br/>Log overflow<br/>Continue reception]
-
-        R7[Log parse error<br/>Discard message<br/>Continue processing]
-    end
-
-    subgraph Monitoring[Error Monitoring]
-        M1[Display Status]
-        M2[LED Indicators]
-        M3[MQTT Error Reports]
-        M4[Buffered Error Data]
-    end
-
-    E1 --> R1
-    E2 --> R2
-    E3 --> R3
-    E4 --> R4
-    E5 --> R5
-    E6 --> R6
-    E7 --> R7
-
-    R1 --> M1
-    R2 --> M1
-    R3 --> M1
-    R4 --> M2
-    R5 --> M2
-    R6 --> M1
-    R7 --> M1
-
-    R1 --> M3
-    R3 --> M3
-    R4 --> M3
-    R5 --> M3
-
-    R1 --> M4
-    R2 --> M4
-
-    style Errors fill:#FF6B6B
-    style Recovery fill:#90EE90
-    style Monitoring fill:#FFD700
-```
-
-## System Timing and Synchronization
-
-```mermaid
-gantt
-    title System Timing Diagram
-    dateFormat X
-    axisFormat %L ms
-
-    section STM32
-    System Init           :0, 500
-    SHT3X Single 15ms     :600, 615
-    I2C Read              :615, 620
-    Format JSON           :620, 625
-    UART Transmit 10ms    :625, 635
-
-    section ESP32
-    System Init           :0, 1000
-    WiFi Connect 10s      :1000, 11000
-    Wait 4s Stable        :11000, 15000
-    MQTT Connect 2s       :15000, 17000
-    UART Process          :635, 645
-    JSON Parse            :645, 650
-    MQTT Publish          :650, 655
-
-    section Periodic
-    Fetch Interval 5s     :20000, 25000
-    Next Fetch            :25000, 30000
-    Next Fetch            :30000, 35000
-
-    section Delays
-    WiFi Retry 2s         :milestone, 2000
-    Manual Retry 5s       :milestone, 5000
-    MQTT Backoff 1s       :milestone, 1000
-    MQTT Backoff 2s       :milestone, 2000
-    MQTT Backoff 4s       :milestone, 4000
-    STM32 Boot 500ms      :milestone, 500
-    Button Debounce 200ms :milestone, 200
-```
-
-## Deployment Architecture
-
-```mermaid
-C4Deployment
-    title Firmware Deployment Diagram - ESP32 and STM32 Coordination
-
-    Deployment_Node(device, "IoT Device", "Hardware"){
-        Deployment_Node(stm32, "STM32F103C8T6", "Microcontroller"){
-            Container(stm32_fw, "STM32 Firmware", "C, HAL", "Data collection and buffering")
-        }
-
-        Deployment_Node(esp32, "ESP32-WROOM-32", "WiFi Module"){
-            Container(esp32_fw, "ESP32 Firmware", "C, ESP-IDF", "IoT bridge and MQTT client")
-        }
-
-        Deployment_Node(sensors, "Sensors", "Hardware"){
-            Container(sht3x, "SHT3X", "I2C", "Temperature & Humidity")
-            Container(rtc, "DS3231", "I2C", "Real-time clock")
-            Container(sd, "SD Card", "SPI", "Data buffering")
-            Container(display, "ILI9225", "SPI", "Status display")
-        }
+classDiagram
+    class command_function_t {
+        +const char* cmdString
+        +void (*func)(uint8_t argc, char** argv)
     }
 
-    Deployment_Node(network, "Local Network", "WiFi"){
-        Deployment_Node(broker, "MQTT Broker", "Mosquitto"){
-            Container(mqtt, "MQTT Server", "v5.0", "Message broker")
-        }
+    class CommandExecutor {
+        <<service>>
+        +COMMAND_EXECUTE(char* commandBuffer) void
+        -tokenize_string(char*, char**, uint8_t) uint8_t
+        -find_command(uint8_t, char**) command_function_t*
     }
 
-    Rel(stm32_fw, esp32_fw, "UART 115200", "JSON")
-    Rel(stm32_fw, sht3x, "I2C", "Read data")
-    Rel(stm32_fw, rtc, "I2C", "Get time")
-    Rel(stm32_fw, sd, "SPI", "Buffer data")
-    Rel(stm32_fw, display, "SPI", "Show status")
-    Rel(esp32_fw, mqtt, "MQTT", "Pub/Sub")
+    class CommandRegistry {
+        <<static>>
+        +command_function_t cmdTable[]
+        +"CHECK UART STATUS"
+        +"SHT3X HEATER ENABLE"
+        +"SHT3X HEATER DISABLE"
+        +"SHT3X ART"
+        +"DS3231 SET TIME"
+        +"SINGLE"
+        +"PERIODIC ON"
+        +"PERIODIC OFF"
+        +"SET TIME"
+        +"SET PERIODIC INTERVAL"
+        +"MQTT CONNECTED"
+        +"MQTT DISCONNECTED"
+        +"SD CLEAR"
+        +GET_CMD_TABLE_SIZE() uint8_t
+    }
+
+    class ICommandHandler {
+        <<interface>>
+        +handle(uint8_t argc, char** argv) void
+    }
+
+    class MeasurementHandlers {
+        +SINGLE_PARSER(uint8_t, char**) void
+        +PERIODIC_ON_PARSER(uint8_t, char**) void
+        +PERIODIC_OFF_PARSER(uint8_t, char**) void
+        +SET_PERIODIC_INTERVAL_PARSER(uint8_t, char**) void
+    }
+
+    class TimeHandlers {
+        +SET_TIME_PARSER(uint8_t, char**) void
+        +DS3231_Set_Time_Parser(uint8_t, char**) void
+    }
+
+    class MQTTHandlers {
+        +MQTT_CONNECTED_PARSER(uint8_t, char**) void
+        +MQTT_DISCONNECTED_PARSER(uint8_t, char**) void
+    }
+
+    class SDHandlers {
+        +SD_CLEAR_PARSER(uint8_t, char**) void
+    }
+
+    class DebugHandlers {
+        +SHT3X_Heater_Parser(uint8_t, char**) void
+        +SHT3X_ART_Parser(uint8_t, char**) void
+        +CHECK_UART_STATUS(uint8_t, char**) void
+    }
+
+    CommandExecutor --> CommandRegistry : queries
+    CommandRegistry --> command_function_t : array of
+    command_function_t --> ICommandHandler : function pointer
+    MeasurementHandlers ..|> ICommandHandler
+    TimeHandlers ..|> ICommandHandler
+    MQTTHandlers ..|> ICommandHandler
+    SDHandlers ..|> ICommandHandler
+    DebugHandlers ..|> ICommandHandler
 ```
 
-## System Characteristics
+### SHT3X Sensor Driver Component
 
-### Performance Metrics
+```mermaid
+classDiagram
+    class sht3x_t {
+        +I2C_HandleTypeDef* hi2c
+        +uint8_t device_address
+        +float temperature
+        +float humidity
+        +sht3x_mode_t currentState
+        +sht3x_repeat_t modeRepeat
+    }
 
-- **Measurement Rate**: 0.2 Hz to 1 Hz (configurable 5s-60s intervals)
-- **Sensor Accuracy**: ±0.2°C, ±2%RH (SHT3X)
-- **RTC Accuracy**: ±2ppm (DS3231)
-- **Communication Latency**: <100ms (STM32 → Web)
-- **Buffer Capacity**: 204,800 records (~16MB SD card)
-- **UART Throughput**: ~11.5 KB/s (115200 baud)
-- **MQTT Throughput**: Limited by network, typically <1KB/s for sensor data
+    class SHT3X_StatusTypeDef {
+        <<enumeration>>
+        SHT3X_OK
+        SHT3X_ERROR
+    }
 
-### Reliability Features
+    class sht3x_mode_t {
+        <<enumeration>>
+        SHT3X_IDLE
+        SHT3X_SINGLE_SHOT
+        SHT3X_PERIODIC_05MPS
+        SHT3X_PERIODIC_1MPS
+        SHT3X_PERIODIC_2MPS
+        SHT3X_PERIODIC_4MPS
+        SHT3X_PERIODIC_10MPS
+    }
 
-- **Sensor Failure**: Graceful degradation with 0.0 values
-- **Communication Loss**: SD card buffering (>14 days @ 5s intervals)
-- **Power Interruption**: Non-volatile SD card storage
-- **Network Instability**: Automatic WiFi/MQTT reconnection
-- **Data Integrity**: CRC validation for sensor data
-- **Clock Drift**: RTC with backup battery
+    class sht3x_repeat_t {
+        <<enumeration>>
+        SHT3X_HIGH
+        SHT3X_MEDIUM
+        SHT3X_LOW
+    }
 
-### Scalability
+    class sht3x_heater_mode_t {
+        <<enumeration>>
+        SHT3X_HEATER_ENABLE
+        SHT3X_HEATER_DISABLE
+    }
 
-- **Single Device**: Current implementation
-- **Multi-Device**: MQTT topic hierarchy ready
-- **Extended Sensors**: Modular driver architecture
-- **Cloud Services**: MQTT broker can forward to cloud
-- **Historical Data**: SD card provides local time-series storage
+    class SHT3XDriverAPI {
+        <<interface>>
+        +SHT3X_Init(sht3x_t*, I2C_HandleTypeDef*, uint8_t) void
+        +SHT3X_Single(sht3x_t*, sht3x_repeat_t*, float*, float*) SHT3X_StatusTypeDef
+        +SHT3X_Periodic(sht3x_t*, sht3x_mode_t*, sht3x_repeat_t*) SHT3X_StatusTypeDef
+        +SHT3X_FetchData(sht3x_t*, float*, float*) SHT3X_StatusTypeDef
+        +SHT3X_PeriodicStop(sht3x_t*) SHT3X_StatusTypeDef
+        +SHT3X_Heater(sht3x_t*, sht3x_heater_mode_t*) SHT3X_StatusTypeDef
+        +SHT3X_ART(sht3x_t*) SHT3X_StatusTypeDef
+        +SHT3X_SoftReset(sht3x_t*) SHT3X_StatusTypeDef
+    }
 
-### Power Consumption
+    class SHT3XDriverPrivate {
+        <<private>>
+        -calculate_crc(uint8_t* data, uint8_t length) uint8_t
+        -parse_raw_data(uint8_t* raw_data, float* temp, float* hum) SHT3X_StatusTypeDef
+        -build_command_word(sht3x_mode_t, sht3x_repeat_t) uint16_t
+    }
 
-- **STM32 Active**: ~20mA @ 72MHz
-- **STM32 Sleep**: Not implemented (always active)
-- **ESP32 Active**: ~160mA (WiFi on), ~80mA (WiFi off)
-- **ESP32 Sleep**: Not implemented (always active)
-- **Total System**: ~200mA @ 5V (relay ON)
-- **Relay Control**: Enables power-saving by powering down STM32
+    sht3x_t --> sht3x_mode_t : currentState
+    sht3x_t --> sht3x_repeat_t : modeRepeat
+    SHT3XDriverAPI ..> sht3x_t : operates on
+    SHT3XDriverAPI ..> SHT3X_StatusTypeDef : returns
+    SHT3XDriverAPI ..> sht3x_heater_mode_t : uses
+    SHT3XDriverPrivate ..> sht3x_t : supports
+```
 
-### Security Considerations
+### DS3231 RTC Driver Component
 
-- **MQTT Authentication**: Username/password (admin/password)
-- **Network**: WPA2 WiFi encryption
-- **Physical**: Relay can disconnect STM32 power
-- **Data Privacy**: Local network only (no internet by default)
-- **Future**: TLS/SSL for MQTT can be enabled
+```mermaid
+classDiagram
+    class ds3231_t {
+        +I2C_HandleTypeDef* hi2c
+        +uint8_t device_address
+    }
+
+    class DS3231_StatusTypeDef {
+        <<enumeration>>
+        DS3231_OK
+        DS3231_ERROR
+    }
+
+    class tm {
+        <<struct>>
+        +int tm_sec
+        +int tm_min
+        +int tm_hour
+        +int tm_mday
+        +int tm_mon
+        +int tm_year
+        +int tm_wday
+    }
+
+    class DS3231DriverAPI {
+        <<interface>>
+        +DS3231_Init(ds3231_t*, I2C_HandleTypeDef*) void
+        +DS3231_Set_Time(ds3231_t*, struct tm*) DS3231_StatusTypeDef
+        +DS3231_Get_Time(ds3231_t*, struct tm*) DS3231_StatusTypeDef
+    }
+
+    class DS3231DriverPrivate {
+        <<private>>
+        -bcd_to_decimal(uint8_t) uint8_t
+        -decimal_to_bcd(uint8_t) uint8_t
+        -read_registers(uint8_t, uint8_t*, uint8_t) DS3231_StatusTypeDef
+        -write_registers(uint8_t, uint8_t*, uint8_t) DS3231_StatusTypeDef
+    }
+
+    DS3231DriverAPI ..> ds3231_t : operates on
+    DS3231DriverAPI ..> DS3231_StatusTypeDef : returns
+    DS3231DriverAPI ..> tm : uses
+    DS3231DriverPrivate ..> ds3231_t : supports
+```
+
+### Data Manager Component
+
+```mermaid
+classDiagram
+    class sensor_data_sht3x_t {
+        +float temperature
+        +float humidity
+        +bool valid
+    }
+
+    class data_manager_mode_t {
+        <<enumeration>>
+        DATA_MANAGER_MODE_IDLE
+        DATA_MANAGER_MODE_SINGLE
+        DATA_MANAGER_MODE_PERIODIC
+    }
+
+    class data_manager_state_t {
+        +data_manager_mode_t mode
+        +uint32_t timestamp
+        +sensor_data_sht3x_t sht3x
+        +bool data_ready
+    }
+
+    class DataManagerAPI {
+        <<interface>>
+        +DataManager_Init() void
+        +DataManager_UpdateSingle(float, float) void
+        +DataManager_UpdatePeriodic(float, float) void
+        +DataManager_Print() bool
+        +DataManager_IsDataReady() bool
+        +DataManager_ClearDataReady() void
+        +DataManager_GetState() data_manager_state_t*
+    }
+
+    class DataManagerPrivate {
+        <<private>>
+        -data_manager_state_t g_datalogger_state
+        -format_json_output(char*, size_t) void
+        -validate_sensor_data() bool
+        -check_mqtt_state() bool
+        -buffer_to_sd(uint32_t, float, float, const char*) void
+    }
+
+    data_manager_state_t --> data_manager_mode_t : mode
+    data_manager_state_t --> sensor_data_sht3x_t : sht3x
+    DataManagerAPI ..> data_manager_state_t : manages
+    DataManagerPrivate --> data_manager_state_t : stores
+```
+
+### WiFi/MQTT Manager Component
+
+```mermaid
+classDiagram
+    class mqtt_state_t {
+        <<enumeration>>
+        MQTT_STATE_DISCONNECTED
+        MQTT_STATE_CONNECTED
+    }
+
+    class WiFiManagerAPI {
+        <<interface>>
+        +mqtt_manager_get_state() mqtt_state_t
+    }
+
+    class WiFiManagerPrivate {
+        <<private>>
+        -mqtt_state_t mqtt_current_state
+    }
+
+    WiFiManagerAPI ..> mqtt_state_t : returns
+    WiFiManagerPrivate --> mqtt_state_t : stores
+```
+
+### SD Card Manager Component
+
+```mermaid
+classDiagram
+    class sd_data_record_t {
+        +uint32_t timestamp
+        +float temperature
+        +float humidity
+        +char mode[16]
+        +uint32_t sequence_num
+        +uint8_t padding[480]
+    }
+
+    class sd_buffer_metadata_t {
+        +uint32_t write_index
+        +uint32_t read_index
+        +uint32_t count
+        +uint32_t sequence_num
+    }
+
+    class SDCardManagerAPI {
+        <<interface>>
+        +SDCardManager_Init() bool
+        +SDCardManager_WriteData(uint32_t, float, float, const char*) bool
+        +SDCardManager_ReadData(sd_data_record_t*) bool
+        +SDCardManager_GetBufferedCount() uint32_t
+        +SDCardManager_RemoveRecord() bool
+        +SDCardManager_ClearBuffer() bool
+        +SDCardManager_IsReady() bool
+        +SDCardManager_GetLastError() uint8_t
+    }
+
+    class SDCardManagerPrivate {
+        <<private>>
+        -sd_buffer_metadata_t metadata
+        -bool initialized
+        -uint8_t last_error
+        -load_metadata() bool
+        -save_metadata() bool
+        -calculate_block_address(uint32_t) uint32_t
+    }
+
+    SDCardManagerAPI ..> sd_data_record_t : manages
+    SDCardManagerPrivate --> sd_buffer_metadata_t : maintains
+```
+
+### Display Component
+
+```mermaid
+classDiagram
+    class ILI9225DriverAPI {
+        <<interface>>
+        +ILI9225_Init() void
+        +ILI9225_Clear(uint16_t color) void
+        +ILI9225_DrawPixel(uint16_t x, uint16_t y, uint16_t color) void
+        +ILI9225_FillRect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color) void
+        +ILI9225_DrawString(uint16_t x, uint16_t y, const char* str, uint16_t fg, uint16_t bg) void
+    }
+
+    class ILI9225DriverPrivate {
+        <<private>>
+        -SPI_HandleTypeDef* hspi
+        -ILI9225_WriteCommand(uint8_t cmd) void
+        -ILI9225_WriteData(uint16_t data) void
+        -ILI9225_SetWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1) void
+    }
+
+    class DisplayAPI {
+        <<interface>>
+        +display_init() void
+        +display_update(time_t, float, float, bool, bool, int) void
+        +display_clear() void
+    }
+
+    class DisplayPrivate {
+        <<private>>
+        -format_time_string(time_t, char*) void
+        -format_sensor_string(float, float, char*) void
+        -update_status_indicators(bool mqtt, bool periodic) void
+    }
+
+    DisplayAPI --> ILI9225DriverAPI : uses
+    DisplayPrivate --> ILI9225DriverAPI : calls
+```
+
+### Output and Formatting Component
+
+```mermaid
+classDiagram
+    class SensorJSONOutput {
+        <<service>>
+        +sensor_json_output_send(const char* mode, float temp, float hum) void
+        -sanitize_float(float value, float default_value) float
+        -get_unix_timestamp() uint32_t
+        -JSON_BUFFER_SIZE : 128
+    }
+
+    class PrintCLI {
+        <<service>>
+        +PRINT_CLI(const char* fmt, ...) void
+        -stringBuffer[256]
+    }
+
+    class HAL_UART {
+        <<external>>
+        +HAL_UART_Transmit(UART_HandleTypeDef*, uint8_t*, uint16_t, uint32_t) HAL_StatusTypeDef
+    }
+
+    SensorJSONOutput ..> PrintCLI : uses
+    PrintCLI ..> HAL_UART : uses
+```
+
+## Object Lifecycle Diagram
+
+```mermaid
+stateDiagram-v2
+    [*] --> Uninitialized
+
+    Uninitialized --> Initialized : main() calls init functions
+
+    state Initialized {
+        [*] --> UART_Ready
+        [*] --> SHT3X_IDLE
+        [*] --> DS3231_Ready
+        [*] --> DataManager_Ready
+        [*] --> SD_Ready
+        [*] --> Display_Ready
+        [*] --> MQTT_Disconnected
+
+        UART_Ready --> UART_Receiving : Interrupt
+        UART_Receiving --> UART_Ready : Character stored
+
+        SHT3X_IDLE --> SHT3X_SingleShot : SINGLE command
+        SHT3X_IDLE --> SHT3X_Periodic : PERIODIC ON command
+        SHT3X_SingleShot --> SHT3X_IDLE : Measurement complete
+        SHT3X_Periodic --> SHT3X_IDLE : PERIODIC OFF command
+
+        DataManager_Ready --> DataManager_DataReady : Update called
+        DataManager_DataReady --> DataManager_Ready : Print/Buffer complete
+
+        MQTT_Disconnected --> MQTT_Connected : MQTT CONNECTED command
+        MQTT_Connected --> MQTT_Disconnected : MQTT DISCONNECTED command
+
+        state MQTT_Connected {
+            [*] --> Direct_Send
+            Direct_Send --> Send_Buffer : Direct data sent
+            Send_Buffer --> Direct_Send : Buffer empty
+        }
+
+        SD_Ready --> SD_Writing : MQTT disconnected
+        SD_Writing --> SD_Ready : Data written
+        SD_Ready --> SD_Reading : MQTT connected & buffered data exists
+        SD_Reading --> SD_Ready : Record read
+
+        Display_Ready --> Display_Updating : Display update triggered
+        Display_Updating --> Display_Ready : Update complete
+    }
+
+    Initialized --> Error : HAL Error / Sensor Error
+    Error --> Initialized : Reset/Recovery
+```
+
+---
+
+## Design Patterns Summary
+
+### Key Design Patterns Used:
+
+1. **Service Locator**: Command table acts as a registry of command handlers
+2. **Strategy Pattern**: Different command parsers implement different processing strategies
+3. **State Pattern**: SHT3X driver maintains state (IDLE, SINGLE*SHOT, PERIODIC*\*); MQTT manager tracks connection state
+4. **Singleton**: DataManager uses static internal state (g_datalogger_state); WiFi Manager uses global mqtt_current_state
+5. **Observer**: UART interrupt observes hardware and notifies ring buffer
+6. **Producer-Consumer**: Ring buffer mediates between interrupt (producer) and main loop (consumer); SD buffer mediates between STM32 (producer) and ESP32 (consumer)
+7. **Circular Buffer**: SD card uses circular buffer of 204,800 records for offline data storage
+8. **Facade**: Display library provides simple interface to ILI9225 driver
+9. **Template Method**: DataManager_Print() uses template for JSON formatting regardless of MQTT state
+
+### Key Relationships:
+
+- **Composition** (filled diamond): UART contains ring_buffer_t; SDCardManager contains metadata
+- **Association** (solid line): main uses SHT3X driver, SD Manager, Display
+- **Dependency** (dashed line): Parser depends on Driver; DataManager depends on WiFiManager state
+- **Realization** (dashed line with triangle): Handlers implement ICommandHandler
+
+### Critical State Management:
+
+- **mqtt_current_state**: Global variable shared between main loop and command parser (default: MQTT_STATE_DISCONNECTED)
+- **data_ready flag**: Controls when DataManager_Print() outputs data
+- **SD circular buffer**: write_index, read_index, count maintain buffer state across power cycles
+- **force_display_update**: Triggers immediate display refresh (e.g., after SET TIME command)
