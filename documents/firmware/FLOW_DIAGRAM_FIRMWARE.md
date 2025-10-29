@@ -1,4 +1,4 @@
-# Complete Firmware System - Flow Diagram
+# Firmware System - Flow Diagram
 
 This document describes the integrated control flow of the complete firmware system including STM32 data logger and ESP32 IoT bridge.
 
@@ -576,8 +576,6 @@ flowchart LR
     style Critical fill:#FF6B6B, color:#000000
     style External fill:#87CEEB, color:#000000
 ```
-
----
 
 ## Key System Features
 
