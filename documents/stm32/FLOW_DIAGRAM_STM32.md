@@ -357,8 +357,6 @@ flowchart LR
     style Flag fill:#FF6B6B, color:#000000
 ```
 
----
-
 **Key Points:**
 
 - All flows begin from initialization at power-on or command reception
