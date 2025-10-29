@@ -1,88 +1,98 @@
-# ESP32 IoT Bridge - Flow Diagram
+# ESP32 Firmware - Flow Diagrams
 
-This document describes the control flow and decision logic within the ESP32 firmware.
+This document describes the operational flows and control logic within the ESP32 firmware.
 
-## Main Application Flow
+## System Startup Flow
 
 ```mermaid
 flowchart TD
-    Start([System Power On]) --> NVSInit[Initialize NVS Flash]
+    Start([ESP32 Power On]) --> NVSInit[Initialize NVS Flash]
     NVSInit --> EventInit[Initialize Event Loop]
     EventInit --> NetifInit[Initialize Network Interface]
 
     NetifInit --> InitWiFi[Initialize WiFi Manager]
     InitWiFi --> InitUART[Initialize STM32 UART]
-    InitUART --> InitLED[Initialize WiFi/MQTT LED GPIOs]
-    InitLED --> ConnectWiFi[WiFi Manager Connect<br/>15s timeout]
+    InitUART --> InitLED[Initialize LED GPIOs]
+    InitLED --> ConnectWiFi[Connect WiFi<br/>15s Timeout]
 
-    ConnectWiFi --> CheckWiFi{WiFi Connected<br/>within 15s?}
-    CheckWiFi -->|Yes| MarkTime[Mark WiFi reconnect time]
+    ConnectWiFi --> CheckWiFi{WiFi connected<br/>within 15s?}
+    CheckWiFi -->|Yes| MarkTime[Mark connection time]
     CheckWiFi -->|No| WarnRetry[Log warning, continue<br/>WiFi will retry in background]
 
-    MarkTime --> InitComponents[Initialize Components:<br/>MQTT Handler, Relay Control,<br/>JSON Parser, Buttons]
+    MarkTime --> InitComponents[Initialize Components:<br/>MQTT, Relay, JSON Parser, Buttons]
     WarnRetry --> InitComponents
 
-    InitComponents --> CheckInit{All Components<br/>Initialized?}
-    CheckInit -->|No| Restart[ESP Restart]
+    InitComponents --> CheckInit{All Components<br/>initialized OK?}
+    CheckInit -->|No| Restart[ESP32 Restart]
     CheckInit -->|Yes| StartServices[Start Services<br/>Button Task, UART RX Task]
 
-    StartServices --> MainLoop{Main Monitoring Loop}
+    StartServices --> MainLoop[Main Loop]
 
-    MainLoop --> CheckWiFiState{WiFi State?}
+    style Start fill:#90EE90, color:#000000
+    style MainLoop fill:#FFD700, color:#000000
+    style CheckWiFi fill:#FFD700, color:#000000
+    style CheckInit fill:#FFD700, color:#000000
+    style Restart fill:#FF6B6B, color:#000000
+```
 
-    CheckWiFiState -->|FAILED| CheckRetry{5s retry<br/>interval passed?}
+## Main Loop Flow
+
+```mermaid
+flowchart TD
+    MainLoop[Main Loop] --> CheckWiFiState{WiFi State?}
+
+    CheckWiFiState -->|FAILED| CheckRetry{5s passed since<br/>last retry?}
     CheckRetry -->|Yes| RetryWiFi[WiFi Manager Connect]
-    CheckRetry -->|No| CheckStabilize
+    CheckRetry -->|No| CheckStabilize[Check stabilization]
     RetryWiFi --> CheckStabilize
 
     CheckWiFiState -->|CONNECTED| CheckStabilize{WiFi stable<br/>for 4s?}
     CheckStabilize -->|Yes & MQTT not started| StartMQTT[MQTT Handler Start]
-    CheckStabilize -->|No| CheckMQTTState
+    CheckStabilize -->|No| CheckMQTTState[Check MQTT state]
     StartMQTT --> CheckMQTTState
 
     CheckWiFiState -->|DISCONNECTED| StopMQTT[MQTT Handler Stop]
     StopMQTT --> CheckMQTTState
 
-    CheckMQTTState{MQTT State<br/>Changed?}
+    CheckMQTTState{MQTT State<br/>changed?}
     CheckMQTTState -->|Connected| NotifySTM32Conn[Send MQTT CONNECTED to STM32]
     CheckMQTTState -->|Disconnected| NotifySTM32Disc[Send MQTT DISCONNECTED to STM32]
-    CheckMQTTState -->|No Change| LogStatus
+    CheckMQTTState -->|No change| LogStatus[Log status every 30s]
 
-    NotifySTM32Conn --> SetLED[Set MQTT LED ON]
-    NotifySTM32Disc --> ClearLED[Set MQTT LED OFF]
-    SetLED --> LogStatus[Log periodic status every 30s]
+    NotifySTM32Conn --> SetLED[Turn on MQTT LED]
+    NotifySTM32Disc --> ClearLED[Turn off MQTT LED]
+    SetLED --> LogStatus
     ClearLED --> LogStatus
 
     LogStatus --> Delay[Delay 100ms]
     Delay --> MainLoop
 
-    style Start fill:#90EE90, color:#000000
     style MainLoop fill:#FFD700, color:#000000
     style CheckWiFiState fill:#FFD700, color:#000000
     style CheckMQTTState fill:#FFD700, color:#000000
-    style Restart fill:#FF6B6B, color:#000000
 ```
 
-## MQTT Data Received Flow
+## MQTT Message Processing Flow
 
 ```mermaid
 flowchart TD
-    Start([MQTT Message Received]) --> CheckTopic{Topic?}
+    Start([Receive MQTT Message]) --> CheckTopic{Check Topic?}
 
-    CheckTopic -->|datalogger/stm32/command| ForwardSTM32[STM32_UART_SendCommand]
-    CheckTopic -->|datalogger/esp32/relay/control| ProcessRelay[Relay_ProcessCommand]
-    CheckTopic -->|datalogger/esp32/system/state| CheckRequest{Data contains<br/>REQUEST?}
+    CheckTopic -->|datalogger/stm32/command| ForwardSTM32[Forward to STM32]
+    CheckTopic -->|datalogger/esp32/relay/control| ProcessRelay[Process relay control]
+    CheckTopic -->|datalogger/esp32/system/state| CheckRequest{Contains<br/>REQUEST?}
     CheckTopic -->|Other| Ignore([Ignore])
 
-    ForwardSTM32 --> CheckCmd{Command Type?}
-    CheckCmd -->|PERIODIC ON| UpdateStatePOn[update_and_publish_state<br/>periodic=true]
-    CheckCmd -->|PERIODIC OFF| UpdateStatePOff[update_and_publish_state<br/>periodic=false]
-    CheckCmd -->|Other| Done([Done])
+    ForwardSTM32 --> SendUART[STM32_UART_SendCommand]
+    SendUART --> CheckCmd{Command Type?}
+    CheckCmd -->|PERIODIC ON| UpdateStatePOn[Update state periodic=true]
+    CheckCmd -->|PERIODIC OFF| UpdateStatePOff[Update state periodic=false]
+    CheckCmd -->|Other| Done([Complete])
 
     UpdateStatePOn --> Done
     UpdateStatePOff --> Done
 
-    ProcessRelay --> CheckRelayCmd{Command?}
+    ProcessRelay --> CheckRelayCmd{Relay Command?}
     CheckRelayCmd -->|ON| SetRelayOn[Relay_SetState true]
     CheckRelayCmd -->|OFF| SetRelayOff[Relay_SetState false]
     CheckRelayCmd -->|Invalid| Done
@@ -100,17 +110,17 @@ flowchart TD
     style CheckCmd fill:#FFD700, color:#000000
 ```
 
-## STM32 Data Received Flow
+## STM32 Data Processing Flow
 
 ```mermaid
 flowchart TD
-    Start([STM32 UART Line Received]) --> ParseJSON[JSON_Parser_ProcessLine]
-    ParseJSON --> ValidateJSON{JSON Valid?}
+    Start([Receive UART line from STM32]) --> ParseJSON[JSON_Parser_ProcessLine]
+    ParseJSON --> ValidateJSON{Valid JSON?}
 
     ValidateJSON -->|No| LogError[Log parse error]
     ValidateJSON -->|Yes| CheckMode{Mode?}
 
-    LogError --> Done([Done])
+    LogError --> Done([Complete])
 
     CheckMode -->|SINGLE| CallbackSingle[on_single_sensor_data callback]
     CheckMode -->|PERIODIC| CallbackPeriodic[on_periodic_sensor_data callback]
@@ -131,11 +141,11 @@ flowchart TD
     style CheckMode fill:#FFD700, color:#000000
 ```
 
-## Relay State Changed Flow
+## Relay State Change Flow
 
 ```mermaid
 flowchart TD
-    Start([Relay Hardware State Changed]) --> LogState[Log new relay state]
+    Start([Relay state changed]) --> LogState[Log new state]
     LogState --> CheckOff{Relay<br/>turned OFF?}
 
     CheckOff -->|Yes| ForcePeriodic[Force periodic=false]
@@ -145,12 +155,12 @@ flowchart TD
     KeepPeriodic --> UpdateState
 
     UpdateState --> Delay[Wait 500ms for STM32 boot]
-    Delay --> CheckMQTT{MQTT<br/>Connected?}
+    Delay --> CheckMQTT{MQTT<br/>connected?}
 
-    CheckMQTT -->|Yes| SendConnected[Send MQTT CONNECTED to STM32]
-    CheckMQTT -->|No| SendDisconnected[Send MQTT DISCONNECTED to STM32]
+    CheckMQTT -->|Yes| SendConnected[Send MQTT CONNECTED]
+    CheckMQTT -->|No| SendDisconnected[Send MQTT DISCONNECTED]
 
-    SendConnected --> Done([Done])
+    SendConnected --> Done([Complete])
     SendDisconnected --> Done
 
     style Start fill:#90EE90, color:#000000
@@ -159,12 +169,12 @@ flowchart TD
     style UpdateState fill:#FF6B6B, color:#000000
 ```
 
-## Button Press Flow
+## Button Press Processing Flow
 
 ```mermaid
 flowchart TD
-    Start([Button Pressed]) --> Debounce[Hardware debounce + software filter]
-    Debounce --> CheckButton{Which Button?}
+    Start([Button pressed]) --> Debounce[Hardware + software noise filtering]
+    Debounce --> CheckButton{Which button?}
 
     CheckButton -->|GPIO_5 Relay| ToggleRelay[Toggle relay state]
     CheckButton -->|GPIO_17 Single| CheckDevOn1{Device ON?}
@@ -174,29 +184,29 @@ flowchart TD
     ToggleRelay --> UpdateGlobal[Update g_device_on]
     UpdateGlobal --> CheckNewState{New state<br/>OFF?}
     CheckNewState -->|Yes| ForcePeriodicOff[Force g_periodic_active=false]
-    CheckNewState -->|No| StateCallback[Relay callback will handle]
+    CheckNewState -->|No| StateCallback[Relay callback processing]
     ForcePeriodicOff --> StateCallback
-    StateCallback --> Done([Done])
+    StateCallback --> Done([Complete])
 
-    CheckDevOn1 -->|No| LogIgnore1[Log ignored - device OFF]
+    CheckDevOn1 -->|No| LogIgnore1[Log ignore - device OFF]
     CheckDevOn1 -->|Yes| SendSingle[Send SINGLE to STM32]
     LogIgnore1 --> Done
     SendSingle --> Done
 
-    CheckDevOn2 -->|No| LogIgnore2[Log ignored - device OFF]
+    CheckDevOn2 -->|No| LogIgnore2[Log ignore - device OFF]
     CheckDevOn2 -->|Yes| TogglePeriodic[Toggle g_periodic_active]
     LogIgnore2 --> Done
     TogglePeriodic --> FormatCmd{New periodic<br/>state?}
-    FormatCmd -->|true| SendPOn[Send PERIODIC ON to STM32]
-    FormatCmd -->|false| SendPOff[Send PERIODIC OFF to STM32]
+    FormatCmd -->|true| SendPOn[Send PERIODIC ON]
+    FormatCmd -->|false| SendPOff[Send PERIODIC OFF]
     SendPOn --> UpdatePublish[update_and_publish_state]
     SendPOff --> UpdatePublish
     UpdatePublish --> Done
 
-    CheckDevOn3 -->|No| LogIgnore3[Log ignored - device OFF]
+    CheckDevOn3 -->|No| LogIgnore3[Log ignore - device OFF]
     CheckDevOn3 -->|Yes| CycleInterval[Cycle g_interval_index]
     LogIgnore3 --> Done
-    CycleInterval --> BuildCmd[Build SET PERIODIC INTERVAL command]
+    CycleInterval --> BuildCmd[Create SET PERIODIC INTERVAL command]
     BuildCmd --> SendInterval[Send command to STM32]
     SendInterval --> Done
 
@@ -209,22 +219,22 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    Start([WiFi State Changed]) --> CheckState{WiFi State?}
+    Start([WiFi state changed]) --> CheckState{WiFi State?}
 
     CheckState -->|CONNECTING| LogConn[Log Connecting...]
     CheckState -->|CONNECTED| LogSuccess[Log Connected]
     CheckState -->|DISCONNECTED| LogDisc[Log Disconnected]
-    CheckState -->|FAILED| LogFail[Log Failed]
+    CheckState -->|FAILED| LogFail[Log Connection failed]
 
-    LogConn --> LEDOff1[Set WiFi LED OFF]
-    LogSuccess --> LEDOn[Set WiFi LED ON]
-    LogDisc --> LEDOff2[Set WiFi LED OFF]
-    LogFail --> LEDOff3[Set WiFi LED OFF]
+    LogConn --> LEDOff1[Turn off WiFi LED]
+    LogSuccess --> LEDOn[Turn on WiFi LED]
+    LogDisc --> LEDOff2[Turn off WiFi LED]
+    LogFail --> LEDOff3[Turn off WiFi LED]
 
     LEDOn --> GetIP[Get IP address]
-    GetIP --> GetRSSI[Get RSSI]
+    GetIP --> GetRSSI[Get signal strength RSSI]
     GetRSSI --> ResetFlag[Reset disconnect flag]
-    ResetFlag --> Done([Done])
+    ResetFlag --> Done([Complete])
 
     LEDOff1 --> Done
     LEDOff2 --> Done
@@ -241,21 +251,21 @@ flowchart TD
     Start([update_and_publish_state called]) --> CheckDevice{g_device_on<br/>changed?}
 
     CheckDevice -->|Yes| SetDevChanged[state_changed = true]
-    CheckDevice -->|No| CheckPeriodic
+    CheckDevice -->|No| CheckPeriodic[Check periodic]
 
     SetDevChanged --> LogDevice[Log device state change]
     LogDevice --> CheckPeriodic{g_periodic_active<br/>changed?}
 
     CheckPeriodic -->|Yes| SetPerChanged[state_changed = true]
-    CheckPeriodic -->|No| CheckChanged
+    CheckPeriodic -->|No| CheckChanged[Check if changed]
 
     SetPerChanged --> LogPeriodic[Log periodic state change]
     LogPeriodic --> CheckChanged{state_changed<br/>== true?}
 
-    CheckChanged -->|Yes| CheckMQTT{MQTT<br/>Connected?}
-    CheckChanged -->|No| Done([Done])
+    CheckChanged -->|Yes| CheckMQTT{MQTT<br/>connected?}
+    CheckChanged -->|No| Done([Complete])
 
-    CheckMQTT -->|Yes| FormatJSON[Format state JSON]
+    CheckMQTT -->|Yes| FormatJSON[Format JSON state]
     CheckMQTT -->|No| Done
 
     FormatJSON --> PublishMQTT[MQTT_Handler_Publish<br/>datalogger/esp32/system/state<br/>retain=1]
@@ -272,12 +282,12 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    Start([MQTT Handler]) --> CheckWiFi{WiFi<br/>Connected?}
+    Start([MQTT Handler]) --> CheckWiFi{WiFi<br/>connected?}
 
     CheckWiFi -->|No| StateDisc[State: DISCONNECTED]
     CheckWiFi -->|Yes| Check4s{Network stable<br/>for 4s?}
 
-    Check4s -->|No| Wait[Wait for stability]
+    Check4s -->|No| Wait[Wait for stabilization]
     Check4s -->|Yes| StartClient[esp_mqtt_client_start]
 
     Wait --> CheckWiFi
@@ -289,7 +299,7 @@ flowchart TD
     WaitEvent -->|DISCONNECTED| SetDisconnected[connected = false]
     WaitEvent -->|ERROR| HandleError[Exponential backoff retry]
 
-    SetConnected --> SubTopics[Subscribe to command topics]
+    SetConnected --> SubTopics[Subscribe command topics]
     SubTopics --> SetReconnFlag[Set mqtt_reconnected flag]
     SetReconnFlag --> StateActive[State: ACTIVE]
 
@@ -297,10 +307,10 @@ flowchart TD
     HandleError --> CheckRetry{Max retries<br/>reached?}
 
     CheckRetry -->|Yes| StateDisc
-    CheckRetry -->|No| BackoffDelay[Delay: min 60s, exponential backoff]
+    CheckRetry -->|No| BackoffDelay[Delay: exponential backoff up to 60s]
     BackoffDelay --> StartClient
 
-    StateActive --> WaitMsg{New Message?}
+    StateActive --> WaitMsg{New message?}
     WaitMsg -->|DATA| CallCallback[Call data_callback]
     WaitMsg -->|DISCONNECT| SetDisconnected
 
@@ -317,10 +327,10 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    Start([Start/End - Rounded])
-    Process[Process - Rectangle]
-    Decision{Decision - Diamond}
-    Critical[Critical State Change - Rectangle]
+    Start([Start/End])
+    Process[Process]
+    Decision{Decision}
+    Critical[Critical state change]
 
     style Start fill:#90EE90, color:#000000
     style Decision fill:#FFD700, color:#000000
@@ -329,13 +339,18 @@ flowchart LR
 
 ---
 
-**Notes:**
+**Important Notes:**
 
-- Green nodes: Entry/exit points
-- Yellow nodes: Decision points
-- Red nodes: Critical state changes
-- Blue nodes: Active/stable states
-- WiFi manager handles automatic retries (5 attempts with 2s intervals)
-- MQTT starts only after 4-second network stabilization delay
-- All button actions require device (relay) to be ON except relay toggle
-- Relay state changes trigger 500ms delay before sending MQTT status to STM32 (for STM32 boot time)
+- **Green nodes**: Start/end points
+- **Yellow nodes**: Decision points
+- **Red nodes**: Critical state changes
+- **Blue nodes**: Active/stable states
+
+**Flow processing characteristics:**
+
+- WiFi manager auto-retry (5 times with 2s interval)
+- MQTT starts only after WiFi is stable for 4s
+- All button actions require device (relay) to be ON (except relay toggle)
+- Relay state change triggers 500ms delay before sending MQTT status to STM32 (for STM32 boot)
+- Exponential backoff for MQTT retry (min 1s, max 60s)
+- State synchronization via MQTT retained messages
