@@ -35,7 +35,7 @@ classDiagram
         +on_button_periodic_pressed(gpio_num_t) void
         +on_button_interval_pressed(gpio_num_t) void
     }
-    
+
     class WiFiManager {
         -wifi_state_t current_state
         -uint8_t retry_count
@@ -52,7 +52,7 @@ classDiagram
         +WiFi_SetPowerSave(bool) bool
         +WiFi_Deinit() void
     }
-    
+
     class wifi_manager_config_t {
         +const char* ssid
         +const char* password
@@ -69,7 +69,7 @@ classDiagram
         +wifi_event_callback_t event_callback
         +void* callback_arg
     }
-    
+
     class wifi_state_t {
         <<enumeration>>
         WIFI_STATE_DISCONNECTED
@@ -77,7 +77,7 @@ classDiagram
         WIFI_STATE_CONNECTED
         WIFI_STATE_FAILED
     }
-    
+
     class STM32_UART {
         -int uart_num
         -int baud_rate
@@ -92,7 +92,7 @@ classDiagram
         +STM32_UART_StartTask(stm32_uart_t*) bool
         +STM32_UART_Deinit(stm32_uart_t*) void
     }
-    
+
     class RingBuffer {
         -uint8_t* buffer
         -size_t size
@@ -108,7 +108,7 @@ classDiagram
         +RingBuffer_Clear(ring_buffer_t*) void
         +RingBuffer_Free(ring_buffer_t*) void
     }
-    
+
     class MQTT_Handler {
         -esp_mqtt_client_handle_t client
         -mqtt_data_callback_t callback
@@ -122,7 +122,7 @@ classDiagram
         +MQTT_Handler_IsConnected(mqtt_handler_t*) bool
         +MQTT_Handler_Deinit(mqtt_handler_t*) void
     }
-    
+
     class Relay_Control {
         -int gpio_num
         -bool state
@@ -135,7 +135,7 @@ classDiagram
         +Relay_ProcessCommand(relay_control_t*, const char*) bool
         +Relay_Deinit(relay_control_t*) void
     }
-    
+
     class JSON_Sensor_Parser {
         -sensor_data_callback_t single_callback
         -sensor_data_callback_t periodic_callback
@@ -149,7 +149,7 @@ classDiagram
         +JSON_Parser_IsSensorFailed(const sensor_data_t*) bool
         +JSON_Parser_IsRTCFailed(const sensor_data_t*) bool
     }
-    
+
     class sensor_data_t {
         +sensor_mode_t mode
         +uint32_t timestamp
@@ -159,14 +159,14 @@ classDiagram
         +bool has_humidity
         +float humidity
     }
-    
+
     class sensor_mode_t {
         <<enumeration>>
         SENSOR_MODE_UNKNOWN
         SENSOR_MODE_SINGLE
         SENSOR_MODE_PERIODIC
     }
-    
+
     class JSON_Utils {
         <<static>>
         +JSON_Utils_CreateSensorData(char*, size_t, const char*, uint32_t, float, float) int
@@ -176,7 +176,7 @@ classDiagram
         +JSON_Utils_FormatFloat(char*, size_t, float, int) const char*
         +JSON_Utils_EscapeString(char*, size_t, const char*) int
     }
-    
+
     class Button_Handler {
         -gpio_num_t gpio_num
         -button_press_callback_t callback
@@ -186,7 +186,7 @@ classDiagram
         +Button_StartTask() bool
         +Button_StopTask() void
     }
-    
+
     %% Relationships
     main --> WiFiManager : uses
     main --> STM32_UART : uses
@@ -195,16 +195,16 @@ classDiagram
     main --> JSON_Sensor_Parser : uses
     main --> Button_Handler : uses
     main --> JSON_Utils : uses
-    
+
     WiFiManager --> wifi_manager_config_t : configured by
     WiFiManager --> wifi_state_t : returns
-    
+
     STM32_UART --> RingBuffer : contains
-    
+
     JSON_Sensor_Parser --> sensor_data_t : produces
     JSON_Sensor_Parser --> sensor_mode_t : uses
     JSON_Sensor_Parser ..> JSON_Utils : may use
-    
+
     main --> sensor_data_t : processes
 ```
 
@@ -221,7 +221,7 @@ graph TB
     Utils[JSON Utils]
     Button[Button Handler]
     RingBuf[Ring Buffer]
-    
+
     Main --> WiFi
     Main --> UART
     Main --> MQTT
@@ -229,17 +229,17 @@ graph TB
     Main --> Parser
     Main --> Button
     Main --> Utils
-    
+
     UART --> RingBuf
     Parser ..> Utils
-    
-    WiFi -.-> Main : wifi_event_callback
-    UART -.-> Main : stm32_data_callback
-    MQTT -.-> Main : mqtt_data_callback
-    Relay -.-> Main : relay_state_callback
-    Parser -.-> Main : sensor_data_callback
-    Button -.-> Main : button_press_callback
-    
+
+    WiFi -.-> Main
+    UART -.-> Main
+    MQTT -.-> Main
+    Relay -.-> Main
+    Parser -.-> Main
+    Button -.-> Main
+
     style Main fill:#90EE90
     style WiFi fill:#87CEEB
     style MQTT fill:#87CEEB
@@ -252,9 +252,9 @@ graph TB
 ```mermaid
 stateDiagram-v2
     [*] --> Uninitialized
-    
+
     Uninitialized --> Initialized : app_main() calls init functions
-    
+
     state Initialized {
         [*] --> NVS_Ready
         [*] --> EventLoop_Ready
@@ -262,40 +262,40 @@ stateDiagram-v2
         [*] --> WiFi_Init
         [*] --> UART_Ready
         [*] --> Components_Init
-        
+
         WiFi_Init --> WiFi_Connecting : WiFi_Connect()
         WiFi_Connecting --> WiFi_Connected : connection success
         WiFi_Connecting --> WiFi_Failed : max retries
         WiFi_Connected --> WiFi_Disconnected : connection lost
         WiFi_Disconnected --> WiFi_Connecting : retry
         WiFi_Failed --> WiFi_Connecting : manual retry (5s)
-        
+
         Components_Init --> MQTT_Initialized
         Components_Init --> Relay_Initialized
         Components_Init --> Parser_Initialized
         Components_Init --> Buttons_Initialized
-        
+
         MQTT_Initialized --> MQTT_Connecting : WiFi stable 4s
         MQTT_Connecting --> MQTT_Connected : broker connected
         MQTT_Connecting --> MQTT_Disconnected : connection failed
         MQTT_Connected --> MQTT_Disconnected : WiFi lost
         MQTT_Disconnected --> MQTT_Connecting : exponential backoff retry
-        
+
         Relay_Initialized --> Relay_OFF
         Relay_OFF --> Relay_ON : Relay_SetState(true)
         Relay_ON --> Relay_OFF : Relay_SetState(false)
     }
-    
+
     Initialized --> Running : start_services()
-    
+
     state Running {
         [*] --> MainLoop
-        
+
         MainLoop --> MonitorWiFi
         MonitorWiFi --> CheckMQTT
         CheckMQTT --> ProcessCallbacks
         ProcessCallbacks --> MainLoop
-        
+
         state ProcessCallbacks {
             [*] --> WaitEvent
             WaitEvent --> WiFiEvent : WiFi state change
@@ -303,7 +303,7 @@ stateDiagram-v2
             WaitEvent --> UARTEvent : STM32 data
             WaitEvent --> ButtonEvent : Button press
             WaitEvent --> RelayEvent : Relay state change
-            
+
             WiFiEvent --> [*]
             MQTTEvent --> [*]
             UARTEvent --> [*]
@@ -311,7 +311,7 @@ stateDiagram-v2
             RelayEvent --> [*]
         }
     }
-    
+
     Running --> [*] : system shutdown
 ```
 
@@ -329,7 +329,7 @@ graph LR
         FormatJSON[JSON Utils]
         MQTTPub[MQTT Publish]
         Broker[MQTT Broker]
-        
+
         STM32 -->|UART 115200| UART_RX
         UART_RX --> RingBuf
         RingBuf --> LineExtract
@@ -339,7 +339,7 @@ graph LR
         FormatJSON --> MQTTPub
         MQTTPub --> Broker
     end
-    
+
     subgraph Cloud_to_STM32
         Web[Web Interface]
         Broker2[MQTT Broker]
@@ -347,14 +347,14 @@ graph LR
         TopicRoute[Topic Router]
         UART_TX[UART TX]
         STM32_2[STM32 Hardware]
-        
+
         Web --> Broker2
         Broker2 --> MQTTSub
         MQTTSub --> TopicRoute
         TopicRoute -->|command| UART_TX
         UART_TX -->|UART 115200| STM32_2
     end
-    
+
     subgraph Relay_Control
         WebRelay[Web / Button]
         MQTTCtrl[MQTT Control]
@@ -362,14 +362,14 @@ graph LR
         StateUpdate[State Update]
         StatePub[State Publish]
         BrokerState[MQTT Broker]
-        
+
         WebRelay --> MQTTCtrl
         MQTTCtrl --> RelayHW
         RelayHW --> StateUpdate
         StateUpdate --> StatePub
         StatePub --> BrokerState
     end
-    
+
     style STM32 fill:#90EE90
     style Broker fill:#87CEEB
     style Web fill:#FFD700
@@ -386,30 +386,30 @@ graph TB
             T2[datalogger/esp32/relay/control]
             T3[datalogger/esp32/system/state]
         end
-        
+
         subgraph Publish[ESP32 Publishes To]
             T4[datalogger/stm32/single/data]
             T5[datalogger/stm32/periodic/data]
             T6[datalogger/esp32/system/state]
         end
     end
-    
+
     Web[Web Interface] -->|commands| T1
     Web -->|relay ON/OFF| T2
     Web -->|state sync request| T3
-    
+
     T1 -->|forward to STM32| ESP32_1[ESP32]
     T2 -->|process relay command| ESP32_2[ESP32]
     T3 -->|respond with state| ESP32_3[ESP32]
-    
+
     ESP32_4[ESP32] -->|sensor data| T4
     ESP32_5[ESP32] -->|sensor data| T5
     ESP32_6[ESP32] -->|state changes| T6
-    
+
     T4 --> Web2[Web Interface]
     T5 --> Web2
     T6 --> Web2
-    
+
     style MQTT_Broker fill:#87CEEB
     style Web fill:#FFD700
     style ESP32_1 fill:#90EE90
@@ -429,11 +429,11 @@ graph LR
             TX[GPIO17 - TX]
             RX[GPIO16 - RX]
         end
-        
+
         subgraph Relay_GPIO[Relay Control]
             R[GPIO4 - Relay]
         end
-        
+
         subgraph Button_GPIO[Button Inputs]
             B1[GPIO5 - Relay Toggle]
             B2[GPIO16 - Single Measure]
@@ -441,17 +441,17 @@ graph LR
             B4[GPIO4 - Interval Adjust]
         end
     end
-    
+
     TX -->|115200 baud| STM32_RX[STM32 RX]
     RX -->|115200 baud| STM32_TX[STM32 TX]
-    
+
     R --> RelayModule[Relay Module]
-    
+
     B1 -.->|pull-up, active low| GND1[GND]
     B2 -.->|pull-up, active low| GND2[GND]
     B3 -.->|pull-up, active low| GND3[GND]
     B4 -.->|pull-up, active low| GND4[GND]
-    
+
     style ESP32_WROOM_32 fill:#90EE90
     style UART1 fill:#87CEEB
     style Relay_GPIO fill:#DDA0DD
@@ -470,7 +470,7 @@ classDiagram
         +Retry_Interval: 2000ms
         +Manual_Retry_Interval: 5000ms
     }
-    
+
     class MQTT_Config {
         +Broker_URI: "mqtt://192.168.1.39:1883"
         +Client_ID: "esp32_client"
@@ -480,7 +480,7 @@ classDiagram
         +Keepalive: 60s
         +Reconnect_Backoff: min(60s, 2^retry)
     }
-    
+
     class UART_Config {
         +Port: UART_NUM_1
         +Baud_Rate: 115200
@@ -489,13 +489,13 @@ classDiagram
         +RX_Buffer_Size: 1024
         +Line_Max_Length: 128
     }
-    
+
     class Relay_Config {
         +GPIO: GPIO_NUM_4
         +Active_Level: HIGH
         +STM32_Boot_Delay: 500ms
     }
-    
+
     class Button_Config {
         +Relay_Button: GPIO_NUM_5
         +Single_Button: GPIO_NUM_16
@@ -503,7 +503,7 @@ classDiagram
         +Interval_Button: GPIO_NUM_4
         +Debounce_Time: 200ms
     }
-    
+
     class Timing_Config {
         +WiFi_Stabilization_Delay: 4000ms
         +Main_Loop_Delay: 100ms
@@ -520,9 +520,9 @@ sequenceDiagram
     participant MQTT
     participant Broker
     participant Web
-    
+
     Note over State: g_device_on<br/>g_periodic_active<br/>mqtt_current_state
-    
+
     Main->>State: Update g_device_on = true
     activate Main
     State->>State: Detect change
@@ -543,7 +543,7 @@ sequenceDiagram
     deactivate Broker
     deactivate MQTT
     deactivate Main
-    
+
     Note over Main,Web: State synchronized across system
 ```
 
@@ -552,7 +552,7 @@ sequenceDiagram
 ```mermaid
 stateDiagram-v2
     [*] --> WiFi_Retry_Logic
-    
+
     state WiFi_Retry_Logic {
         [*] --> Attempt_1
         Attempt_1 --> Attempt_2 : failed (2s delay)
@@ -561,16 +561,16 @@ stateDiagram-v2
         Attempt_4 --> Attempt_5 : failed (2s delay)
         Attempt_5 --> Manual_Retry : failed (2s delay)
         Manual_Retry --> Attempt_1 : retry (5s interval)
-        
+
         Attempt_1 --> [*] : success
         Attempt_2 --> [*] : success
         Attempt_3 --> [*] : success
         Attempt_4 --> [*] : success
         Attempt_5 --> [*] : success
     }
-    
+
     WiFi_Retry_Logic --> MQTT_Retry_Logic
-    
+
     state MQTT_Retry_Logic {
         [*] --> First_Attempt
         First_Attempt --> Retry_1 : failed (1s delay)
@@ -580,7 +580,7 @@ stateDiagram-v2
         Retry_4 --> Retry_5 : failed (16s delay)
         Retry_5 --> Retry_Max : failed (32s delay)
         Retry_Max --> Retry_Max : failed (60s max delay)
-        
+
         First_Attempt --> [*] : success
         Retry_1 --> [*] : success
         Retry_2 --> [*] : success
@@ -589,7 +589,7 @@ stateDiagram-v2
         Retry_5 --> [*] : success
         Retry_Max --> [*] : success
     }
-    
+
     MQTT_Retry_Logic --> [*]
 ```
 
@@ -610,6 +610,7 @@ The ESP32 firmware architecture is built around a component-based design with cl
 All components use callback-based event handling for loose coupling and operate within the FreeRTOS task model. The architecture ensures reliable WiFi/MQTT connectivity, proper STM32 communication, and responsive user interaction through buttons and web interface.
 
 **Key Features:**
+
 - 4-second WiFi stabilization delay before MQTT start
 - 500ms delay after relay toggle for STM32 boot time
 - Exponential backoff retry for MQTT reconnection
