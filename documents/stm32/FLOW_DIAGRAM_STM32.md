@@ -1,47 +1,53 @@
-# STM32 Data Logger - Flow Diagram
+# STM32 Firmware - Flow Diagrams
 
-This document describes the control flow and decision logic within the STM32 firmware.
+This document describes detailed flow diagrams for processing within the STM32 firmware, including operational sequences and decision-making processes.
 
 ## Main Application Flow
 
 ```mermaid
 flowchart TD
-    Start([System Power On]) --> Init[Initialize System]
-    Init --> InitUART[Initialize UART]
-    InitUART --> InitSHT3X[Initialize SHT3X Sensor]
-    InitSHT3X --> InitDS3231[Initialize DS3231 RTC]
-    InitDS3231 --> InitDataMgr[Initialize DataManager]
-    InitDataMgr --> InitSD[Initialize SD Card Manager]
-    InitSD --> InitDisplay[Initialize ILI9225 TFT Display]
-    InitDisplay --> MainLoop{Main Loop}
+    A[System Startup] --> B[HAL_Init]
+    B --> C[SystemClock_Config]
+    C --> D[GPIO_Init]
+    D --> E[I2C1_Init]
+    E --> F[SPI1_Init - SD Card]
+    F --> G[SPI2_Init - Display]
+    G --> H[USART1_Init]
+    H --> I[UART_Init]
+    I --> J[SHT3X_Init]
+    J --> K[DS3231_Init]
+    K --> L[DataManager_Init]
+    L --> M[SDCardManager_Init]
+    M --> N{SD Card Ready?}
+    N -->|Yes| O[display_init]
+    N -->|No| P[Print SD Warning]
+    P --> O
+    O --> Q[Enter Main Loop]
     
-    MainLoop --> HandleUART[UART_Handle]
-    HandleUART --> CheckPeriodic{In Periodic\nMode?}
+    Q --> R[UART_Handle]
+    R --> S[Check PERIODIC State]
+    S --> T{SHT3X_IS_PERIODIC_STATE?}
+    T -->|No| U[DataManager_Print]
+    T -->|Yes| V{Time to Read Data?}
+    V -->|No| U
+    V -->|Yes| W[SHT3X_FetchData]
+    W --> X[DataManager_UpdatePeriodic]
+    X --> Y[Toggle LED PC13]
+    Y --> Z[Update next_fetch_ms]
+    Z --> U
     
-    CheckPeriodic -->|Yes| CheckTime{Time to\nFetch?}
-    CheckPeriodic -->|No| CheckMQTT{MQTT\nConnected?}
-    CheckTime -->|Yes| FetchData[SHT3X_FetchData]
-    CheckTime -->|No| CheckMQTT
-    FetchData --> UpdatePeriodic[DataManager_UpdatePeriodic]
-    UpdatePeriodic --> CheckMQTT
+    U --> AA{Data Printed/Saved?}
+    AA -->|Yes| BB{Display Update Needed?}
+    AA -->|No| BB
+    BB -->|Yes| CC[display_update]
+    BB -->|No| DD[HAL_Delay 100ms]
+    CC --> DD
+    DD --> R
     
-    CheckMQTT -->|Yes| PrintLive[DataManager_Print Live Data]
-    CheckMQTT -->|No| BufferSD[SDCardManager_WriteData]
-    
-    PrintLive --> SendBuffered{Has Buffered\nData?}
-    SendBuffered -->|Yes| ReadSD[SDCardManager_ReadData]
-    SendBuffered -->|No| UpdateDisplay
-    ReadSD --> TransmitSD[Transmit Buffered JSON]
-    TransmitSD --> RemoveSD[SDCardManager_RemoveRecord]
-    RemoveSD --> UpdateDisplay[Display_Update]
-    
-    BufferSD --> UpdateDisplay
-    UpdateDisplay --> MainLoop
-    
-    style Start fill:#90EE90
-    style MainLoop fill:#FFD700
-    style CheckMQTT fill:#FFD700
-    style BufferSD fill:#FF6B6B
+    style A fill:#90EE90
+    style Q fill:#FFD700
+    style R fill:#87CEEB
+    style U fill:#FF6B6B
 ```
 
 ## Command Execution Flow
@@ -353,9 +359,10 @@ flowchart LR
 
 ---
 
-**Notes:**
-- Green nodes: Entry/exit points
-- Yellow nodes: Decision points
-- Red nodes: State changes or critical operations
-- Blue nodes: Wait states or returns
-- All flows are non-blocking except I2C operations and delays
+**Key Points:**
+- All flows begin from initialization at power-on or command reception
+- Periodic measurement operates independently in the main loop
+- MQTT state determines data routing (live transmission vs SD buffering)
+- Error handling provides graceful degradation
+- SD card acts as offline buffer when MQTT unavailable
+- Display updates triggered by data changes or explicit commands
