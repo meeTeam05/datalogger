@@ -208,6 +208,67 @@ classDiagram
     main --> sensor_data_t : processes
 ```
 
+## Configuration Constants
+
+```mermaid
+classDiagram
+    class WiFi_Config {
+        +SSID: "WiFi network name"
+        +Password: "WiFi password"
+        +Max_Retry: 5
+        +Connection_Timeout: 10000ms
+        +Retry_Interval: 2000ms
+        +Manual_Retry_Interval: 5000ms
+    }
+
+    class MQTT_Config {
+        +Broker_URI: "MQTT broker address and port"
+        +Client_ID: "Unique client identifier"
+        +Username: "Authentication username"
+        +Password: "Authentication password"
+        +Protocol_Version: MQTT v5.0
+        +Keepalive: 60s
+        +Reconnect_Backoff: min(60s, 2^retry)
+    }
+
+    class UART_Config {
+        +Port: UART_NUM_1
+        +Baud_Rate: 115200
+        +TX_Pin: GPIO_NUM_17
+        +RX_Pin: GPIO_NUM_16
+        +RX_Buffer_Size: 1024
+        +Line_Max_Length: 128
+    }
+
+    class Relay_Config {
+        +GPIO: GPIO_NUM_4
+        +Active_Level: HIGH
+        +STM32_Boot_Delay: 500ms
+    }
+
+    class Button_Config {
+        +Relay_Button: GPIO_NUM_5
+        +Single_Button: GPIO_NUM_16
+        +Periodic_Button: GPIO_NUM_17
+        +Interval_Button: GPIO_NUM_4
+        +Debounce_Time: 200ms
+    }
+
+    class LED_Config {
+        +WiFi_LED: GPIO_Configurable
+        +MQTT_LED: GPIO_Configurable
+        +Active_Level: HIGH
+    }
+
+    class Timing_Config {
+        +WiFi_Stabilization_Delay: 4000ms
+        +Main_Loop_Delay: 100ms
+        +Status_Log_Interval: 30000ms
+        +Button_Debounce_Time: 50ms
+        +STM32_Boot_Wait: 500ms
+    }
+```
+
 ## Object Lifecycle Diagram
 
 ```mermaid
@@ -274,67 +335,6 @@ stateDiagram-v2
     }
 
     Running --> [*] : system shutdown
-```
-
-## Configuration Constants
-
-```mermaid
-classDiagram
-    class WiFi_Config {
-        +SSID: "WiFi network name"
-        +Password: "WiFi password"
-        +Max_Retry: 5
-        +Connection_Timeout: 10000ms
-        +Retry_Interval: 2000ms
-        +Manual_Retry_Interval: 5000ms
-    }
-
-    class MQTT_Config {
-        +Broker_URI: "MQTT broker address and port"
-        +Client_ID: "Unique client identifier"
-        +Username: "Authentication username"
-        +Password: "Authentication password"
-        +Protocol_Version: MQTT v5.0
-        +Keepalive: 60s
-        +Reconnect_Backoff: min(60s, 2^retry)
-    }
-
-    class UART_Config {
-        +Port: UART_NUM_1
-        +Baud_Rate: 115200
-        +TX_Pin: GPIO_NUM_17
-        +RX_Pin: GPIO_NUM_16
-        +RX_Buffer_Size: 1024
-        +Line_Max_Length: 128
-    }
-
-    class Relay_Config {
-        +GPIO: GPIO_NUM_4
-        +Active_Level: HIGH
-        +STM32_Boot_Delay: 500ms
-    }
-
-    class Button_Config {
-        +Relay_Button: GPIO_NUM_5
-        +Single_Button: GPIO_NUM_16
-        +Periodic_Button: GPIO_NUM_17
-        +Interval_Button: GPIO_NUM_4
-        +Debounce_Time: 200ms
-    }
-
-    class LED_Config {
-        +WiFi_LED: GPIO_Configurable
-        +MQTT_LED: GPIO_Configurable
-        +Active_Level: HIGH
-    }
-
-    class Timing_Config {
-        +WiFi_Stabilization_Delay: 4000ms
-        +Main_Loop_Delay: 100ms
-        +Status_Log_Interval: 30000ms
-        +Button_Debounce_Time: 50ms
-        +STM32_Boot_Wait: 500ms
-    }
 ```
 
 ## Retry Logic and Error Handling
