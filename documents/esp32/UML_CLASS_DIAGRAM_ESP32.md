@@ -208,45 +208,6 @@ classDiagram
     main --> sensor_data_t : processes
 ```
 
-## Component Dependencies Diagram
-
-```mermaid
-graph TB
-    Main[main.c]
-    WiFi[WiFi Manager]
-    UART[STM32 UART]
-    MQTT[MQTT Handler]
-    Relay[Relay Control]
-    Parser[JSON Sensor Parser]
-    Utils[JSON Utils]
-    Button[Button Handler]
-    RingBuf[Ring Buffer]
-
-    Main --> WiFi
-    Main --> UART
-    Main --> MQTT
-    Main --> Relay
-    Main --> Parser
-    Main --> Button
-    Main --> Utils
-
-    UART --> RingBuf
-    Parser ..> Utils
-
-    WiFi -.->|wifi_event_callback| Main
-    UART -.->|stm32_data_callback| Main
-    MQTT -.->|mqtt_data_callback| Main
-    Relay -.->|relay_state_callback| Main
-    Parser -.->|sensor_data_callback| Main
-    Button -.->|button_press_callback| Main
-
-    style Main fill:#90EE90
-    style WiFi fill:#87CEEB
-    style MQTT fill:#87CEEB
-    style Parser fill:#FFD700
-    style Relay fill:#DDA0DD
-```
-
 ## Object Lifecycle Diagram
 
 ```mermaid
@@ -315,151 +276,13 @@ stateDiagram-v2
     Running --> [*] : system shutdown
 ```
 
-## ESP32 Data Flow Diagram
-
-```mermaid
-graph LR
-    subgraph STM32_to_Cloud["STM32 → Cloud"]
-        STM32_HW[STM32 Hardware]
-        UART_RX[UART RX]
-        RingBuf[Ring Buffer]
-        LineExtract[Line Extraction]
-        JSONParse[JSON Parser]
-        SensorCB[Sensor Callback]
-        FormatJSON[JSON Utils]
-        MQTTPub[MQTT Publish]
-        Broker[MQTT Broker]
-
-        STM32_HW -->|UART 115200| UART_RX
-        UART_RX --> RingBuf
-        RingBuf --> LineExtract
-        LineExtract --> JSONParse
-        JSONParse -->|mode routing| SensorCB
-        SensorCB --> FormatJSON
-        FormatJSON --> MQTTPub
-        MQTTPub --> Broker
-    end
-
-    subgraph Cloud_to_STM32["Cloud → STM32"]
-        Broker2[MQTT Broker]
-        MQTTSub[MQTT Subscribe]
-        TopicRoute[Topic Router]
-        UART_TX[UART TX]
-        STM32_HW2[STM32 Hardware]
-
-        Broker2 --> MQTTSub
-        MQTTSub --> TopicRoute
-        TopicRoute -->|command| UART_TX
-        UART_TX -->|UART 115200| STM32_HW2
-    end
-
-    subgraph Relay_Control["Relay Control"]
-        MQTTCtrl[MQTT Control]
-        RelayHW[Relay Hardware]
-        StateUpdate[State Update]
-        StatePub[State Publish]
-        BrokerState[MQTT Broker]
-
-        MQTTCtrl --> RelayHW
-        RelayHW --> StateUpdate
-        StateUpdate --> StatePub
-        StatePub --> BrokerState
-    end
-
-    style STM32_HW fill:#90EE90
-    style Broker fill:#87CEEB
-    style RelayHW fill:#DDA0DD
-```
-
-## MQTT Topic Architecture
-
-```mermaid
-graph TB
-    subgraph MQTT_Broker["MQTT Broker: 192.168.1.39:1883"]
-        subgraph Subscribe["ESP32 Subscribe"]
-            T1[datalogger/stm32/command]
-            T2[datalogger/esp32/relay/control]
-            T3[datalogger/esp32/system/state]
-        end
-
-        subgraph Publish["ESP32 Publish"]
-            T4[datalogger/stm32/single/data]
-            T5[datalogger/stm32/periodic/data]
-            T6[datalogger/esp32/system/state]
-        end
-    end
-
-    T1 -->|forward to STM32| ESP32_1[ESP32]
-    T2 -->|process relay command| ESP32_2[ESP32]
-    T3 -->|respond state| ESP32_3[ESP32]
-
-    ESP32_4[ESP32] -->|sensor data| T4
-    ESP32_5[ESP32] -->|sensor data| T5
-    ESP32_6[ESP32] -->|state change| T6
-
-    style MQTT_Broker fill:#87CEEB
-    style ESP32_1 fill:#90EE90
-    style ESP32_2 fill:#90EE90
-    style ESP32_3 fill:#90EE90
-    style ESP32_4 fill:#90EE90
-    style ESP32_5 fill:#90EE90
-    style ESP32_6 fill:#90EE90
-```
-
-## GPIO Hardware Configuration
-
-```mermaid
-graph LR
-    subgraph ESP32_WROOM_32
-        subgraph UART1["UART1 - STM32"]
-            TX[GPIO17 - TX]
-            RX[GPIO16 - RX]
-        end
-
-        subgraph Relay_GPIO["Relay Control"]
-            R[GPIO4 - Relay]
-        end
-
-        subgraph Button_GPIO["Button Inputs"]
-            B1[GPIO5 - Relay Toggle]
-            B2[GPIO16 - Single Measure]
-            B3[GPIO17 - Periodic Toggle]
-            B4[GPIO4 - Interval Adjust]
-        end
-
-        subgraph LED_GPIO["Status LEDs"]
-            L1[GPIO_WiFi - WiFi LED]
-            L2[GPIO_MQTT - MQTT LED]
-        end
-    end
-
-    TX -->|115200 baud| STM32_RX[STM32 RX]
-    RX -->|115200 baud| STM32_TX[STM32 TX]
-
-    R --> RelayModule[Relay Module]
-
-    B1 -.->|pull-up, active low| GND1[GND]
-    B2 -.->|pull-up, active low| GND2[GND]
-    B3 -.->|pull-up, active low| GND3[GND]
-    B4 -.->|pull-up, active low| GND4[GND]
-
-    L1 --> WiFi_LED[WiFi Status LED]
-    L2 --> MQTT_LED[MQTT Status LED]
-
-    style ESP32_WROOM_32 fill:#90EE90
-    style UART1 fill:#87CEEB
-    style Relay_GPIO fill:#DDA0DD
-    style Button_GPIO fill:#FFD700
-    style LED_GPIO fill:#98FB98
-```
-
 ## Configuration Constants
 
 ```mermaid
 classDiagram
     class WiFi_Config {
-        +SSID: "Redmi Note 9 Pro"
-        +Password: "12345678"
+        +SSID: "WiFi network name"
+        +Password: "WiFi password"
         +Max_Retry: 5
         +Connection_Timeout: 10000ms
         +Retry_Interval: 2000ms
@@ -467,10 +290,10 @@ classDiagram
     }
 
     class MQTT_Config {
-        +Broker_URI: "mqtt://192.168.1.39:1883"
-        +Client_ID: "esp32_client"
-        +Username: "admin"
-        +Password: "password"
+        +Broker_URI: "MQTT broker address and port"
+        +Client_ID: "Unique client identifier"
+        +Username: "Authentication username"
+        +Password: "Authentication password"
         +Protocol_Version: MQTT v5.0
         +Keepalive: 60s
         +Reconnect_Backoff: min(60s, 2^retry)
