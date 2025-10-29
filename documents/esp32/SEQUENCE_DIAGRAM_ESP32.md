@@ -1,6 +1,6 @@
-# ESP32 IoT Bridge - Sequence Diagrams
+# ESP32 Firmware - Sequence Diagrams
 
-This document illustrates the time-ordered interactions between components in the ESP32 firmware.
+This document illustrates time-ordered interactions between components within the ESP32 firmware.
 
 ## System Initialization Sequence
 
@@ -13,11 +13,11 @@ sequenceDiagram
     participant UART as STM32 UART
     participant LED as LED GPIOs
     participant MQTT as MQTT Handler
-    participant Relay
+    participant Relay as Relay Control
     participant Parser as JSON Parser
     participant Button as Button Handler
     
-    PWR->>ESP32: Power ON
+    PWR->>ESP32: Power on
     activate ESP32
     
     ESP32->>NVS: nvs_flash_init()
@@ -32,7 +32,7 @@ sequenceDiagram
     activate WiFi
     WiFi->>WiFi: Configure SSID, password
     WiFi->>WiFi: Register event handlers
-    WiFi->>ESP32: Init complete
+    WiFi->>ESP32: Initialization complete
     deactivate WiFi
     
     ESP32->>UART: STM32_UART_Init(&stm32_uart)
@@ -40,7 +40,7 @@ sequenceDiagram
     UART->>UART: Configure UART1: 115200 baud
     UART->>UART: Allocate ring buffer (512 bytes)
     UART->>UART: Register on_stm32_data_received callback
-    UART->>ESP32: Init complete
+    UART->>ESP32: Initialization complete
     deactivate UART
     
     ESP32->>LED: gpio_set_direction(WiFi LED)
@@ -50,7 +50,7 @@ sequenceDiagram
     activate WiFi
     WiFi->>WiFi: Start connection process
     
-    alt WiFi connected within 15s
+    alt WiFi connects within 15s
         WiFi->>ESP32: WIFI_EVENT_STA_GOT_IP
         ESP32->>ESP32: Mark reconnect time (for 4s delay)
         ESP32->>ESP32: Log: "WiFi connected successfully!"
@@ -64,8 +64,8 @@ sequenceDiagram
     activate MQTT
     MQTT->>MQTT: Configure broker URL, credentials
     MQTT->>MQTT: Register on_mqtt_data_received callback
-    MQTT->>MQTT: Generate unique client ID
-    MQTT->>ESP32: Init complete
+    MQTT->>MQTT: Create unique client ID
+    MQTT->>ESP32: Initialization complete
     deactivate MQTT
     
     ESP32->>Relay: Relay_Init(&relay_control, GPIO_4)
@@ -73,14 +73,14 @@ sequenceDiagram
     Relay->>Relay: Configure GPIO output
     Relay->>Relay: Register on_relay_state_changed callback
     Relay->>Relay: Read initial hardware state
-    Relay->>ESP32: Init complete (state=OFF)
+    Relay->>ESP32: Initialization complete (state=OFF)
     deactivate Relay
     
     ESP32->>Parser: JSON_Parser_Init(&json_parser)
     activate Parser
     Parser->>Parser: Register on_single_sensor_data callback
     Parser->>Parser: Register on_periodic_sensor_data callback
-    Parser->>ESP32: Init complete
+    Parser->>ESP32: Initialization complete
     deactivate Parser
     
     ESP32->>Button: Button_Init(GPIO_5, relay_callback)
@@ -110,7 +110,7 @@ sequenceDiagram
     deactivate ESP32
 ```
 
-## WiFi Connection and MQTT Start Sequence
+## WiFi Connection and MQTT Startup Sequence
 
 ```mermaid
 sequenceDiagram
@@ -133,21 +133,21 @@ sequenceDiagram
     
     Main->>Main: Check if 5s passed since last retry
     
-    alt 5s passed
+    alt 5s elapsed
         Main->>WiFi: WiFi_Manager_Connect()
         activate WiFi
-        WiFi->>WiFi: Attempt connection (5 auto-retries)
+        WiFi->>WiFi: Try connection (5 auto-retries)
         
         Note over WiFi: Background connection process
         
         WiFi->>Main: on_wifi_event(WIFI_STATE_CONNECTING)
-        Main->>LED: Set WiFi LED OFF
+        Main->>LED: Turn off WiFi LED
         Main->>Main: Log "WiFi: Connecting..."
         
         alt Connection successful
             WiFi->>Main: on_wifi_event(WIFI_STATE_CONNECTED)
             activate Main
-            Main->>LED: Set WiFi LED ON
+            Main->>LED: Turn on WiFi LED
             Main->>WiFi: wifi_manager_get_ip_addr()
             WiFi->>Main: "192.168.1.100"
             Main->>WiFi: wifi_manager_get_rssi()
@@ -161,7 +161,7 @@ sequenceDiagram
         deactivate WiFi
     end
     
-    Note over Main: Wait 4 seconds for network stability
+    Note over Main: Wait 4 seconds for network stabilization
     
     loop Check every 100ms
         Main->>Timer: Get current time
@@ -182,16 +182,16 @@ sequenceDiagram
             MQTT->>Main: on_mqtt_event(MQTT_EVENT_CONNECTED)
             activate Main
             Main->>Main: Set mqtt_handler.connected = true
-            Main->>MQTT: Subscribe to command topics
+            Main->>MQTT: Subscribe command topics
             activate MQTT
-            MQTT->>MQTT: Subscribe to datalogger/stm32/command
-            MQTT->>MQTT: Subscribe to datalogger/esp32/relay/control
-            MQTT->>MQTT: Subscribe to datalogger/esp32/system/state
+            MQTT->>MQTT: Subscribe datalogger/stm32/command
+            MQTT->>MQTT: Subscribe datalogger/esp32/relay/control
+            MQTT->>MQTT: Subscribe datalogger/esp32/system/state
             MQTT->>Main: Subscribed
             deactivate MQTT
             
             Main->>Main: Set g_mqtt_reconnected = true
-            Main->>LED: Set MQTT LED ON
+            Main->>LED: Turn on MQTT LED
             
             Main->>STM32: "MQTT CONNECTED\n"
             activate STM32
@@ -219,7 +219,7 @@ sequenceDiagram
     participant MQTT as MQTT Handler
     participant Broker as MQTT Broker
     
-    STM32->>UART: Transmit JSON: {"mode":"PERIODIC","timestamp":1729699200,"temperature":25.50,"humidity":60.00}\n
+    STM32->>UART: Send JSON: {"mode":"PERIODIC","timestamp":1729699200,"temperature":25.50,"humidity":60.00}\n
     activate UART
     UART->>UART: UART ISR receives bytes
     UART->>RingBuf: Write bytes to ring buffer
@@ -243,7 +243,7 @@ sequenceDiagram
     Parser->>Parser: Validate required fields
     Parser->>Parser: Extract: mode, timestamp, temperature, humidity
     
-    alt JSON valid
+    alt Valid JSON
         Parser->>Parser: Check mode field
         
         alt mode == "PERIODIC"
@@ -286,73 +286,16 @@ sequenceDiagram
             Callback->>Callback: Log sensor values
             deactivate Callback
         end
-    else JSON invalid
+    else Invalid JSON
         Parser->>Parser: Log parse error
     end
     deactivate Parser
-```
-
-## MQTT Command Reception and Forwarding Sequence
-
-```mermaid
-sequenceDiagram
-    participant Web as Web Dashboard
-    participant Broker as MQTT Broker
-    participant MQTT as MQTT Handler
-    participant Callback as on_mqtt_data_received
-    participant UART as STM32 UART
-    participant STM32
-    participant State as State Manager
-    
-    Web->>Broker: Publish "PERIODIC ON" to datalogger/stm32/command
-    activate Broker
-    Broker->>MQTT: Forward message
-    deactivate Broker
-    
-    activate MQTT
-    MQTT->>Callback: on_mqtt_data_received("datalogger/stm32/command", "PERIODIC ON", 11)
-    deactivate MQTT
-    
-    activate Callback
-    Callback->>Callback: Check topic == TOPIC_STM32_COMMAND
-    
-    Callback->>UART: STM32_UART_SendCommand(&stm32_uart, "PERIODIC ON")
-    activate UART
-    UART->>UART: Append '\n' to command
-    UART->>STM32: Transmit "PERIODIC ON\n"
-    activate STM32
-    STM32->>STM32: Process command
-    STM32->>STM32: Start periodic measurement @ 1Hz
-    deactivate STM32
-    UART->>Callback: Success
-    deactivate UART
-    
-    Callback->>Callback: Check command == "PERIODIC ON"
-    Callback->>State: update_and_publish_state(g_device_on, true)
-    activate State
-    State->>State: Set g_periodic_active = true
-    State->>State: state_changed = true
-    State->>State: Format JSON state message
-    State->>MQTT: MQTT_Handler_Publish("datalogger/esp32/system/state", json, retain=1)
-    activate MQTT
-    MQTT->>Broker: Publish state update
-    activate Broker
-    Broker->>Web: Forward state to subscribers
-    deactivate Broker
-    deactivate MQTT
-    State->>State: Log state change
-    deactivate State
-    
-    deactivate Callback
-    
-    Note over Web: Web dashboard receives state update
 ```
 
 ## Relay Control via MQTT Sequence
 
 ```mermaid
 sequenceDiagram
-    participant Web as Web Dashboard
     participant Broker as MQTT Broker
     participant MQTT as MQTT Handler
     participant Callback as on_mqtt_data_received
@@ -362,8 +305,7 @@ sequenceDiagram
     participant State as State Manager
     participant STM32 as STM32 UART
     
-    Web->>Broker: Publish "ON" to datalogger/esp32/relay/control
-    Broker->>MQTT: Forward message
+    Broker->>MQTT: Forward message "ON" to datalogger/esp32/relay/control
     
     MQTT->>Callback: on_mqtt_data_received("datalogger/esp32/relay/control", "ON", 2)
     activate Callback
@@ -378,7 +320,7 @@ sequenceDiagram
     Relay->>GPIO: gpio_set_level(GPIO_4, 1)
     activate GPIO
     GPIO->>GPIO: Set pin HIGH
-    GPIO->>Relay: Done
+    GPIO->>Relay: Complete
     deactivate GPIO
     
     Relay->>Relay: Update relay_control.state = true
@@ -390,7 +332,7 @@ sequenceDiagram
     RelayCallback->>RelayCallback: new_periodic_state = g_periodic_active (unchanged)
     RelayCallback->>State: update_and_publish_state(true, g_periodic_active)
     activate State
-    State->>State: Check if states changed
+    State->>State: Check states changed
     State->>State: g_device_on = true (changed)
     State->>State: Format JSON state
     State->>MQTT: Publish state to datalogger/esp32/system/state
@@ -429,7 +371,7 @@ sequenceDiagram
     User->>GPIO: Press button GPIO_16
     GPIO->>ISR: GPIO interrupt triggered
     activate ISR
-    ISR->>ISR: Disable interrupt temporarily
+    ISR->>ISR: Temporarily disable interrupt
     ISR->>Task: Notify button task via queue
     deactivate ISR
     
@@ -454,7 +396,7 @@ sequenceDiagram
         
         Callback->>UART: STM32_UART_SendCommand(&stm32_uart, "PERIODIC ON")
         activate UART
-        UART->>UART: Transmit "PERIODIC ON\n"
+        UART->>UART: Send "PERIODIC ON\n"
         deactivate UART
         
         Callback->>State: update_and_publish_state(g_device_on, true)
@@ -484,11 +426,11 @@ sequenceDiagram
     participant STM32 as STM32 UART
     participant Timer
     
-    Note over WiFi: WiFi connection lost (router reboot, signal loss, etc.)
+    Note over WiFi: WiFi connection lost (router reboot, weak signal, etc.)
     
     WiFi->>Main: on_wifi_event(WIFI_STATE_DISCONNECTED)
     activate Main
-    Main->>LED: Set WiFi LED OFF
+    Main->>LED: Turn off WiFi LED
     Main->>Main: Log "WiFi: Disconnected"
     deactivate Main
     
@@ -505,25 +447,25 @@ sequenceDiagram
     MQTT->>Main: Stopped
     deactivate MQTT
     
-    Main->>LED: Set MQTT LED OFF
+    Main->>LED: Turn off MQTT LED
     Main->>Main: Clear g_wifi_reconnect_time_ms
-    Main->>Main: Log "Stopping MQTT (WiFi lost)"
+    Main->>Main: Log "Stop MQTT (WiFi lost)"
     
-    Note over WiFi: WiFi Manager auto-retry (5 attempts, 2s interval)
+    Note over WiFi: WiFi Manager auto-retry (5 times, 2s interval)
     
-    loop Auto-retry attempts (up to 5)
-        WiFi->>WiFi: Attempt reconnection
+    loop Auto-retry attempts (max 5 times)
+        WiFi->>WiFi: Try reconnection
         
         alt Reconnection successful
             WiFi->>Main: on_wifi_event(WIFI_STATE_CONNECTED)
             activate Main
-            Main->>LED: Set WiFi LED ON
-            Main->>Main: Log "WiFi restored, network stabilizing..."
+            Main->>LED: Turn on WiFi LED
+            Main->>Main: Log "WiFi recovered, network stabilizing..."
             Main->>Timer: Mark reconnect time
             Main->>Main: g_wifi_reconnect_time_ms = now
             deactivate Main
             
-            Note over Main: Wait 4 seconds for network stability
+            Note over Main: Wait 4 seconds for network stabilization
             
             Main->>Main: Check elapsed time >= 4000ms
             Main->>MQTT: MQTT_Handler_Start(&mqtt_handler)
@@ -532,16 +474,16 @@ sequenceDiagram
             MQTT->>Main: Started
             deactivate MQTT
             
-            Main->>Main: Log "Starting MQTT (network stable)"
+            Main->>Main: Log "Start MQTT (network stable)"
             
             Note over MQTT: MQTT reconnects to broker
             
             MQTT->>Main: on_mqtt_event(MQTT_EVENT_CONNECTED)
-            Main->>LED: Set MQTT LED ON
+            Main->>LED: Turn on MQTT LED
             
             Main->>STM32: "MQTT CONNECTED\n"
             activate STM32
-            STM32->>STM32: Update state, resume normal operation
+            STM32->>STM32: Update state, continue normal operation
             deactivate STM32
             
             Main->>Main: Log "MQTT Connected"
@@ -550,7 +492,7 @@ sequenceDiagram
     
     alt All auto-retries failed
         WiFi->>Main: on_wifi_event(WIFI_STATE_FAILED)
-        Main->>Main: Log "WiFi: Failed (all retries exhausted)"
+        Main->>Main: Log "WiFi: Failed (auto retries exhausted)"
         
         Note over Main: Manual retry every 5 seconds
         
@@ -563,7 +505,7 @@ sequenceDiagram
     end
 ```
 
-## MQTT Reconnection with State Sync Sequence
+## MQTT Reconnection with State Synchronization Sequence
 
 ```mermaid
 sequenceDiagram
@@ -571,9 +513,8 @@ sequenceDiagram
     participant Main as Main Loop
     participant State as State Manager
     participant Broker as MQTT Broker
-    participant Web as Web Dashboard
     
-    Note over MQTT: MQTT disconnected (broker restart, network glitch)
+    Note over MQTT: MQTT connection lost (broker restart, network glitch)
     
     MQTT->>Main: on_mqtt_event(MQTT_EVENT_DISCONNECTED)
     activate Main
@@ -583,9 +524,9 @@ sequenceDiagram
     Main->>Main: Log "MQTT disconnected, retry in {backoff}s"
     deactivate Main
     
-    Note over MQTT: Wait backoff period
+    Note over MQTT: Wait for backoff time
     
-    MQTT->>MQTT: Automatic reconnection attempt
+    MQTT->>MQTT: Try automatic reconnection
     
     alt Reconnection successful
         MQTT->>Main: on_mqtt_event(MQTT_EVENT_CONNECTED)
@@ -594,7 +535,7 @@ sequenceDiagram
         Main->>Main: Reset retry_count = 0
         Main->>Main: Set g_mqtt_reconnected = true
         
-        Main->>MQTT: Subscribe to command topics
+        Main->>MQTT: Subscribe command topics
         activate MQTT
         MQTT->>Broker: SUBSCRIBE datalogger/stm32/command
         MQTT->>Broker: SUBSCRIBE datalogger/esp32/relay/control
@@ -605,10 +546,10 @@ sequenceDiagram
         Main->>Main: Log "MQTT reconnected"
         deactivate Main
         
-        Note over Web: Web dashboard detects MQTT reconnection
+        Note over Main: Web dashboard detects MQTT reconnection
         
-        Web->>Broker: Publish "REQUEST" to datalogger/esp32/system/state
-        Broker->>MQTT: Forward state sync request
+        Note over Broker: Web sends state sync request
+        Broker->>MQTT: Forward "REQUEST" to datalogger/esp32/system/state
         
         MQTT->>Main: on_mqtt_data_received("datalogger/esp32/system/state", "REQUEST", 7)
         activate Main
@@ -620,16 +561,15 @@ sequenceDiagram
         State->>MQTT: MQTT_Handler_Publish("datalogger/esp32/system/state", json, retain=1)
         activate MQTT
         MQTT->>Broker: Publish state
-        Broker->>Web: Forward to subscribers
         deactivate MQTT
         State->>State: Log "State published"
         deactivate State
         
         Main->>Main: Set g_mqtt_reconnected = false
-        Main->>Main: Log "State sync completed"
+        Main->>Main: Log "State sync complete"
         deactivate Main
         
-        Note over Web: Web dashboard updates UI with current state
+        Note over Broker: Web dashboard updates UI with current state
     end
 ```
 
@@ -640,7 +580,7 @@ sequenceDiagram
 1. **Asynchronous Communication**: UART RX, MQTT events, and button presses all use interrupt-driven, non-blocking I/O with FreeRTOS queues
 2. **State Synchronization**: ESP32 maintains authoritative state and publishes to MQTT with retain flag for persistence
 3. **Boot Delay Handling**: 500ms delay after relay toggle ensures STM32 receives MQTT status after reboot
-4. **Network Stability**: 4-second delay after WiFi connection before starting MQTT ensures network stack is fully ready
+4. **Network Stabilization**: 4-second delay after WiFi connection before starting MQTT ensures network stack is fully ready
 5. **Exponential Backoff**: MQTT retries use exponential backoff (min 1s, max 60s) to avoid overwhelming broker
 6. **Button Debouncing**: Hardware and software debouncing (50ms) prevents spurious button presses
 7. **Ring Buffer**: UART uses 512-byte ring buffer for reliable byte-level reception
