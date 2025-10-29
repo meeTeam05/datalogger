@@ -95,9 +95,9 @@ flowchart TD
     PublishState --> ClearFlag[Clear mqtt_reconnected flag]
     ClearFlag --> Done
 
-    style Start fill:#90EE90
-    style CheckTopic fill:#FFD700
-    style CheckCmd fill:#FFD700
+    style Start fill:#90EE90, color:#000000
+    style CheckTopic fill:#FFD700, color:#000000
+    style CheckCmd fill:#FFD700, color:#000000
 ```
 
 ## STM32 Data Received Flow
@@ -126,9 +126,9 @@ flowchart TD
 
     LogData --> Done
 
-    style Start fill:#90EE90
-    style ValidateJSON fill:#FFD700
-    style CheckMode fill:#FFD700
+    style Start fill:#90EE90, color:#000000
+    style ValidateJSON fill:#FFD700, color:#000000
+    style CheckMode fill:#FFD700, color:#000000
 ```
 
 ## Relay State Changed Flow
@@ -153,10 +153,10 @@ flowchart TD
     SendConnected --> Done([Done])
     SendDisconnected --> Done
 
-    style Start fill:#90EE90
-    style CheckOff fill:#FFD700
-    style CheckMQTT fill:#FFD700
-    style UpdateState fill:#FF6B6B
+    style Start fill:#90EE90, color:#000000
+    style CheckOff fill:#FFD700, color:#000000
+    style CheckMQTT fill:#FFD700, color:#000000
+    style UpdateState fill:#FF6B6B, color:#000000
 ```
 
 ## Button Press Flow
@@ -200,9 +200,9 @@ flowchart TD
     BuildCmd --> SendInterval[Send command to STM32]
     SendInterval --> Done
 
-    style Start fill:#90EE90
-    style CheckButton fill:#FFD700
-    style CheckNewState fill:#FFD700
+    style Start fill:#90EE90, color:#000000
+    style CheckButton fill:#FFD700, color:#000000
+    style CheckNewState fill:#FFD700, color:#000000
 ```
 
 ## WiFi State Change Flow
@@ -230,8 +230,8 @@ flowchart TD
     LEDOff2 --> Done
     LEDOff3 --> Done
 
-    style Start fill:#90EE90
-    style CheckState fill:#FFD700
+    style Start fill:#90EE90, color:#000000
+    style CheckState fill:#FFD700, color:#000000
 ```
 
 ## State Update and Publish Flow
@@ -262,10 +262,10 @@ flowchart TD
     PublishMQTT --> LogPublish[Log state published]
     LogPublish --> Done
 
-    style Start fill:#90EE90
-    style CheckDevice fill:#FFD700
-    style CheckPeriodic fill:#FFD700
-    style CheckChanged fill:#FFD700
+    style Start fill:#90EE90, color:#000000
+    style CheckDevice fill:#FFD700, color:#000000
+    style CheckPeriodic fill:#FFD700, color:#000000
+    style CheckChanged fill:#FFD700, color:#000000
 ```
 
 ## MQTT Connection State Machine
@@ -306,11 +306,11 @@ flowchart TD
 
     CallCallback --> WaitMsg
 
-    style Start fill:#90EE90
-    style CheckWiFi fill:#FFD700
-    style WaitEvent fill:#FFD700
-    style StateActive fill:#87CEEB
-    style StateDisc fill:#FF6B6B
+    style Start fill:#90EE90, color:#000000
+    style CheckWiFi fill:#FFD700, color:#000000
+    style WaitEvent fill:#FFD700, color:#000000
+    style StateActive fill:#87CEEB, color:#000000
+    style StateDisc fill:#FF6B6B, color:#000000
 ```
 
 ## Legend
