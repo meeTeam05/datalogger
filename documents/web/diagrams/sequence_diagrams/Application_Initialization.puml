@@ -1,0 +1,114 @@
+@startuml Application_Initialization
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title Application Initialization Sequence
+
+participant "Browser" as Browser
+participant "HTML" as HTML
+participant "app.js" as AppJS
+participant "Firebase" as Firebase
+participant "MQTT Broker" as MQTT
+participant "ESP32" as ESP32
+
+Browser -> HTML: Load index.html
+activate HTML
+HTML --> Browser: DOM Ready
+deactivate HTML
+
+Browser -> AppJS: Execute app.js
+activate AppJS
+
+AppJS -> AppJS: feather.replace()
+note right: Initialize Feather Icons
+
+AppJS -> AppJS: Initialize Global Variables\nisPeriodic = false\nisDeviceOn = false\ntemperatureData = []\nhumidityData = []
+
+note over AppJS,Firebase: Firebase Initialization
+AppJS -> Firebase: firebase.initializeApp(FIREBASE_CONFIG)
+activate Firebase
+Firebase --> AppJS: App initialized
+
+AppJS -> Firebase: Get database reference
+Firebase --> AppJS: Database ref
+
+AppJS -> Firebase: Listen .info/connected
+Firebase --> AppJS: Connection status
+
+AppJS -> Firebase: Test write permissions\ntest/connection
+
+alt Write Success
+    Firebase --> AppJS: Write OK
+    AppJS -> AppJS: updateFirebaseStatus(true)\nBadge: connected
+    AppJS -> Firebase: Remove test data
+    Firebase --> AppJS: Removed
+else Write Failed
+    Firebase --> AppJS: Permission denied
+    AppJS -> AppJS: updateFirebaseStatus(false)\nLog permission error
+end
+deactivate Firebase
+
+note over AppJS,MQTT: MQTT Initialization
+AppJS -> MQTT: mqtt.connect(ws://127.0.0.1:8083/mqtt)
+activate MQTT
+
+note over MQTT: Connecting...
+MQTT --> AppJS: connect event
+
+AppJS -> AppJS: updateMQTTStatus(true)\nBadge: connected
+
+AppJS -> MQTT: Subscribe(systemState, qos=1)
+MQTT --> AppJS: Subscribed
+
+AppJS -> MQTT: Subscribe(singleData, qos=1)
+MQTT --> AppJS: Subscribed
+
+AppJS -> MQTT: Subscribe(periodicData, qos=1)
+MQTT --> AppJS: Subscribed
+
+note over AppJS: Wait 500ms
+AppJS -> MQTT: Publish(systemState, "REQUEST", qos=1)
+
+MQTT -> ESP32: Forward REQUEST
+activate ESP32
+ESP32 -> ESP32: Get current state
+ESP32 -> MQTT: Publish state\n{"device":"ON","periodic":"OFF"}
+deactivate ESP32
+
+MQTT -> AppJS: Forward state
+
+AppJS -> AppJS: syncUIWithHardwareState()\nUpdate button colors
+deactivate MQTT
+
+note over AppJS,HTML: Chart Initialization
+AppJS -> HTML: Get canvas elements\n#tempChart, #humiChart
+activate HTML
+
+alt Canvas Found
+    HTML --> AppJS: Canvas contexts
+    AppJS -> AppJS: new Chart(tempCtx, config)
+    AppJS -> AppJS: new Chart(humiCtx, config)
+    AppJS -> AppJS: addStatus("Charts initialized")
+else Canvas Not Found
+    HTML --> AppJS: null
+    AppJS -> AppJS: Retry after 500ms\n(max 10 attempts)
+end
+deactivate HTML
+
+AppJS -> HTML: Bind menu navigation
+activate HTML
+HTML --> AppJS: Bound
+deactivate HTML
+
+AppJS -> HTML: Bind quick action buttons
+activate HTML
+HTML --> AppJS: Bound
+deactivate HTML
+
+AppJS -> AppJS: Start clock ticker (1s interval)
+
+AppJS --> Browser: Ready for user interaction
+deactivate AppJS
+
+@enduml

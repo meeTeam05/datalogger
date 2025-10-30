@@ -1,0 +1,164 @@
+@startuml Event_Handling_System
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title Event Handling System Sequence
+
+participant "DOM" as DOM
+participant "EventListener" as EventListener
+participant "Handler" as Handler
+participant "State" as State
+participant "MQTT" as MQTT
+participant "Browser" as Browser
+participant "UI" as UI
+participant "Charts" as Charts
+participant "Firebase" as Firebase
+participant "Logging" as Logging
+
+note over DOM,UI: User Interaction Events
+
+DOM -> EventListener: User clicks button
+activate EventListener
+EventListener -> Handler: Dispatch event
+deactivate EventListener
+activate Handler
+
+alt Device Button
+    Handler -> State: Check MQTT connection
+    activate State
+
+    alt Connected
+        Handler -> State: Toggle isDeviceOn
+        Handler -> MQTT: Publish command
+        activate MQTT
+        deactivate MQTT
+        Handler -> State: Update button state
+        deactivate State
+        Handler -> UI: Update button style
+        activate UI
+        deactivate UI
+    else Not Connected
+        deactivate State
+        Handler -> UI: Show error message
+        activate UI
+        deactivate UI
+    end
+
+else Periodic Button
+    Handler -> State: Check device state
+    activate State
+
+    alt Device ON
+        Handler -> State: Toggle isPeriodic
+        Handler -> MQTT: Publish command
+        activate MQTT
+        deactivate MQTT
+        Handler -> State: Update button state
+        deactivate State
+        Handler -> UI: Update button style
+        activate UI
+        deactivate UI
+    else Device OFF
+        deactivate State
+        Handler -> UI: Show warning
+        activate UI
+        deactivate UI
+    end
+
+else Single Button
+    Handler -> State: Check device state
+    activate State
+    deactivate State
+    Handler -> MQTT: Publish SINGLE command
+    activate MQTT
+    deactivate MQTT
+    Handler -> Logging: Add status message
+    activate Logging
+    deactivate Logging
+
+else Time Sync Button
+    Handler -> Browser: Get current time
+    activate Browser
+    deactivate Browser
+    Handler -> State: Update time picker
+    activate State
+    deactivate State
+    Handler -> UI: Render calendar
+    activate UI
+    deactivate UI
+    Handler -> MQTT: Publish SET TIME
+    activate MQTT
+    deactivate MQTT
+    Handler -> State: Update device clock
+    activate State
+    deactivate State
+    Handler -> UI: Start clock ticker
+    activate UI
+    deactivate UI
+end
+
+deactivate Handler
+
+note over DOM,UI: MQTT Message Events
+
+MQTT -> EventListener: Message received
+activate EventListener
+EventListener -> Handler: handleMQTTMessage
+deactivate EventListener
+activate Handler
+
+Handler -> State: Parse message
+activate State
+
+alt System State
+    Handler -> State: Update isDeviceOn, isPeriodic
+    deactivate State
+    Handler -> UI: Update button styles
+    activate UI
+    deactivate UI
+
+else Sensor Data
+    Handler -> State: Update currentTemp, currentHumi
+    activate State
+    deactivate State
+    Handler -> UI: Update display
+    activate UI
+    deactivate UI
+    Handler -> Charts: Push data
+    activate Charts
+    deactivate Charts
+    Handler -> Firebase: Save record
+    activate Firebase
+    deactivate Firebase
+    Handler -> UI: Update tables
+    activate UI
+    deactivate UI
+end
+
+deactivate Handler
+
+note over DOM,UI: Navigation Events
+
+DOM -> EventListener: Menu item clicked
+activate EventListener
+EventListener -> Handler: switchPage
+deactivate EventListener
+activate Handler
+
+Handler -> UI: Hide all pages
+activate UI
+deactivate UI
+Handler -> UI: Show selected page
+activate UI
+deactivate UI
+Handler -> Handler: Initialize page components
+Handler -> UI: Bind page-specific events
+activate UI
+deactivate UI
+Handler -> UI: Refresh icons
+activate UI
+deactivate UI
+deactivate Handler
+
+@enduml

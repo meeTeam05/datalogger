@@ -1,0 +1,89 @@
+@startuml User_Sends_Single_Read_Command
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title User Sends Single Read Command Sequence
+
+participant "User" as User
+participant "Browser" as Browser
+participant "app.js" as AppJS
+participant "MQTT Broker" as MQTT
+participant "ESP32" as ESP32
+participant "STM32" as STM32
+participant "SHT31" as SHT31
+
+User -> Browser: Click "Single Read" button
+activate Browser
+Browser -> AppJS: Click event
+deactivate Browser
+activate AppJS
+
+AppJS -> AppJS: Check isMqttConnected
+
+alt MQTT Not Connected
+    AppJS -> User: Show error\n"MQTT not connected"
+else MQTT Connected
+    AppJS -> AppJS: Check isDeviceOn
+    
+    alt Device OFF
+        AppJS -> User: Show warning\n"Device must be ON first"
+    else Device ON
+        AppJS -> MQTT: Publish(stm32Command,\n"SINGLE", qos=1)
+        activate MQTT
+        AppJS -> AppJS: addStatus("Single read command sent")
+        
+        MQTT -> ESP32: Forward "SINGLE"
+        activate ESP32
+        ESP32 -> STM32: UART transmit\n{"cmd":"SINGLE"}
+        deactivate MQTT
+        activate STM32
+        
+        note over STM32: Process command
+        STM32 -> SHT31: I2C read request
+        activate SHT31
+        SHT31 --> STM32: Temperature & Humidity
+        deactivate SHT31
+        
+        STM32 -> STM32: Format JSON\n{"temperature":X,"humidity":Y,"timestamp":Z}
+        STM32 -> ESP32: UART transmit JSON
+        deactivate STM32
+        
+        ESP32 -> MQTT: Publish(singleData,\nJSON, qos=1)
+        activate MQTT
+        deactivate ESP32
+        MQTT -> AppJS: Forward JSON
+        deactivate MQTT
+        
+        AppJS -> AppJS: Parse JSON
+        AppJS -> AppJS: Check sensor values
+        
+        alt Sensor Failed (temp=0, humi=0)
+            AppJS -> AppJS: Log ERROR "SHT31 sensor failed"
+            AppJS -> AppJS: updateComponentHealth(SHT31, false)
+        else Sensor OK
+            AppJS -> AppJS: currentTemp = data.temp\ncurrentHumi = data.humi
+            AppJS -> Browser: Update #currentTemp, #currentHumi
+            activate Browser
+            deactivate Browser
+            AppJS -> AppJS: updateComponentHealth(SHT31, true)
+        end
+        
+        alt Firebase Connected
+            AppJS -> Firebase: Save record\nreadings/date/id
+            activate Firebase
+            Firebase --> AppJS: Write complete
+            deactivate Firebase
+        end
+        
+        AppJS -> AppJS: addToLiveDataTable()
+        AppJS -> Browser: Update live data table
+        activate Browser
+        deactivate Browser
+        
+        AppJS -> User: Display updated values
+    end
+end
+deactivate AppJS
+
+@enduml

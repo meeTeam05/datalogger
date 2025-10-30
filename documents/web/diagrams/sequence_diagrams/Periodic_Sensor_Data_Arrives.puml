@@ -1,0 +1,115 @@
+@startuml Periodic_Sensor_Data_Arrives
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title Periodic Sensor Data Arrives Sequence
+
+participant "STM32" as STM32
+participant "SHT31" as SHT31
+participant "DS3231" as DS3231
+participant "ESP32" as ESP32
+participant "MQTT Broker" as MQTT
+participant "app.js" as AppJS
+participant "Firebase" as Firebase
+participant "Browser" as Browser
+
+note over STM32: Timer interrupt fires
+activate STM32
+STM32 -> SHT31: I2C read temperature & humidity
+activate SHT31
+SHT31 --> STM32: Raw sensor data
+deactivate SHT31
+
+STM32 -> DS3231: I2C read RTC timestamp
+activate DS3231
+DS3231 --> STM32: Unix timestamp
+deactivate DS3231
+
+STM32 -> STM32: Format JSON\n{"temperature":25.3,"humidity":65.2,"timestamp":1704067200}
+
+STM32 -> ESP32: UART transmit JSON
+deactivate STM32
+activate ESP32
+ESP32 -> ESP32: Validate JSON
+
+ESP32 -> MQTT: Publish(periodicData,\nJSON, qos=1)
+activate MQTT
+deactivate ESP32
+MQTT -> AppJS: Forward message
+deactivate MQTT
+activate AppJS
+
+AppJS -> AppJS: Check topic == periodicData
+AppJS -> AppJS: Parse JSON
+
+AppJS -> AppJS: Check isDeviceOn && isPeriodic
+
+alt Device OFF or Periodic OFF
+    AppJS -> AppJS: Log "Ignored periodic (inactive)"\nReturn early
+else Active Measurement
+    AppJS -> AppJS: Check sensor values
+    
+    alt Sensor Failed (temp=0, humi=0)
+        AppJS -> AppJS: Log ERROR "SHT31 sensor failed"
+        AppJS -> Browser: Show error badge\nin component card
+        activate Browser
+        deactivate Browser
+        AppJS -> AppJS: status = "error"
+    else Sensor OK
+        AppJS -> AppJS: currentTemp = data.temp\ncurrentHumi = data.humi\nlastReadingTimestamp = timestamp
+        AppJS -> Browser: Update #currentTemp\n#currentHumi\n#lastUpdate
+        activate Browser
+        deactivate Browser
+        AppJS -> AppJS: status = "success"
+    end
+    
+    AppJS -> AppJS: Check RTC timestamp
+    
+    alt RTC Failed (timestamp=0)
+        AppJS -> AppJS: Log ERROR "DS3231 RTC failed"
+        AppJS -> AppJS: Use local browser time
+    end
+    
+    note over AppJS,Firebase: Save to Firebase
+AppJS -> Firebase: Save record\nreadings/2025-01-20/1704067200\n{temp, humi, mode:"periodic",\nsensor:"SHT31", status, time, device}
+activate Firebase
+Firebase --> AppJS: Write complete
+deactivate Firebase
+AppJS -> AppJS: addStatus("Firebase saved")
+    
+    note over AppJS,Browser: Update Charts
+AppJS -> AppJS: pushTemperature(data.temp, true, timestamp)
+AppJS -> AppJS: temperatureData.push({value, time})
+AppJS -> AppJS: Check length > maxDataPoints
+
+alt Exceeds Max
+    AppJS -> AppJS: temperatureData.shift()
+end
+
+AppJS -> AppJS: tempChart.data.labels = times
+AppJS -> AppJS: tempChart.data.datasets[0].data = values
+AppJS -> AppJS: tempChart.update('active')
+
+AppJS -> AppJS: pushHumidity(data.humi, true, timestamp)
+AppJS -> AppJS: humiChart.update('active')
+
+AppJS -> AppJS: Calculate statistics\nmin, max, avg
+AppJS -> Browser: Update #tempMin, #tempMax, #tempAvg\n#humiMin, #humiMax, #humiAvg
+activate Browser
+deactivate Browser
+    
+    AppJS -> AppJS: updateComponentHealth(SHT31, !sensorFailed)
+    AppJS -> AppJS: updateComponentHealth(DS3231, !rtcFailed)
+    AppJS -> Browser: Update component cards
+    activate Browser
+    deactivate Browser
+    
+    AppJS -> AppJS: addToLiveDataTable({time, temp, humi, mode, status})
+    AppJS -> Browser: Render live data table
+    activate Browser
+    deactivate Browser
+end
+deactivate AppJS
+
+@enduml

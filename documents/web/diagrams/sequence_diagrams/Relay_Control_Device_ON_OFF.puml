@@ -1,0 +1,93 @@
+@startuml Relay_Control_Device_ON_OFF
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title Relay Control Device ON/OFF Sequence
+
+participant "User" as User
+participant "Browser" as Browser
+participant "app.js" as AppJS
+participant "MQTT Broker" as MQTT
+participant "ESP32" as ESP32
+participant "Relay" as Relay
+
+User -> Browser: Click "Device" button
+activate Browser
+Browser -> AppJS: Click event
+deactivate Browser
+activate AppJS
+
+AppJS -> AppJS: Check isMqttConnected
+
+alt MQTT Not Connected
+    AppJS -> User: Show error "MQTT not connected"
+else MQTT Connected
+    AppJS -> AppJS: Toggle isDeviceOn\nisDeviceOn = !isDeviceOn
+    
+    alt Turning ON
+        AppJS -> AppJS: command = "RELAY ON"
+        AppJS -> MQTT: Publish(relayControl,\n"RELAY ON", qos=1)
+        activate MQTT
+        
+        MQTT -> ESP32: Forward command
+        activate ESP32
+        deactivate MQTT
+        ESP32 -> ESP32: Parse command
+        ESP32 -> Relay: GPIO write HIGH
+        activate Relay
+        Relay -> Relay: Switch ON
+        deactivate Relay
+        deactivate ESP32
+        
+        AppJS -> Browser: Update button\nclassName = "btn-success"\ntext = "Device ON"
+        activate Browser
+        deactivate Browser
+        AppJS -> AppJS: addStatus("Device RELAY ON sent")
+        
+    else Turning OFF
+        AppJS -> AppJS: command = "RELAY OFF"
+        AppJS -> MQTT: Publish(relayControl,\n"RELAY OFF", qos=1)
+        activate MQTT
+        
+        MQTT -> ESP32: Forward command
+        activate ESP32
+        deactivate MQTT
+        ESP32 -> ESP32: Parse command
+        ESP32 -> Relay: GPIO write LOW
+        activate Relay
+        Relay -> Relay: Switch OFF
+        deactivate Relay
+        deactivate ESP32
+        
+        AppJS -> Browser: Update button\nclassName = "btn-secondary"\ntext = "Device OFF"
+        activate Browser
+        deactivate Browser
+        
+        AppJS -> AppJS: Check isPeriodic
+        
+        alt Periodic Was ON
+            AppJS -> AppJS: isPeriodic = false
+            AppJS -> Browser: Update periodic button\nclassName = "btn-secondary"\ntext = "Periodic OFF"
+            activate Browser
+            deactivate Browser
+            
+            AppJS -> MQTT: Publish(stm32Command,\n"PERIODIC OFF", qos=1)
+            activate MQTT
+            deactivate MQTT
+            AppJS -> AppJS: addStatus("Periodic mode stopped (device OFF)")
+        end
+        
+        AppJS -> AppJS: Reset display\ncurrentTemp = null\ncurrentHumi = null
+        AppJS -> Browser: Update #currentTemp = "--"\n#currentHumi = "--"\n#lastUpdate = "--:--:--"
+        activate Browser
+        deactivate Browser
+        
+        AppJS -> AppJS: addStatus("Device RELAY OFF sent")
+    end
+    
+    AppJS -> User: Visual feedback
+end
+deactivate AppJS
+
+@enduml
