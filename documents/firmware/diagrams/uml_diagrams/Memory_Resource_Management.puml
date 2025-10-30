@@ -1,0 +1,138 @@
+@startuml Memory_Resource_Management
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam class {
+    BackgroundColor<<stm32>> #E3F2FD
+    BorderColor<<stm32>> #1565C0
+    BackgroundColor<<esp32>> #FFF3E0
+    BorderColor<<esp32>> #E65100
+    BackgroundColor<<buffer>> #E8F5E9
+    BorderColor<<buffer>> #2E7D32
+    BackgroundColor<<storage>> #F3E5F5
+    BorderColor<<storage>> #6A1B9A
+    FontSize 11
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 1.5
+}
+
+title <size:18><b>Memory and Resource Management</b></size>\n<size:12><i>Hardware Resources and Buffer Architecture</i></size>
+
+class STM32_Memory <<stm32>> {
+    <b>== Memory Layout ==</b>
+    +Flash: 64KB
+    +RAM: 20KB
+    +Stack: 4KB
+    +Heap: ~10KB
+    +Peripherals: Memory-mapped
+}
+
+class STM32_Resources <<stm32>> {
+    <b>== Peripherals ==</b>
+    +I2C1: 100kHz
+    +SPI1: 18MHz (SD Card)
+    +SPI2: 36MHz (Display)
+    +UART1: 115200 baud
+    +Timers: SysTick, TIM2
+    +RTC: DS3231 external
+}
+
+class ESP32_Memory <<esp32>> {
+    <b>== Memory Layout ==</b>
+    +Flash: 4MB
+    +SRAM: 520KB
+    +PSRAM: None
+    +RTC_Memory: 8KB
+    +Stack_per_task: 4KB
+}
+
+class ESP32_Resources <<esp32>> {
+    <b>== Peripherals ==</b>
+    +WiFi: 802.11 b/g/n
+    +UART1: 115200 baud
+    +GPIO: 4x input, 1x output
+    +FreeRTOS: Multi-tasking
+    +Timers: Hardware timers
+}
+
+class RingBuffer <<buffer>> {
+    <b>== Configuration ==</b>
+    +Size: 512-1024 bytes
+    +Usage: UART RX
+    +Type: Circular
+    +Thread-safe: ISR access
+    
+    <b>== Members ==</b>
+    +write_ptr: uint32_t
+    +read_ptr: uint32_t
+    +buffer: uint8_t[]
+    
+    <b>== Methods ==</b>
+    +Write(uint8_t) : bool
+    +Read(uint8_t*) : bool
+    +Available() : uint32_t
+    +Clear() : void
+}
+
+class SDCardBuffer <<storage>> {
+    <b>== Configuration ==</b>
+    +Capacity: 204,800 records
+    +Record_size: ~80 bytes
+    +Total: ~16MB
+    +Type: Circular FAT32
+    +Persistence: Non-volatile
+    
+    <b>== Members ==</b>
+    +write_pointer: uint32_t
+    +read_pointer: uint32_t
+    +record_count: uint32_t
+    
+    <b>== Methods ==</b>
+    +WriteRecord(char*) : bool
+    +ReadRecord(char*) : bool
+    +RemoveRecord() : bool
+    +Clear() : bool
+    +IsFull() : bool
+}
+
+STM32_Memory --> RingBuffer : allocates
+STM32_Memory --> SDCardBuffer : manages
+ESP32_Memory --> RingBuffer : allocates
+
+STM32_Resources ..> STM32_Memory : <color:blue><b>constrained by</b></color>
+ESP32_Resources ..> ESP32_Memory : <color:blue><b>constrained by</b></color>
+
+note top of STM32_Memory
+  <b>STM32 Memory Constraints</b>
+  • Limited 20KB RAM
+  • Efficient buffer usage required
+  • Stack overflow protection
+  • Heap fragmentation prevention
+end note
+
+note top of ESP32_Memory
+  <b>ESP32 Memory Advantages</b>
+  • Abundant 520KB SRAM
+  • FreeRTOS task stacks
+  • Dynamic memory allocation
+  • Multiple task contexts
+end note
+
+note bottom of RingBuffer
+  <b>Ring Buffer Strategy</b>
+  • ISR-safe circular buffer
+  • Used by both MCUs for UART
+  • Prevents data loss during bursts
+  • Lock-free implementation
+end note
+
+note bottom of SDCardBuffer
+  <b>SD Card Buffering</b>
+  • Large persistent storage
+  • Handles offline operation
+  • Circular overwrite when full
+  • FAT32 file system based
+  • Power-loss resilient
+end note
+
+@enduml

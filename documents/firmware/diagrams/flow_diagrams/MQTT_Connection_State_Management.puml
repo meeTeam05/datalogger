@@ -1,5 +1,4 @@
 @startuml MQTT_Connection_State_Management
-!theme vibrant
 skinparam backgroundColor #FEFEFE
 skinparam shadowing false
 skinparam activity {

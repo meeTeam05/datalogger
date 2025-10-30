@@ -1,5 +1,4 @@
 @startuml SD_Card_Buffering_Transmission
-!theme vibrant
 skinparam backgroundColor #FEFEFE
 skinparam shadowing false
 skinparam activity {

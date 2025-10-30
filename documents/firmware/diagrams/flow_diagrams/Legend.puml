@@ -1,5 +1,4 @@
 @startuml Legend
-!theme vibrant
 skinparam backgroundColor #FEFEFE
 skinparam shadowing false
 

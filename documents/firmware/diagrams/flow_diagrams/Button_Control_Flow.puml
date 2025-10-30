@@ -1,5 +1,4 @@
 @startuml Button_Control_Flow
-!theme vibrant
 skinparam backgroundColor #FEFEFE
 skinparam shadowing false
 skinparam activity {

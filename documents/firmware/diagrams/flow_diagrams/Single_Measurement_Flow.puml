@@ -1,5 +1,4 @@
 @startuml Single_Measurement_Flow
-!theme vibrant
 skinparam backgroundColor #FEFEFE
 skinparam shadowing false
 skinparam activity {
