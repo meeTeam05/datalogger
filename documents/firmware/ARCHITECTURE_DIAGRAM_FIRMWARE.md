@@ -1,4 +1,4 @@
-# Architecture Diagrams - Firmware System
+# Firmware System - Architecture Diagrams
 
 This document provides the system architecture, data flow, state machines, and infrastructure diagrams for the ESP32 and STM32 coordination system.
 
@@ -6,85 +6,146 @@ This document provides the system architecture, data flow, state machines, and i
 
 ```mermaid
 graph TB
-    subgraph External[External Systems]
-        User[External Clients<br/>Web/Mobile Apps]
-        Power[Power Supply<br/>5V DC]
-        Network[WiFi Network<br/>WiFi network name]
-        Broker[MQTT Broker<br/>192.168.1.39:1883<br/>admin/password]
+    subgraph Layer1[" "]
+        subgraph External["External Layer"]
+            direction LR
+            User["Users<br/>Web/Mobile<br/>Dashboard"]
+            Broker["MQTT Broker<br/>192.168.1.39:1883<br/>Mosquitto"]
+            Network["WiFi Network<br/>2.4GHz<br/>WPA2-PSK"]
+            Power["Power Supply<br/>5V DC<br/>2A"]
+        end
     end
 
-    subgraph STM32[STM32F103C8T6 Microcontroller]
-        direction TB
-        STM32_Main[Main Application]
-        STM32_UART[UART Handler]
-        STM32_I2C[I2C Handler]
-        STM32_SPI[SPI Handler]
-        STM32_CMD[Command Parser]
-        STM32_DM[Data Manager]
-        STM32_SD[SD Card Manager]
-        STM32_Display[Display Manager]
+    subgraph Layer2[" "]
+        subgraph ESP32_System["ESP32-WROOM-32 Gateway Layer"]
+            direction TB
 
-        STM32_Main --> STM32_UART
-        STM32_Main --> STM32_I2C
-        STM32_Main --> STM32_SPI
-        STM32_UART --> STM32_CMD
-        STM32_CMD --> STM32_DM
-        STM32_DM --> STM32_SD
-        STM32_Main --> STM32_Display
+            subgraph ESP32_Core["Core Application"]
+                ESP32_Main["Main Control Loop<br/>FreeRTOS Tasks"]
+            end
+
+            subgraph ESP32_Comm["Communication Layer"]
+                ESP32_WiFi["WiFi Manager<br/>STA Mode"]
+                ESP32_MQTT["MQTT Client<br/>Pub/Sub Handler"]
+                ESP32_UART2["UART Interface<br/>Ring Buffer"]
+            end
+
+            subgraph ESP32_Control["Control Layer"]
+                ESP32_Relay["Relay Driver<br/>GPIO4 Output"]
+                ESP32_Button["Button Handler<br/>4x GPIO Input"]
+                ESP32_JSON["JSON Parser<br/>Sensor Data"]
+            end
+
+            ESP32_Main --> ESP32_WiFi
+            ESP32_Main --> ESP32_MQTT
+            ESP32_Main --> ESP32_UART2
+            ESP32_Main --> ESP32_Relay
+            ESP32_Main --> ESP32_Button
+            ESP32_Main --> ESP32_JSON
+        end
     end
 
-    subgraph ESP32[ESP32-WROOM-32 Module]
-        direction TB
-        ESP32_Main[Main Application]
-        ESP32_WiFi[WiFi Manager]
-        ESP32_MQTT[MQTT Handler]
-        ESP32_UART2[UART Handler]
-        ESP32_Relay[Relay Control]
-        ESP32_JSON[JSON Parser]
-        ESP32_Button[Button Handler]
+    subgraph Layer3[" "]
+        subgraph STM32_System["STM32F103C8T6 Data Acquisition Layer"]
+            direction TB
 
-        ESP32_Main --> ESP32_WiFi
-        ESP32_Main --> ESP32_MQTT
-        ESP32_Main --> ESP32_UART2
-        ESP32_Main --> ESP32_Relay
-        ESP32_Main --> ESP32_JSON
-        ESP32_Main --> ESP32_Button
+            subgraph STM32_Core["Core Application"]
+                STM32_Main["Main State Machine<br/>HAL Framework"]
+            end
+
+            subgraph STM32_Protocol["Protocol Layer"]
+                STM32_UART["UART Handler<br/>Command Parser"]
+                STM32_CMD["Command Executor<br/>8 Commands"]
+            end
+
+            subgraph STM32_Data["Data Management Layer"]
+                STM32_DM["Data Manager<br/>Single/Periodic"]
+                STM32_SD["SD Card Manager<br/>Circular Buffer"]
+            end
+
+            subgraph STM32_HAL["Hardware Abstraction Layer"]
+                STM32_I2C["I2C Driver<br/>100kHz"]
+                STM32_SPI["SPI Driver<br/>18/36MHz"]
+                STM32_Display["Display Driver<br/>ILI9225"]
+            end
+
+            STM32_Main --> STM32_UART
+            STM32_Main --> STM32_I2C
+            STM32_Main --> STM32_SPI
+            STM32_Main --> STM32_Display
+            STM32_UART --> STM32_CMD
+            STM32_CMD --> STM32_DM
+            STM32_DM --> STM32_SD
+        end
     end
 
-    subgraph Sensors[Sensors and Peripherals]
-        SHT3X[SHT3X Temp/Humidity<br/>I2C 0x44<br/>±0.2°C, ±2%RH]
-        RTC[DS3231 RTC<br/>I2C 0x68<br/>±2ppm accuracy]
-        SD[SD Card<br/>SPI1 18MHz<br/>FAT32 Circular Buffer]
-        TFT[ILI9225 Display<br/>SPI2 36MHz<br/>176x220 pixels]
-        RelayHW[Relay Module<br/>GPIO4<br/>Active HIGH]
-        Buttons[4x Buttons<br/>GPIO 5,16,17,4<br/>Active LOW + Pull-up]
+    subgraph Layer4[" "]
+        subgraph Hardware["Hardware Peripherals Layer"]
+            direction LR
+
+            subgraph Sensors_I2C["I2C Sensors"]
+                SHT3X["SHT3X<br/>Temp & Humidity<br/>0x44"]
+                RTC["DS3231 RTC<br/>Timestamp<br/>0x68"]
+            end
+
+            subgraph Storage_Display["SPI Devices"]
+                SD["SD Card<br/>Data Buffer<br/>FAT32"]
+                TFT["ILI9225 TFT<br/>176x220<br/>Status Display"]
+            end
+
+            subgraph IO_Devices["GPIO Devices"]
+                RelayHW["Relay Module<br/>10A 250VAC<br/>Power Switch"]
+                Buttons["Tactile Buttons<br/>4x Input<br/>Pull-up"]
+            end
+        end
     end
 
-    Power --> STM32
-    Power --> ESP32
+    %% External to ESP32
+    User <-.->|MQTT Commands| Broker
+    Broker <-->|TCP 1883| ESP32_MQTT
+    Network <-->|802.11n| ESP32_WiFi
+    Power -->|5V| ESP32_System
+    Power -->|5V via Relay| STM32_System
 
-    STM32_I2C <--> SHT3X
-    STM32_I2C <--> RTC
-    STM32_SPI <--> SD
-    STM32_SPI <--> TFT
+    %% ESP32 to STM32
+    ESP32_UART2 <-->|UART 115200<br/>JSON Protocol| STM32_UART
 
-    STM32_UART <-->|UART1 115200 baud<br/>JSON Protocol| ESP32_UART2
+    %% ESP32 to Hardware
+    ESP32_Relay -->|GPIO High/Low| RelayHW
+    Buttons -->|Active Low<br/>Debounced| ESP32_Button
 
-    ESP32_WiFi <--> Network
-    Network <--> Broker
-    ESP32_MQTT <--> Broker
-    Broker <--> User
+    %% STM32 to Hardware
+    STM32_I2C <-->|I2C Bus| SHT3X
+    STM32_I2C <-->|I2C Bus| RTC
+    STM32_SPI <-->|SPI1| SD
+    STM32_SPI <-->|SPI2| TFT
 
-    ESP32_Relay --> RelayHW
-    Buttons --> ESP32_Button
-    RelayHW -.->|Controls Power| STM32
+    %% Power Control
+    RelayHW -.->|Enable/Disable<br/>Power| STM32_System
 
-    User -.->|MQTT Protocol| Broker
+    %% Styling
+    style Layer1 fill:none,stroke:none
+    style Layer2 fill:none,stroke:none
+    style Layer3 fill:none,stroke:none
+    style Layer4 fill:none,stroke:none
 
-    style STM32 fill:#FFE4B5, color:#000000
-    style ESP32 fill:#B0E0E6, color:#000000
-    style External fill:#E0E0E0, color:#000000
-    style Sensors fill:#F0E68C, color:#000000
+    style External fill:#E8F4F8,stroke:#0288D1,stroke-width:3px,color:#000
+    style ESP32_System fill:#E3F2FD,stroke:#1976D2,stroke-width:3px,color:#000
+    style STM32_System fill:#FFF3E0,stroke:#F57C00,stroke-width:3px,color:#000
+    style Hardware fill:#F1F8E9,stroke:#558B2F,stroke-width:3px,color:#000
+
+    style ESP32_Core fill:#BBDEFB,stroke:#1565C0,stroke-width:2px,color:#000
+    style ESP32_Comm fill:#B3E5FC,stroke:#0277BD,stroke-width:2px,color:#000
+    style ESP32_Control fill:#B2EBF2,stroke:#00838F,stroke-width:2px,color:#000
+
+    style STM32_Core fill:#FFE0B2,stroke:#E65100,stroke-width:2px,color:#000
+    style STM32_Protocol fill:#FFCCBC,stroke:#D84315,stroke-width:2px,color:#000
+    style STM32_Data fill:#FFAB91,stroke:#BF360C,stroke-width:2px,color:#000
+    style STM32_HAL fill:#FF8A65,stroke:#A1320C,stroke-width:2px,color:#000
+
+    style Sensors_I2C fill:#C5E1A5,stroke:#558B2F,stroke-width:2px,color:#000
+    style Storage_Display fill:#AED581,stroke:#689F38,stroke-width:2px,color:#000
+    style IO_Devices fill:#9CCC65,stroke:#558B2F,stroke-width:2px,color:#000
 ```
 
 ## Component Diagram - STM32 Modules
