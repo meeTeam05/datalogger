@@ -1,0 +1,195 @@
+@startuml Settings_Configuration_Management
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam component {
+    BackgroundColor<<settings>> #8B5CF6
+    BorderColor<<settings>> #7C3AED
+    BackgroundColor<<storage>> #F97316
+    BorderColor<<storage>> #EA580C
+    BackgroundColor<<actions>> #10B981
+    BorderColor<<actions>> #059669
+    FontSize 10
+    FontName Arial
+}
+
+title <size:18><b>Settings & Configuration Management</b></size>\n<size:12><i>Application Configuration System</i></size>
+
+package "Settings Management" <<settings>> {
+    package "MQTT Configuration" {
+        component [Host: 127.0.0.1] as MQTTHost
+        component [Port: 8083] as MQTTPort
+        component [Path: /mqtt] as MQTTPath
+        component [Username: DataLogger] as MQTTUser
+        component [Password: datalogger] as MQTTPass
+        component [Client ID: web_client_1] as MQTTClient
+    }
+    
+    package "Firebase Configuration" {
+        component [API Key] as FBApiKey
+        component [Project ID: datalogger-8c5d5] as FBProject
+        component [Database URL] as FBDbUrl
+    }
+    
+    package "Display Preferences" {
+        component [Temperature Unit\nC / F / K\nDefault: C] as TempUnit
+        component [Time Format\n24h / 12h\nDefault: 24h] as TimeFormat
+        component [Date Format\nDD/MM/YYYY\nMM/DD/YYYY\nYYYY-MM-DD] as DateFormat
+    }
+    
+    package "Chart Settings" {
+        component [Max Data Points\nDefault: 50\nRange: 10-200] as MaxPoints
+        component [Update Interval (s)\nDefault: 1\nRange: 1-60] as UpdateInterval
+        component [Skip Error Readings\nCheckbox\nDefault: false] as SkipErrors
+    }
+    
+    package "Data Management" {
+        component [Default Interval (s)\nDefault: 5\nMin: 1] as DefaultInterval
+        component [Retention Days\nDefault: 30\nMin: 1] as RetentionDays
+        component [Auto-save to Firebase\nCheckbox\nDefault: true] as AutoSave
+    }
+}
+
+package "Storage Mechanism" <<storage>> {
+    component [Browser LocalStorage\n- tempUnit\n- timeFormat\n- dateFormat\n- chartMaxPoints\n- chartUpdateInterval\n- chartSkipErrors\n- dataDefaultInterval\n- dataRetentionDays\n- dataAutoSave] as LocalStorage
+    
+    component [MQTT_CONFIG object\nFIREBASE_CONFIG object\nIn-memory during session] as ConfigObj
+}
+
+package "Settings Actions" <<actions>> {
+    component [loadSettingsPage()\nRead from localStorage\nPopulate form inputs] as Load
+    
+    component [saveSettings()\nWrite to localStorage\nApply changes] as Save
+    
+    component [exportSettings()\nCreate JSON file\nDownload to browser] as Export
+    
+    component [importSettings()\nRead JSON file\nRestore settings] as Import
+    
+    component [restoreDefaults()\nReset to factory values\nClear localStorage] as Restore
+}
+
+component [settings.json] as JSONFile
+
+MQTTHost --> LocalStorage
+MQTTPort --> LocalStorage
+MQTTPath --> LocalStorage
+MQTTUser --> LocalStorage
+MQTTPass --> LocalStorage
+MQTTClient --> LocalStorage
+FBApiKey --> ConfigObj
+FBProject --> ConfigObj
+FBDbUrl --> ConfigObj
+TempUnit --> LocalStorage
+TimeFormat --> LocalStorage
+DateFormat --> LocalStorage
+MaxPoints --> LocalStorage
+UpdateInterval --> LocalStorage
+SkipErrors --> LocalStorage
+DefaultInterval --> LocalStorage
+RetentionDays --> LocalStorage
+AutoSave --> LocalStorage
+
+LocalStorage --> Load
+Load --> TempUnit
+Load --> TimeFormat
+Load --> DateFormat
+Load --> MaxPoints
+Load --> UpdateInterval
+Load --> SkipErrors
+Load --> DefaultInterval
+Load --> RetentionDays
+Load --> AutoSave
+
+TempUnit --> Save
+TimeFormat --> Save
+DateFormat --> Save
+MaxPoints --> Save
+UpdateInterval --> Save
+SkipErrors --> Save
+DefaultInterval --> Save
+RetentionDays --> Save
+AutoSave --> Save
+Save --> LocalStorage
+
+TempUnit --> Export
+TimeFormat --> Export
+DateFormat --> Export
+MaxPoints --> Export
+UpdateInterval --> Export
+SkipErrors --> Export
+DefaultInterval --> Export
+RetentionDays --> Export
+AutoSave --> Export
+Export --> JSONFile
+
+JSONFile --> Import
+Import --> TempUnit
+Import --> TimeFormat
+Import --> DateFormat
+Import --> MaxPoints
+Import --> UpdateInterval
+Import --> SkipErrors
+Import --> DefaultInterval
+Import --> RetentionDays
+Import --> AutoSave
+
+Restore --> TempUnit
+Restore --> TimeFormat
+Restore --> DateFormat
+Restore --> MaxPoints
+Restore --> UpdateInterval
+Restore --> SkipErrors
+Restore --> DefaultInterval
+Restore --> RetentionDays
+Restore --> AutoSave
+
+note right of MQTTHost
+    <b>MQTT Broker Settings</b>
+    • Local broker (127.0.0.1)
+    • WebSocket port 8083
+    • Path: /mqtt
+    • Authentication required
+    • Unique client ID
+end note
+
+note right of TempUnit
+    <b>Display Preferences</b>
+    • Temperature unit selection
+    • Time format (24h/12h)
+    • Date format options
+    • User-friendly display
+end note
+
+note right of MaxPoints
+    <b>Chart Settings</b>
+    • Buffer size control
+    • Update frequency
+    • Error handling option
+    • Performance tuning
+end note
+
+note right of DefaultInterval
+    <b>Data Settings</b>
+    • Periodic interval
+    • Retention policy
+    • Auto-save toggle
+    • Data management
+end note
+
+note right of LocalStorage
+    <b>Browser Storage</b>
+    • Persistent settings
+    • Survives reload
+    • Per-domain storage
+    • Key-value pairs
+end note
+
+note right of Save
+    <b>Settings Actions</b>
+    • Load: from localStorage
+    • Save: to localStorage
+    • Export: JSON download
+    • Import: JSON upload
+    • Restore: factory defaults
+end note
+
+@enduml

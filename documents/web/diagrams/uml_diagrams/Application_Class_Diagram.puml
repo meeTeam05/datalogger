@@ -1,0 +1,196 @@
+@startuml Application_Class_Diagram
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam class {
+    BackgroundColor<<main>> #06B6D4
+    BorderColor<<main>> #0891B2
+    BackgroundColor<<manager>> #10B981
+    BorderColor<<manager>> #059669
+    BackgroundColor<<controller>> #F59E0B
+    BorderColor<<controller>> #D97706
+    FontSize 10
+    FontName Arial
+    ArrowColor #424242
+}
+
+title <size:18><b>Application Class Diagram</b></size>\n<size:12><i>Web Application Architecture</i></size>
+
+class WebApplication <<main>> {
+    <b>== Private Members ==</b>
+    -isPeriodic: boolean
+    -isDeviceOn: boolean
+    -isMqttConnected: boolean
+    -isFirebaseConnected: boolean
+    -currentTemp: float
+    -currentHumi: float
+    -lastReadingTimestamp: number
+    <b>== Public Methods ==</b>
+    +initialize(): void
+    +initializeFirebase(): void
+    +initializeMQTT(): void
+    +initializeCharts(): void
+}
+
+class MQTTManager <<manager>> {
+    <b>== Private Members ==</b>
+    -mqttClient: MQTTClient
+    -MQTT_CONFIG: object
+    <b>== Public Methods ==</b>
+    +connect(): void
+    +subscribe(topic, qos): void
+    +publish(topic, message, qos): void
+    +handleMessage(topic, payload): void
+    +updateStatus(connected): void
+    +requestStateSync(): void
+}
+
+class FirebaseManager <<manager>> {
+    <b>== Private Members ==</b>
+    -firebaseDb: Database
+    -FIREBASE_CONFIG: object
+    <b>== Public Methods ==</b>
+    +initialize(): void
+    +saveRecord(data): void
+    +loadHistory(dateRange): void
+    +testPermissions(): void
+    +updateStatus(connected): void
+}
+
+class ChartManager <<manager>> {
+    <b>== Private Members ==</b>
+    -tempChart: Chart
+    -humiChart: Chart
+    -temperatureData: array
+    -humidityData: array
+    -maxDataPoints: number
+    <b>== Public Methods ==</b>
+    +initializeCharts(): void
+    +pushTemperature(value, update, timestamp): void
+    +pushHumidity(value, update, timestamp): void
+    +updateChartStats(type): void
+    +clearChartData(): void
+    +ensureChartsInitialized(): void
+}
+
+class UIController <<controller>> {
+    <b>== Public Methods ==</b>
+    +updateCurrentDisplay(): void
+    +updateMQTTStatus(connected): void
+    +updateFirebaseStatus(connected): void
+    +updateDeviceButton(isOn): void
+    +updatePeriodicButton(isOn): void
+    +renderLiveDataTable(): void
+    +renderDataManagementTable(data): void
+    +renderFullConsole(): void
+}
+
+class CommandHandler <<controller>> {
+    <b>== Public Methods ==</b>
+    +handleDeviceToggle(): void
+    +handlePeriodicToggle(): void
+    +handleSingleRead(): void
+    +handleIntervalConfig(): void
+    +handleTimeSync(): void
+    +handleManualTimeSet(): void
+}
+
+class StateManager <<manager>> {
+    <b>== Private Members ==</b>
+    -stateSync: object
+    -deviceClockMs: number
+    -deviceClockSetAtMs: number
+    <b>== Public Methods ==</b>
+    +syncUIWithHardwareState(state): void
+    +parseStateMessage(message): void
+    +startDeviceClockTicker(): void
+}
+
+class DataManager <<manager>> {
+    <b>== Private Members ==</b>
+    -liveDataBuffer: array
+    -filteredDataCache: array
+    <b>== Public Methods ==</b>
+    +addToLiveDataTable(data): void
+    +applyDataFilters(): void
+    +applySorting(data, sortBy): void
+    +updateDataStatistics(data): void
+    +exportFilteredData(): void
+    +resetDataFilters(): void
+}
+
+class ComponentHealthMonitor <<manager>> {
+    <b>== Private Members ==</b>
+    -componentHealth: object
+    <b>== Public Methods ==</b>
+    +updateComponentHealth(component, isHealthy): void
+    +updateComponentCard(component): void
+    +getTimeAgo(timestamp): void
+}
+
+class LoggingSystem <<manager>> {
+    <b>== Private Members ==</b>
+    -logBuffer: array
+    -maxLogsInMemory: number
+    -logFilterType: string
+    <b>== Public Methods ==</b>
+    +addStatus(message, type): void
+    +updateConsoleDisplay(logEntry): void
+    +renderFullConsole(): void
+    +filterLogs(type): void
+    +clearLogs(): void
+    +exportLogs(): void
+}
+
+class TimeManager <<manager>> {
+    <b>== Private Members ==</b>
+    -timePickerYear: number
+    -timePickerMonth: number
+    -timePickerDay: number
+    -timePickerHour: number
+    -timePickerMinute: number
+    -timePickerSecond: number
+    <b>== Public Methods ==</b>
+    +renderCalendar(): void
+    +updateTimeDisplay(): void
+    +adjustTime(unit, delta): void
+}
+
+class NavigationManager <<controller>> {
+    <b>== Public Methods ==</b>
+    +bindMenuNavigation(): void
+    +switchPage(page): void
+    +initializePage(page): void
+    +bindCalendarButtons(): void
+    +bindDataManagementButtons(): void
+    +bindLogsButtons(): void
+}
+
+WebApplication --> MQTTManager
+WebApplication --> FirebaseManager
+WebApplication --> ChartManager
+WebApplication --> UIController
+WebApplication --> CommandHandler
+WebApplication --> StateManager
+WebApplication --> DataManager
+WebApplication --> ComponentHealthMonitor
+WebApplication --> LoggingSystem
+WebApplication --> TimeManager
+WebApplication --> NavigationManager
+
+MQTTManager --> StateManager
+MQTTManager --> DataManager
+MQTTManager --> ComponentHealthMonitor
+
+FirebaseManager --> DataManager
+
+ChartManager --> UIController
+
+CommandHandler --> MQTTManager
+CommandHandler --> TimeManager
+
+DataManager --> FirebaseManager
+DataManager --> UIController
+
+LoggingSystem --> UIController
+
+@enduml

@@ -1,0 +1,130 @@
+@startuml Chart_Integration_Architecture
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam component {
+    BackgroundColor<<chart>> #06B6D4
+    BorderColor<<chart>> #0891B2
+    BackgroundColor<<data>> #10B981
+    BorderColor<<data>> #059669
+    BackgroundColor<<display>> #F59E0B
+    BorderColor<<display>> #D97706
+    FontSize 10
+    FontName Arial
+}
+
+title <size:18><b>Chart.js Integration Architecture</b></size>\n<size:12><i>Real-time Data Visualization</i></size>
+
+package "Chart.js Integration" <<chart>> {
+    package "Chart Configuration" {
+        component "Temperature Chart Config\nType: line\nColor: #06B6D4\nTension: 0.4\nAnimation: 750ms" as TempConfig
+        
+        component "Humidity Chart Config\nType: line\nColor: #22D3EE\nTension: 0.4\nAnimation: 750ms" as HumiConfig
+    }
+    
+    package "Data Management" {
+        component "temperatureData[]\nMax: 50 points\nFIFO buffer\n{value, time}" as TempArray
+        
+        component "humidityData[]\nMax: 50 points\nFIFO buffer\n{value, time}" as HumiArray
+        
+        component "Push Functions\npushTemperature()\npushHumidity()\nLazy init if needed" as Push
+    }
+    
+    package "Chart Instances" {
+        component "tempChart\nCanvas: #tempChart\nLabels: times\nData: values\nUpdate: 'active'" as TempChart
+        
+        component "humiChart\nCanvas: #humiChart\nLabels: times\nData: values\nUpdate: 'active'" as HumiChart
+    }
+    
+    package "Statistics Display" {
+        component "Calculate Stats\nmin = Math.min()\nmax = Math.max()\navg = sum/count" as Calculate
+        
+        component "Update UI Elements\n#tempMin, #tempMax, #tempAvg\n#humiMin, #humiMax, #humiAvg" as UpdateUI
+    }
+    
+    package "Initialization" {
+        component "Retry Logic\nMax 10 attempts\n500ms interval\nCheck canvas ready" as Retry
+        
+        component "Lazy Initialization\nensureChartsInitialized()\nCalled on first push\nFallback mechanism" as LazyInit
+    }
+}
+
+package "Data Sources" <<data>> {
+    component "MQTT Messages\nperiodicData topic" as MQTT
+    component "Firebase History\nloadHistory()" as Firebase
+}
+
+package "Visual Output" <<display>> {
+    component "Canvas Element\n#tempChart" as Canvas1
+    component "Canvas Element\n#humiChart" as Canvas2
+    component "Stats Elements\nMin/Max/Avg values" as StatsDisplay
+}
+
+TempConfig --> TempChart
+HumiConfig --> HumiChart
+MQTT --> Push
+Firebase --> Push
+Push --> TempArray
+Push --> HumiArray
+TempArray --> TempChart
+HumiArray --> HumiChart
+TempChart --> Canvas1
+HumiChart --> Canvas2
+TempChart --> Calculate
+HumiChart --> Calculate
+Calculate --> UpdateUI
+UpdateUI --> StatsDisplay
+Retry --> TempChart
+Retry --> HumiChart
+LazyInit --> TempChart
+LazyInit --> HumiChart
+
+note right of TempConfig
+    <b>Chart Configuration</b>
+    • Line chart type
+    • Cyan color scheme
+    • Smooth curves (0.4)
+    • EaseInOutQuart animation
+    • 750ms duration
+end note
+
+note right of TempArray
+    <b>Data Buffer Management</b>
+    • Max 50 data points
+    • FIFO (shift on overflow)
+    • {value, time} objects
+    • Efficient memory usage
+end note
+
+note right of Push
+    <b>Push Functions</b>
+    • pushTemperature(val, update, ts)
+    • pushHumidity(val, update, ts)
+    • Auto-init charts if needed
+    • Optional chart update
+end note
+
+note right of Calculate
+    <b>Statistics Calculation</b>
+    • Min: lowest value
+    • Max: highest value
+    • Avg: sum / count
+    • Real-time updates
+end note
+
+note right of Retry
+    <b>Initialization Retry</b>
+    • Check canvas exists
+    • Max 10 attempts
+    • 500ms between tries
+    • Fallback to lazy init
+end note
+
+note right of LazyInit
+    <b>Lazy Initialization</b>
+    • Called on first push
+    • Safety mechanism
+    • Ensures charts exist
+    • Prevents errors
+end note
+
+@enduml

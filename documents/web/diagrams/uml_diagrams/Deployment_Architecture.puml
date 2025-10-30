@@ -1,0 +1,102 @@
+@startuml Deployment_Architecture
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam node {
+    BackgroundColor<<browser>> #06B6D4
+    BorderColor<<browser>> #0891B2
+    BackgroundColor<<network>> #10B981
+    BorderColor<<network>> #059669
+    BackgroundColor<<cloud>> #F97316
+    BorderColor<<cloud>> #EA580C
+    FontSize 10
+    FontName Arial
+}
+skinparam component {
+    BackgroundColor #E0F2FE
+    BorderColor #0284C7
+}
+skinparam database {
+    BackgroundColor #FED7AA
+    BorderColor #EA580C
+}
+
+title <size:18><b>Web Application Deployment Architecture</b></size>\n<size:12><i>System Deployment</i></size>
+
+node "User Browser\nChrome/Firefox/Safari" <<browser>> {
+    component [Web Application\nHTML/CSS/JavaScript\nSingle-page dashboard] as webapp
+    component [MQTT Client\nmqtt.min.js\nWebSocket client] as mqtt_client
+    component [Firebase SDK\nfirebase-app-compat.js\nRealtime database client] as firebase_sdk
+    component [Chart.js\nchart.min.js\nData visualization] as chartjs
+}
+
+node "Local Network\n192.168.1.x" <<network>> {
+    node "MQTT Server\nMosquitto" {
+        component [MQTT Broker\nMosquitto 2.x\nWebSocket support] as broker
+    }
+    
+    node "ESP32 Device\nESP32-WROOM-32" {
+        component [WiFi Bridge\nESP-IDF\nMQTT client + UART] as wifi_bridge
+    }
+    
+    node "STM32 Device\nSTM32F103C8T6" {
+        component [Data Logger\nSTM32 HAL\nSensor controller + SD] as data_logger
+    }
+}
+
+node "Cloud Services\nGoogle Cloud" <<cloud>> {
+    node "Firebase\nGoogle Firebase" {
+        database [Realtime Database\nFirebase RTDB\nJSON document store] as rtdb
+    }
+}
+
+webapp --> mqtt_client : Uses
+webapp --> firebase_sdk : Uses
+webapp --> chartjs : Uses
+
+mqtt_client --> broker : WebSocket\nws://127.0.0.1:8083/mqtt
+firebase_sdk --> rtdb : HTTPS + WebSocket
+
+broker --> wifi_bridge : MQTT v5.0\nPublish/Subscribe
+wifi_bridge --> data_logger : UART 115200
+
+note right of webapp
+    <b>Web Application</b>
+    • Single-page app
+    • Vanilla JavaScript
+    • Real-time updates
+    • Local network only
+end note
+
+note right of broker
+    <b>MQTT Broker</b>
+    • Mosquitto 2.x
+    • WebSocket on 8083
+    • QoS Level 1
+    • Username/password auth
+end note
+
+note right of wifi_bridge
+    <b>ESP32 Bridge</b>
+    • WiFi connectivity
+    • MQTT client
+    • UART ↔ WiFi
+    • Command relay
+end note
+
+note right of data_logger
+    <b>STM32 Logger</b>
+    • Sensor reading
+    • SD card buffer
+    • RTC timestamp
+    • I2C sensors
+end note
+
+note right of rtdb
+    <b>Cloud Storage</b>
+    • Real-time sync
+    • Daily partitioning
+    • JSON structure
+    • Access rules
+end note
+
+@enduml

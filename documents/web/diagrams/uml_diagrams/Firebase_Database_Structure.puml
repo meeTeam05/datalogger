@@ -1,0 +1,114 @@
+@startuml Firebase_Database_Structure
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam component {
+    BackgroundColor<<firebase>> #F97316
+    BorderColor<<firebase>> #EA580C
+    BackgroundColor<<readings>> #06B6D4
+    BorderColor<<readings>> #0891B2
+    BackgroundColor<<test>> #10B981
+    BorderColor<<test>> #059669
+    FontSize 10
+    FontName Arial
+}
+
+title <size:18><b>Firebase Database Structure</b></size>\n<size:12><i>Realtime Database - datalogger-8c5d5</i></size>
+
+package "Firebase Realtime Database" <<firebase>> {
+    component [Root /] as Root
+    
+    package "readings/" <<readings>> {
+        component [2025-01-20/] as Date1
+        component [2025-01-21/] as Date2
+        component [YYYY-MM-DD/] as Date3
+        
+        package "timestamp_id/" {
+            component [temp: 25.3] as Temp
+            component [humi: 65.2] as Humi
+            component [mode: periodic] as Mode
+            component [sensor: SHT31] as Sensor
+            component [status: success] as Status
+            component [error: null] as Error
+            component [time: 1704067200] as Time
+            component [device: ESP32_01] as Device
+            component [created_at: timestamp] as Created
+        }
+    }
+    
+    package "test/" <<test>> {
+        component [connection/\ntimestamp\nmessage] as Connection
+    }
+}
+
+Root --> Date1
+Root --> Date2
+Root --> Date3
+Root --> Connection
+
+Date1 --> Temp
+Date1 --> Humi
+Date1 --> Mode
+Date1 --> Sensor
+Date1 --> Status
+Date1 --> Error
+Date1 --> Time
+Date1 --> Device
+Date1 --> Created
+
+Date2 --> Temp
+Date2 --> Humi
+Date2 --> Mode
+Date2 --> Sensor
+Date2 --> Status
+Date2 --> Error
+Date2 --> Time
+Date2 --> Device
+Date2 --> Created
+
+Date3 --> Temp
+Date3 --> Humi
+Date3 --> Mode
+Date3 --> Sensor
+Date3 --> Status
+Date3 --> Error
+Date3 --> Time
+Date3 --> Device
+Date3 --> Created
+
+note right of Root
+    <b>Database Root</b>
+    • Project: datalogger-8c5d5
+    • Access: Firebase Rules
+    • Real-time sync
+end note
+
+note right of Date1
+    <b>Daily Partitioning</b>
+    • Format: YYYY-MM-DD
+    • One node per date
+    • Scalable structure
+    • Easy date-range queries
+end note
+
+note right of Temp
+    <b>Record Structure</b>
+    • temp: float (°C)
+    • humi: float (%)
+    • mode: "single" | "periodic"
+    • sensor: "SHT31"
+    • status: "success" | "error"
+    • error: error message | null
+    • time: Unix timestamp
+    • device: device identifier
+    • created_at: Firebase timestamp
+end note
+
+note right of Connection
+    <b>Test Node</b>
+    • Permission testing
+    • Connection validation
+    • Temporary data
+    • Auto-cleanup
+end note
+
+@enduml

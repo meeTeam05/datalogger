@@ -1,0 +1,89 @@
+@startuml MQTT_Topics_Message_Architecture
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam component {
+    BackgroundColor<<webapp>> #06B6D4
+    BorderColor<<webapp>> #0891B2
+    BackgroundColor<<broker>> #8B5CF6
+    BorderColor<<broker>> #7C3AED
+    BackgroundColor<<message>> #10B981
+    BorderColor<<message>> #059669
+    FontSize 10
+    FontName Arial
+}
+
+title <size:18><b>MQTT Topics & Message Architecture</b></size>\n<size:12><i>Publish-Subscribe Communication</i></size>
+
+package "Web Application" <<webapp>> {
+    component [MQTT Publisher] as Publisher
+    component [MQTT Subscriber] as Subscriber
+}
+
+package "MQTT Broker\nMosquitto\nws://127.0.0.1:8083/mqtt" <<broker>> {
+    component [datalogger/stm32/command\nQoS: 1\nWeb → STM32] as Topic1
+    component [datalogger/esp32/relay/control\nQoS: 1\nWeb → ESP32] as Topic2
+    component [datalogger/esp32/system/state\nQoS: 1\nBidirectional] as Topic3
+    component [datalogger/stm32/single/data\nQoS: 1\nSTM32 → Web] as Topic4
+    component [datalogger/stm32/periodic/data\nQoS: 1\nSTM32 → Web] as Topic5
+}
+
+package "Message Formats" <<message>> {
+    component [SINGLE\nPERIODIC ON/OFF\nSET TIME timestamp\nSET INTERVAL seconds] as Cmd1
+    component [RELAY ON\nRELAY OFF] as Cmd2
+    component [REQUEST\nJSON: device/periodic] as Cmd3
+    component [JSON: temperature\nhumidity\ntimestamp] as Data1
+    component [JSON: temperature\nhumidity\ntimestamp\nmode: periodic] as Data2
+}
+
+Publisher --> Topic1
+Publisher --> Topic2
+Publisher --> Topic3
+
+Topic4 --> Subscriber
+Topic5 --> Subscriber
+Topic3 --> Subscriber
+
+Topic1 .down.> Cmd1 : "Command String"
+Topic2 .down.> Cmd2 : "Command String"
+Topic3 .down.> Cmd3 : "Request/JSON"
+Topic4 .down.> Data1 : "JSON Data"
+Topic5 .down.> Data2 : "JSON Data"
+
+note right of Topic1
+    <b>STM32 Commands</b>
+    • Single read request
+    • Periodic mode control
+    • Time synchronization
+    • Interval configuration
+end note
+
+note right of Topic2
+    <b>Relay Control</b>
+    • Device power control
+    • ON/OFF commands
+    • Immediate execution
+end note
+
+note right of Topic3
+    <b>System State</b>
+    • Bidirectional sync
+    • REQUEST for query
+    • JSON response
+    • Device/Periodic status
+end note
+
+note right of Topic4
+    <b>Single Data</b>
+    • One-shot readings
+    • Manual trigger
+    • Sensor values + timestamp
+end note
+
+note right of Topic5
+    <b>Periodic Data</b>
+    • Automatic readings
+    • Timer-based
+    • Includes mode flag
+end note
+
+@enduml
