@@ -1,0 +1,95 @@
+@startuml SD_Card_Manager_Component
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam class {
+    BackgroundColor<<storage>> #FFF3E0
+    BorderColor<<storage>> #E65100
+    BackgroundColor<<struct>> #FFF8E1
+    BorderColor<<struct>> #F57C00
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 1.5
+}
+
+title <size:18><b>SD Card Manager Component</b></size>\n<size:12><i>Circular Buffer Storage for Offline Data</i></size>
+
+class sd_data_record_t <<struct>> {
+    +uint32_t timestamp
+    +float temperature
+    +float humidity
+    +char mode[16]
+    +uint32_t sequence_num
+    +uint8_t padding[480]
+}
+
+class sd_buffer_metadata_t <<struct>> {
+    +uint32_t write_index
+    +uint32_t read_index
+    +uint32_t count
+    +uint32_t sequence_num
+}
+
+class SDCardManagerAPI <<storage>> {
+    <<interface>>
+    <b>== Initialization ==</b>
+    +SDCardManager_Init() : bool
+
+    <b>== Data Operations ==</b>
+    +SDCardManager_WriteData(uint32_t, float, float, const char*) : bool
+    +SDCardManager_ReadData(sd_data_record_t*) : bool
+    +SDCardManager_RemoveRecord() : bool
+
+    <b>== Buffer Management ==</b>
+    +SDCardManager_GetBufferedCount() : uint32_t
+    +SDCardManager_ClearBuffer() : bool
+
+    <b>== Status Operations ==</b>
+    +SDCardManager_IsReady() : bool
+    +SDCardManager_GetLastError() : uint8_t
+}
+
+class SDCardManagerPrivate <<storage>> {
+    <<private>>
+    <b>== Private Members ==</b>
+    -sd_buffer_metadata_t metadata
+    -bool initialized
+    -uint8_t last_error
+
+    <b>== Private Methods ==</b>
+    -load_metadata() : bool
+    -save_metadata() : bool
+    -calculate_block_address(uint32_t) : uint32_t
+}
+
+SDCardManagerAPI ..> sd_data_record_t : manages
+SDCardManagerPrivate *-- sd_buffer_metadata_t : maintains
+
+note right of sd_data_record_t
+    <b>Data Record (512 bytes)</b>
+    • Fixed-size structure
+    • Padding for alignment
+    • Sequence number tracking
+    • Mode identification
+end note
+
+note left of sd_buffer_metadata_t
+    <b>Metadata (Block 1)</b>
+    • Circular buffer indices
+    • Write/Read pointers
+    • Record count
+    • Persistent across reboots
+end note
+
+note bottom of SDCardManagerAPI
+    <b>SD Card Manager</b>
+    • Circular buffer: 204,800 records
+    • Total capacity: ~100MB
+    • Block 0: Reserved
+    • Block 1: Metadata
+    • Block 2-204,801: Data records
+    • Auto-retry on MQTT reconnect
+end note
+
+@enduml

@@ -1,0 +1,144 @@
+@startuml Object_Lifecycle
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam state {
+    BackgroundColor<<init>> #E1F5FF
+    BorderColor<<init>> #01579B
+    BackgroundColor<<running>> #E8F5E9
+    BorderColor<<running>> #2E7D32
+    BackgroundColor<<sensor>> #F3E5F5
+    BorderColor<<sensor>> #6A1B9A
+    BackgroundColor<<mqtt>> #FFF3E0
+    BorderColor<<mqtt>> #E65100
+    BackgroundColor<<error>> #FFEBEE
+    BorderColor<<error>> #C62828
+    FontSize 13
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>STM32 Object Lifecycle State Machine</b></size>\n<size:12><i>System Initialization and Runtime Flow</i></size>
+
+[*] -right-> Uninitialized : <color:blue><b>Power On</b></color>
+
+state Uninitialized <<init>>
+Uninitialized -down-> Initialized : <b>main()</b>\ncalls init functions
+
+state Initialized <<init>> {
+    [*] -down-> UART_Ready
+    [*] -down-> SHT3X_IDLE
+    [*] -down-> DS3231_Ready
+    [*] -down-> DataManager_Ready
+    [*] -down-> SD_Ready
+    [*] -down-> Display_Ready
+    [*] -down-> MQTT_Disconnected
+
+    state "UART Management" as UARTStates <<init>> {
+        state "UART Ready" as UART_Ready <<init>>
+        state "UART Receiving" as UART_Receiving <<init>>
+
+        UART_Ready -right-> UART_Receiving : Interrupt
+        UART_Receiving -left-> UART_Ready : Character stored
+    }
+
+    state "SHT3X Sensor States" as SHT3XStates <<sensor>> {
+        state "SHT3X IDLE" as SHT3X_IDLE <<sensor>>
+        state "SHT3X Single Shot" as SHT3X_SingleShot <<sensor>>
+        state "SHT3X Periodic" as SHT3X_Periodic <<sensor>>
+
+        SHT3X_IDLE -right-> SHT3X_SingleShot : SINGLE command
+        SHT3X_IDLE -down-> SHT3X_Periodic : PERIODIC ON command
+        SHT3X_SingleShot -left-> SHT3X_IDLE : Measurement complete
+        SHT3X_Periodic -up-> SHT3X_IDLE : PERIODIC OFF command
+    }
+
+    state "Data Manager States" as DataManagerStates <<running>> {
+        state "DataManager Ready" as DataManager_Ready <<running>>
+        state "DataManager Data Ready" as DataManager_DataReady <<running>>
+
+        DataManager_Ready -right-> DataManager_DataReady : Update called
+        DataManager_DataReady -left-> DataManager_Ready : Print/Buffer complete
+    }
+
+    state "MQTT Connection States" as MQTTStates <<mqtt>> {
+        state "MQTT Disconnected" as MQTT_Disconnected <<mqtt>>
+        state "MQTT Connected" as MQTT_Connected <<mqtt>>
+
+        MQTT_Disconnected -right-> MQTT_Connected : MQTT CONNECTED command
+        MQTT_Connected -left-> MQTT_Disconnected : MQTT DISCONNECTED command
+
+        state MQTT_Connected <<mqtt>> {
+            [*] -down-> Direct_Send
+            state "Direct Send" as Direct_Send <<mqtt>>
+            state "Send Buffer" as Send_Buffer <<mqtt>>
+
+            Direct_Send -right-> Send_Buffer : Direct data sent
+            Send_Buffer -left-> Direct_Send : Buffer empty
+        }
+    }
+
+    state "SD Card States" as SDStates <<mqtt>> {
+        state "SD Ready" as SD_Ready <<mqtt>>
+        state "SD Writing" as SD_Writing <<mqtt>>
+        state "SD Reading" as SD_Reading <<mqtt>>
+
+        SD_Ready -right-> SD_Writing : MQTT disconnected
+        SD_Writing -left-> SD_Ready : Data written
+        SD_Ready -down-> SD_Reading : MQTT connected &\nbuffered data exists
+        SD_Reading -up-> SD_Ready : Record read
+    }
+
+    state "Display States" as DisplayStates <<running>> {
+        state "Display Ready" as Display_Ready <<running>>
+        state "Display Updating" as Display_Updating <<running>>
+
+        Display_Ready -right-> Display_Updating : Display update triggered
+        Display_Updating -left-> Display_Ready : Update complete
+    }
+
+    state "DS3231 RTC" as DS3231_Ready <<init>>
+}
+
+Initialized -down-> Error : <color:red><b>HAL Error /\nSensor Error</b></color>
+Error -up-> Initialized : <color:orange><b>Reset/Recovery</b></color>
+
+state Error <<error>> {
+    state "I2C Error" as I2C_Error <<error>>
+    state "SPI Error" as SPI_Error <<error>>
+    state "UART Error" as UART_Error <<error>>
+    state "Sensor Error" as Sensor_Error <<error>>
+
+    [*] --> I2C_Error : I2C timeout
+    [*] --> SPI_Error : SPI failure
+    [*] --> UART_Error : UART overflow
+    [*] --> Sensor_Error : CRC mismatch
+}
+
+note right of Initialized
+    <b>Initialization Phase</b>
+    • HAL, Clock, Peripherals
+    • I2C, SPI, UART setup
+    • Sensor initialization
+    • SD card mount
+    • Display configuration
+    • Default: MQTT_DISCONNECTED
+end note
+
+note right of MQTTStates
+    <b>MQTT State Management</b>
+    • CONNECTED: Send to UART
+    • DISCONNECTED: Buffer to SD
+    • Reconnection: Flush buffer
+end note
+
+note right of Error
+    <b>Error Recovery</b>
+    • Graceful degradation
+    • Continue without SD if failed
+    • Retry I2C communication
+    • CRC validation on sensor data
+end note
+
+@enduml

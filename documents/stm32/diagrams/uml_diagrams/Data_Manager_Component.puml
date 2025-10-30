@@ -1,0 +1,95 @@
+@startuml Data_Manager_Component
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam class {
+    BackgroundColor<<data>> #FCE4EC
+    BorderColor<<data>> #C2185B
+    BackgroundColor<<enum>> #ECEFF1
+    BorderColor<<enum>> #455A64
+    BackgroundColor<<struct>> #FFF8E1
+    BorderColor<<struct>> #F57C00
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 1.5
+}
+
+title <size:18><b>Data Manager Component</b></size>\n<size:12><i>Centralized Sensor Data Management</i></size>
+
+class sensor_data_sht3x_t <<struct>> {
+    +float temperature
+    +float humidity
+    +bool valid
+}
+
+enum data_manager_mode_t <<enum>> {
+    DATA_MANAGER_MODE_IDLE
+    DATA_MANAGER_MODE_SINGLE
+    DATA_MANAGER_MODE_PERIODIC
+}
+
+class data_manager_state_t <<struct>> {
+    +data_manager_mode_t mode
+    +uint32_t timestamp
+    +sensor_data_sht3x_t sht3x
+    +bool data_ready
+}
+
+class DataManagerAPI <<data>> {
+    <<interface>>
+    <b>== Initialization ==</b>
+    +DataManager_Init() : void
+
+    <b>== Data Updates ==</b>
+    +DataManager_UpdateSingle(float, float) : void
+    +DataManager_UpdatePeriodic(float, float) : void
+
+    <b>== Data Output ==</b>
+    +DataManager_Print() : bool
+
+    <b>== State Query ==</b>
+    +DataManager_IsDataReady() : bool
+    +DataManager_ClearDataReady() : void
+    +DataManager_GetState() : data_manager_state_t*
+}
+
+class DataManagerPrivate <<data>> {
+    <<private>>
+    <b>== Private Members ==</b>
+    -data_manager_state_t g_datalogger_state
+
+    <b>== Private Methods ==</b>
+    -format_json_output(char*,
+
+    size_t) : void
+    -validate_sensor_data() : bool
+    -check_mqtt_state() : bool
+    -buffer_to_sd(uint32_t, float, float, const char*) : void
+}
+data_manager_state_t --> data_manager_mode_t : mode
+data_manager_state_t *-- sensor_data_sht3x_t : sht3x
+DataManagerAPI ..> data_manager_state_t : manages
+DataManagerPrivate *-- data_manager_state_t : stores
+note right of DataManagerAPI
+    <b>Data Manager API</b>
+    • Singleton pattern
+    • Thread-safe updates
+    • JSON formatting
+    • MQTT state aware
+end note
+note left of DataManagerPrivate
+    <b>Private Implementation</b>
+    • Routes to UART or SD
+    • Based on MQTT state
+    • Validates sensor data
+    • Sanitizes float values
+end note
+note bottom of data_manager_state_t
+    <b>State Structure</b>
+    • Mode: IDLE/SINGLE/PERIODIC
+    • Timestamp from RTC
+    • Sensor data with validity flag
+    • Ready flag for output
+end note
+@enduml

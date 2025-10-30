@@ -1,0 +1,111 @@
+@startuml STM32_SHT3X_Sensor_Driver_Component
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam class {
+    BackgroundColor<<driver>> #E1F5FF
+    BorderColor<<driver>> #01579B
+    BackgroundColor<<enum>> #ECEFF1
+    BorderColor<<enum>> #455A64
+    BackgroundColor<<struct>> #FFF8E1
+    BorderColor<<struct>> #F57C00
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 1.5
+}
+
+title <size:18><b>SHT3X Sensor Driver Component</b></size>\n<size:12><i>I2C Temperature and Humidity Sensor Driver</i></size>
+
+class sht3x_t <<struct>> {
+    +I2C_HandleTypeDef* hi2c
+    +uint8_t device_address
+    +float temperature
+    +float humidity
+    +sht3x_mode_t currentState
+    +sht3x_repeat_t modeRepeat
+}
+
+enum SHT3X_StatusTypeDef <<enum>> {
+    SHT3X_OK
+    SHT3X_ERROR
+}
+
+enum sht3x_mode_t <<enum>> {
+    SHT3X_IDLE
+    SHT3X_SINGLE_SHOT
+    SHT3X_PERIODIC_05MPS
+    SHT3X_PERIODIC_1MPS
+    SHT3X_PERIODIC_2MPS
+    SHT3X_PERIODIC_4MPS
+    SHT3X_PERIODIC_10MPS
+}
+
+enum sht3x_repeat_t <<enum>> {
+    SHT3X_HIGH
+    SHT3X_MEDIUM
+    SHT3X_LOW
+}
+
+enum sht3x_heater_mode_t <<enum>> {
+    SHT3X_HEATER_ENABLE
+    SHT3X_HEATER_DISABLE
+}
+
+class SHT3XDriverAPI <<driver>> {
+    <<interface>>
+    <b>== Initialization ==</b>
+    +SHT3X_Init(sht3x_t*, I2C_HandleTypeDef*, uint8_t) : void
+    
+    <b>== Measurement Commands ==</b>
+    +SHT3X_Single(sht3x_t*, sht3x_repeat_t*, float*, float*) : SHT3X_StatusTypeDef
+    +SHT3X_Periodic(sht3x_t*, sht3x_mode_t*, sht3x_repeat_t*) : SHT3X_StatusTypeDef
+    +SHT3X_FetchData(sht3x_t*, float*, float*) : SHT3X_StatusTypeDef
+    +SHT3X_PeriodicStop(sht3x_t*) : SHT3X_StatusTypeDef
+    
+    <b>== Maintenance Commands ==</b>
+    +SHT3X_Heater(sht3x_t*, sht3x_heater_mode_t*) : SHT3X_StatusTypeDef
+    +SHT3X_ART(sht3x_t*) : SHT3X_StatusTypeDef
+    +SHT3X_SoftReset(sht3x_t*) : SHT3X_StatusTypeDef
+}
+
+class SHT3XDriverPrivate <<driver>> {
+    <<private>>
+    <b>== Private Methods ==</b>
+    -calculate_crc(uint8_t* data, uint8_t length) : uint8_t
+    -parse_raw_data(uint8_t* raw_data, float* temp, float* hum) : SHT3X_StatusTypeDef
+    -build_command_word(sht3x_mode_t, sht3x_repeat_t) : uint16_t
+}
+
+sht3x_t --> sht3x_mode_t : currentState
+sht3x_t --> sht3x_repeat_t : modeRepeat
+SHT3XDriverAPI ..> sht3x_t : operates on
+SHT3XDriverAPI ..> SHT3X_StatusTypeDef : returns
+SHT3XDriverAPI ..> sht3x_heater_mode_t : uses
+SHT3XDriverPrivate ..> sht3x_t : supports
+
+note right of sht3x_t
+    <b>SHT3X Context</b>
+    • Stores sensor state
+    • I2C communication handle
+    • Current mode tracking
+    • Cached readings
+end note
+
+note left of SHT3XDriverAPI
+    <b>Driver API</b>
+    • Single-shot measurements
+    • Periodic mode (0.5-10 MPS)
+    • CRC validation
+    • Heater control
+    • ART command support
+end note
+
+note bottom of sht3x_mode_t
+    <b>Measurement Modes</b>
+    MPS = Measurements Per Second
+    • 0.5 MPS: Low power
+    • 10 MPS: High frequency
+end note
+
+@enduml

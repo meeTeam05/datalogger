@@ -1,0 +1,81 @@
+@startuml UART_RingBuffer_Component
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam class {
+    BackgroundColor<<uart>> #E8F5E9
+    BorderColor<<uart>> #2E7D32
+    BackgroundColor<<buffer>> #E1F5FF
+    BorderColor<<buffer>> #01579B
+    BackgroundColor<<struct>> #FFF8E1
+    BorderColor<<struct>> #F57C00
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 1.5
+}
+
+title <size:18><b>UART and Ring Buffer Component</b></size>\n<size:12><i>Interrupt-Driven UART Reception with Circular Buffer</i></size>
+
+class ring_buffer_t <<struct>> {
+    +uint8_t* buffer
+    +volatile uint16_t head
+    +volatile uint16_t tail
+    +uint16_t size
+}
+
+class UARTModule <<uart>> {
+    <b>== Private Members ==</b>
+    -UART_HandleTypeDef* huart
+    -ring_buffer_t rx_buffer
+    -uint8_t rx_buffer_storage[256]
+    -char line_buffer[128]
+    -uint16_t line_index
+    
+    <b>== Public Methods ==</b>
+    +UART_Init(UART_HandleTypeDef*) : void
+    +UART_Handle() : void
+    +UART_RxCallback(uint8_t) : void
+    
+    <b>== Private Methods ==</b>
+    -assemble_line() : bool
+}
+
+class RingBufferAPI <<buffer>> {
+    <<interface>>
+    <b>== Initialization ==</b>
+    +RingBuffer_Init(ring_buffer_t*, uint8_t*, uint16_t) : void
+    
+    <b>== Data Operations ==</b>
+    +RingBuffer_Write(ring_buffer_t*, uint8_t) : bool
+    +RingBuffer_Read(ring_buffer_t*, uint8_t*) : bool
+    +RingBuffer_Peek(ring_buffer_t*, uint8_t*) : bool
+    
+    <b>== Status Operations ==</b>
+    +RingBuffer_Available(ring_buffer_t*) : uint16_t
+    +RingBuffer_IsFull(ring_buffer_t*) : bool
+    +RingBuffer_IsEmpty(ring_buffer_t*) : bool
+    +RingBuffer_Clear(ring_buffer_t*) : void
+}
+
+UARTModule *-- ring_buffer_t : contains
+UARTModule ..> RingBufferAPI : calls
+RingBufferAPI ..> ring_buffer_t : operates on
+
+note right of UARTModule
+    <b>UART Module</b>
+    • Interrupt-driven RX
+    • Line assembly (\n terminator)
+    • Thread-safe buffering
+    • Command dispatch ready
+end note
+
+note left of RingBufferAPI
+    <b>Ring Buffer API</b>
+    • Producer-consumer pattern
+    • Lock-free operations
+    • Overflow protection
+    • ISR-safe writes
+end note
+
+@enduml
