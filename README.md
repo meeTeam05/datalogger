@@ -445,14 +445,10 @@ DATALOGGER/
 │   │   ├── FLOW_DIAGRAM_ESP32.md          # 15 flowcharts
 │   │   ├── SEQUENCE_DIAGRAM_ESP32.md      # 10 sequence diagrams
 │   │   └── UML_CLASS_DIAGRAM_ESP32.md     # 11 architecture diagrams
-│   ├── WEB/                               # Web dashboard diagrams
-│   │   ├── FLOW_DIAGRAM_WEB.md            # 15 web application flowcharts
-│   │   ├── SEQUENCE_DIAGRAM_WEB.md        # 10 web interaction sequences
-│   │   └── UML_DIAGRAM_WEB.md             # 11 web architecture diagrams
-│   └── SYSTEM/                            # Overall system documentation
-│       ├── FLOW_DIAGRAM_SYSTEM.md         # System-level data flow
-│       ├── SEQUENCE_DIAGRAM_SYSTEM.md     # End-to-end sequences
-│       └── UML_DIAGRAM_SYSTEM.md          # Complete system architecture
+│   └── WEB/                               # Web dashboard diagrams
+│       ├── FLOW_DIAGRAM_WEB.md            # 15 web application flowcharts
+│       ├── SEQUENCE_DIAGRAM_WEB.md        # 10 web interaction sequences
+│       └── UML_DIAGRAM_WEB.md             # 11 web architecture diagrams
 │
 ├── firmware/                              # Embedded Firmware
 │   ├── README.md                          # Firmware overview
@@ -581,7 +577,6 @@ For detailed component-specific documentation, please refer to:
 - **STM32 Diagrams**: [documents/stm32/](documents/stm32/) - 15 flowcharts, 10 sequences, 11 architecture diagrams
 - **ESP32 Diagrams**: [documents/esp32/](documents/esp32/) - 15 flowcharts, 10 sequences, 11 architecture diagrams
 - **Web Dashboard Diagrams**: [documents/web/](documents/web/) - 15 flowcharts, 10 sequences, 11 architecture diagrams
-- **System-Level Diagrams**: [documents/system/](documents/system/) - Complete system architecture and data flow
 
 ## License
 
