@@ -1,0 +1,127 @@
+@startuml Button_Press_Sequence
+!theme cerulean-outline
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title <size:16><b>Button Press Sequence (ESP32 Buttons)</b></size>\n<size:12><i>Physical Button Interface with Debouncing</i></size>
+
+participant "User" as User
+participant "Button\nGPIO" as Button
+participant "ESP32" as ESP32
+participant "UART Link" as UART
+participant "STM32" as STM32
+participant "MQTT\nBroker" as MQTT
+
+== Relay Toggle Button (GPIO5) ==
+
+User -> Button: Press GPIO5 (Relay Toggle)
+activate Button
+Button -> ESP32: GPIO Interrupt
+deactivate Button
+
+activate ESP32
+ESP32 -> ESP32: Button task detects press
+ESP32 -> ESP32: Software debounce (200ms)
+ESP32 -> ESP32: Check last_press_time
+ESP32 -> ESP32: on_button_relay_pressed(GPIO5)
+ESP32 -> ESP32: Toggle g_device_on
+ESP32 -> ESP32: Relay_Toggle(&g_relay)
+note right of ESP32: See Relay Control sequence...
+deactivate ESP32
+
+== Single Measurement Button (GPIO16) ==
+
+User -> Button: Press GPIO16 (Single Measurement)
+activate Button
+Button -> ESP32: GPIO Interrupt
+deactivate Button
+
+activate ESP32
+ESP32 -> ESP32: on_button_single_pressed(GPIO16)
+ESP32 -> ESP32: Check: g_device_on == true?
+
+alt Device ON
+    ESP32 -> ESP32: Log: Button single pressed
+    ESP32 -> UART: Send "SINGLE\n"
+    activate UART
+    UART -> STM32: UART RX
+    deactivate UART
+
+    activate STM32
+    STM32 -> STM32: Execute single measurement
+    note over STM32 #87CEEB: See Single Measurement sequence...
+    deactivate STM32
+
+else Device OFF
+    ESP32 -> ESP32: Log: Ignored - device OFF
+    note over ESP32 #FF6B6B: No action taken
+end
+deactivate ESP32
+
+== Periodic Toggle Button (GPIO17) ==
+
+User -> Button: Press GPIO17 (Periodic Toggle)
+activate Button
+Button -> ESP32: GPIO Interrupt
+deactivate Button
+
+activate ESP32
+ESP32 -> ESP32: on_button_periodic_pressed(GPIO17)
+ESP32 -> ESP32: Check: g_device_on == true?
+
+alt Device ON
+    ESP32 -> ESP32: Toggle g_periodic_active
+    ESP32 -> ESP32: new_state = !g_periodic_active
+
+    alt Periodic ON
+        ESP32 -> UART: Send "PERIODIC ON\n"
+        ESP32 -> ESP32: update_and_publish_state(\ndevice=true, periodic=true)
+    else Periodic OFF
+        ESP32 -> UART: Send "PERIODIC OFF\n"
+        ESP32 -> ESP32: update_and_publish_state(\ndevice=true, periodic=false)
+    end
+
+    ESP32 -> MQTT: Publish state update
+
+else Device OFF
+    ESP32 -> ESP32: Log: Ignored - device OFF
+    note over ESP32 #FF6B6B: No action taken
+end
+deactivate ESP32
+
+== Interval Adjustment Button (GPIO4) ==
+
+User -> Button: Press GPIO4 (Interval Adjust)
+activate Button
+Button -> ESP32: GPIO Interrupt
+deactivate Button
+
+activate ESP32
+ESP32 -> ESP32: on_button_interval_pressed(GPIO4)
+ESP32 -> ESP32: Check: g_device_on == true?
+
+alt Device ON
+    ESP32 -> ESP32: Cycle g_interval_index:\n0→1→2→3→4→0
+    ESP32 -> ESP32: intervals = [5, 10, 15, 30, 60] seconds
+    ESP32 -> ESP32: new_interval = intervals[g_interval_index]
+    ESP32 -> ESP32: Format: "SET PERIODIC INTERVAL {value}\n"
+    ESP32 -> UART: Send command
+
+    activate UART
+    UART -> STM32: UART RX
+    deactivate UART
+
+    activate STM32
+    STM32 -> STM32: Parse: SET PERIODIC INTERVAL
+    STM32 -> STM32: periodic_interval_ms = value * 1000
+    STM32 -> STM32: Log: Interval updated
+    deactivate STM32
+
+else Device OFF
+    ESP32 -> ESP32: Log: Ignored - device OFF
+    note over ESP32 #FF6B6B: No action taken
+end
+deactivate ESP32
+
+@enduml

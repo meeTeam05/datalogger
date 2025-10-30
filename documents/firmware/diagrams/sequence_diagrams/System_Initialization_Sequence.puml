@@ -1,0 +1,141 @@
+@startuml System_Initialization_Sequence
+!theme cerulean-outline
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title <size:16><b>System Initialization Sequence</b></size>\n<size:12><i>STM32 Data Logger & ESP32 IoT Bridge Startup</i></size>
+
+participant "Power Supply" as PWR
+box "STM32 System" #E3F2FD
+    participant "STM32" as STM32
+    participant "SHT3X\nSensor" as SHT3X
+    participant "DS3231\nRTC" as DS3231
+    participant "SD Card" as SD
+    participant "ILI9225\nDisplay" as Display
+end box
+participant "UART Link\n115200 baud" as UART
+box "ESP32 System" #FFF9C4
+    participant "ESP32" as ESP32
+    participant "WiFi" as WiFi
+    participant "MQTT\nBroker" as MQTT
+end box
+
+PWR -> STM32: Power ON
+PWR -> ESP32: Power ON
+
+activate STM32
+STM32 -> STM32: HAL_Init, SystemClock_Config
+STM32 -> STM32: MX_GPIO_Init
+STM32 -> STM32: MX_I2C1_Init (100kHz)
+STM32 -> STM32: MX_SPI1_Init (18MHz SD)
+STM32 -> STM32: MX_SPI2_Init (36MHz Display)
+STM32 -> STM32: MX_USART1_UART_Init (115200)
+
+STM32 -> SHT3X: SHT3X_Init(0x44)
+activate SHT3X
+SHT3X --> STM32: SHT3X_OK
+deactivate SHT3X
+
+STM32 -> DS3231: DS3231_Init(0x68)
+activate DS3231
+DS3231 --> STM32: DS3231_OK
+deactivate DS3231
+
+STM32 -> SD: SDCardManager_Init
+activate SD
+SD -> SD: Mount FAT filesystem
+SD -> SD: Create/Open DATALOG.TXT
+SD --> STM32: Init OK (or disabled if failed)
+deactivate SD
+
+STM32 -> Display: ILI9225_Init
+activate Display
+Display -> Display: Configure SPI2
+Display -> Display: Send init commands
+Display --> STM32: Display ready
+deactivate Display
+
+STM32 -> Display: Display startup screen
+STM32 -> STM32: Enter main loop (IDLE mode)
+
+note over STM32 #90EE90: <b>STM32 Ready</b>\nWaiting for commands
+
+activate ESP32
+ESP32 -> ESP32: NVS Flash Init
+ESP32 -> ESP32: Event Loop Init
+ESP32 -> ESP32: Network Interface Init
+
+ESP32 -> WiFi: WiFi_Init(config)
+activate WiFi
+WiFi --> ESP32: Init OK
+deactivate WiFi
+
+ESP32 -> UART: STM32_UART_Init(UART1, 115200)
+activate UART
+UART -> UART: Allocate ring buffer
+UART --> ESP32: UART ready
+deactivate UART
+
+ESP32 -> ESP32: Relay_Init(GPIO4)
+ESP32 -> ESP32: JSON_Parser_Init
+ESP32 -> ESP32: Button_Init(GPIO5, 16, 17, 4)
+
+ESP32 -> WiFi: WiFi_Connect (15s timeout)
+activate WiFi
+WiFi -> WiFi: Scan networks
+WiFi -> WiFi: Connect to AP
+WiFi --> ESP32: Connection status updates
+
+alt WiFi Connected
+    WiFi -> ESP32: WIFI_STATE_CONNECTED
+    ESP32 -> ESP32: Mark wifi_reconnect_time
+    ESP32 -> ESP32: Wait 4s for stability
+
+    ESP32 -> MQTT: MQTT_Handler_Init(config)
+    activate MQTT
+    MQTT --> ESP32: Init OK
+    deactivate MQTT
+
+    ESP32 -> MQTT: MQTT_Handler_Start
+    activate MQTT
+    MQTT -> MQTT: Connect to broker
+    MQTT -> ESP32: CONNECTED event
+    deactivate MQTT
+
+    ESP32 -> MQTT: Subscribe to topics
+    activate MQTT
+    MQTT -> MQTT: Subscribe datalogger/stm32/command
+    MQTT -> MQTT: Subscribe datalogger/esp32/relay/control
+    MQTT -> MQTT: Subscribe datalogger/esp32/system/state
+    MQTT --> ESP32: Subscribed
+    deactivate MQTT
+
+    ESP32 -> UART: Send "MQTT CONNECTED\n"
+    activate UART
+    UART -> STM32: UART RX Interrupt
+    deactivate UART
+    
+    activate STM32
+    STM32 -> STM32: Parse: MQTT CONNECTED
+    STM32 -> STM32: mqtt_current_state = CONNECTED
+    STM32 -> Display: Update MQTT status icon
+    deactivate STM32
+
+else WiFi Failed
+    WiFi -> ESP32: WIFI_STATE_FAILED
+    ESP32 -> ESP32: Log warning, continue
+    note over ESP32 #FFD700: Will retry WiFi in background
+end
+deactivate WiFi
+
+ESP32 -> ESP32: Button_StartTask
+ESP32 -> UART: STM32_UART_StartTask
+ESP32 -> ESP32: Enter main loop
+
+note over STM32, ESP32 #87CEEB: <b>Both Systems Operational</b>
+
+deactivate STM32
+deactivate ESP32
+
+@enduml

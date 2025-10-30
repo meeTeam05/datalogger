@@ -1,0 +1,93 @@
+@startuml SD_Buffer_Transmission
+!theme cerulean-outline
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title <size:16><b>SD Card Buffer Transmission After Reconnection</b></size>\n<size:12><i>Catch-up Data Transmission with Rate Limiting</i></size>
+
+participant "STM32" as STM32
+participant "SD Card\nCircular Buffer" as SD
+participant "UART Link" as UART
+participant "ESP32" as ESP32
+participant "MQTT\nBroker" as MQTT
+participant "Web\nInterface" as Web
+
+note over STM32 #87CEEB: MQTT reconnected, has buffered data
+
+STM32 -> STM32: Main loop iteration
+STM32 -> STM32: Check: mqtt_current_state == CONNECTED?
+STM32 -> STM32: Yes - check buffered data
+
+STM32 -> SD: SDCardManager_HasData()
+activate SD
+SD --> STM32: true (records available)
+deactivate SD
+
+loop While buffered data exists
+    STM32 -> SD: SDCardManager_ReadData(&record)
+    activate SD
+    SD -> SD: Read from current read pointer
+    SD --> STM32: record data
+    deactivate SD
+
+    STM32 -> STM32: Validate record format
+
+    alt Record valid
+        STM32 -> STM32: Format JSON from record
+        note right of STM32: {"mode":"PERIODIC","timestamp":1729699100,\n"temperature":25.5,"humidity":60.0}
+
+        STM32 -> UART: HAL_UART_Transmit(JSON)
+        activate UART
+        UART -> ESP32: UART RX data
+        deactivate UART
+
+        activate ESP32
+        ESP32 -> ESP32: Assemble line
+        ESP32 -> ESP32: JSON_Parser_ProcessLine
+        ESP32 -> ESP32: Detect mode (SINGLE or PERIODIC)
+
+        ESP32 -> MQTT: MQTT_Handler_Publish
+        activate MQTT
+        note right of ESP32: Topic: datalogger/stm32/periodic/data\nor datalogger/stm32/single/data
+        MQTT -> Web: Forward buffered data
+        deactivate MQTT
+
+        Web -> Web: Display data (marked as historical)
+        deactivate ESP32
+
+        STM32 -> SD: SDCardManager_RemoveRecord()
+        activate SD
+        SD -> SD: Advance read pointer
+        SD -> SD: Decrement record count
+        SD --> STM32: Record removed
+        deactivate SD
+
+        STM32 -> STM32: Update display: buffer count decreased
+        STM32 -> STM32: HAL_Delay(100) - rate limiting
+        note right of STM32 #FFD700: 100ms delay prevents\nUART/MQTT overload
+
+    else Record corrupted
+        STM32 -> SD: SDCardManager_RemoveRecord()
+        activate SD
+        SD -> SD: Skip corrupted record
+        SD --> STM32: Removed
+        deactivate SD
+
+        STM32 -> STM32: Log: Corrupted record skipped
+        note right of STM32 #FF6B6B: CRC or format error
+    end
+
+    STM32 -> SD: Check more data
+    activate SD
+    SD --> STM32: Has more / No more data
+    deactivate SD
+end
+
+STM32 -> STM32: All buffered data transmitted
+STM32 -> STM32: Display: Buffer empty
+STM32 -> STM32: Resume normal live transmission
+
+note over STM32, Web #87CEEB: <b>System back to real-time operation</b>
+
+@enduml

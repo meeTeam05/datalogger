@@ -1,0 +1,125 @@
+@startuml Periodic_Measurement_Sequence
+!theme cerulean-outline
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title <size:16><b>Periodic Measurement Setup and Operation Sequence</b></size>\n<size:12><i>Continuous Data Collection with State Sync</i></size>
+
+participant "Web\nInterface" as Web
+participant "MQTT\nBroker" as MQTT
+participant "ESP32" as ESP32
+participant "UART Link" as UART
+participant "STM32" as STM32
+participant "SHT3X\nSensor" as SHT3X
+participant "ILI9225\nDisplay" as Display
+
+Web -> MQTT: Publish "PERIODIC ON" to\ndatalogger/stm32/command
+MQTT -> ESP32: Message received
+
+activate ESP32
+ESP32 -> ESP32: on_mqtt_data_received
+ESP32 -> ESP32: Parse command: PERIODIC ON
+ESP32 -> ESP32: g_periodic_active = true
+ESP32 -> ESP32: update_and_publish_state
+
+ESP32 -> MQTT: Publish state update (retain=1)
+note right of ESP32: {"device":"ON","periodic":"ON",\n"timestamp":...}
+
+ESP32 -> UART: Send "PERIODIC ON\n"
+deactivate ESP32
+
+activate UART
+UART -> STM32: UART RX
+deactivate UART
+
+activate STM32
+STM32 -> STM32: Parse: PERIODIC ON
+STM32 -> STM32: PERIODIC_ON_PARSER(argc=2)
+STM32 -> STM32: Set mode=1MPS, repeat=HIGH
+
+STM32 -> SHT3X: SHT3X_Periodic(&mode, &repeat)
+activate SHT3X
+STM32 -> SHT3X: I2C Write [0x20, 0x32] (1MPS HIGH)
+SHT3X -> SHT3X: Enter periodic mode @ 1Hz
+SHT3X --> STM32: ACK
+deactivate SHT3X
+
+STM32 -> STM32: currentState = SHT3X_PERIODIC_1MPS
+STM32 -> STM32: Initialize next_fetch_ms = HAL_GetTick
+STM32 -> STM32: periodic_interval_ms = 5000 (default)
+
+STM32 -> SHT3X: Fetch first measurement
+activate SHT3X
+STM32 -> SHT3X: I2C Read 6 bytes
+SHT3X --> STM32: Data
+deactivate SHT3X
+
+STM32 -> STM32: DataManager_UpdatePeriodic
+STM32 -> Display: Update display mode: PERIODIC
+
+loop Every 5 seconds (periodic_interval_ms)
+    STM32 -> STM32: Main loop checks:\nnow >= next_fetch_ms
+    STM32 -> SHT3X: SHT3X_FetchData
+    activate SHT3X
+    SHT3X --> STM32: Latest measurement
+    deactivate SHT3X
+
+    STM32 -> STM32: DataManager_UpdatePeriodic
+    STM32 -> STM32: data_ready = true
+    STM32 -> STM32: next_fetch_ms += 5000
+
+    alt MQTT Connected
+        STM32 -> STM32: Format JSON
+        STM32 -> UART: Send JSON
+        activate UART
+        UART -> ESP32: Data received
+        deactivate UART
+
+        activate ESP32
+        ESP32 -> ESP32: Parse JSON, mode=PERIODIC
+        ESP32 -> ESP32: on_periodic_sensor_data
+        ESP32 -> MQTT: Publish to\ndatalogger/stm32/periodic/data
+        activate MQTT
+        MQTT -> Web: Forward data
+        deactivate MQTT
+        Web -> Web: Update real-time chart
+        deactivate ESP32
+
+    else MQTT Disconnected
+        STM32 -> STM32: SDCardManager_WriteData
+        STM32 -> Display: Update buffer count
+        note over STM32 #FF6B6B: Data buffered to SD
+    end
+
+    STM32 -> Display: Update sensor values on display
+end
+
+note over STM32, Web #87CEEB: Periodic measurements continue...
+
+Web -> MQTT: Publish "PERIODIC OFF"
+MQTT -> ESP32: Message received
+
+activate ESP32
+ESP32 -> ESP32: g_periodic_active = false
+ESP32 -> ESP32: update_and_publish_state
+ESP32 -> UART: Send "PERIODIC OFF\n"
+deactivate ESP32
+
+activate UART
+UART -> STM32: UART RX
+deactivate UART
+
+STM32 -> STM32: PERIODIC_OFF_PARSER
+STM32 -> SHT3X: SHT3X_PeriodicStop
+activate SHT3X
+STM32 -> SHT3X: I2C Write [0x30, 0x93] (Break command)
+SHT3X -> SHT3X: Exit periodic mode
+SHT3X --> STM32: ACK
+deactivate SHT3X
+
+STM32 -> STM32: currentState = SHT3X_IDLE
+STM32 -> Display: Update mode: IDLE
+deactivate STM32
+
+@enduml

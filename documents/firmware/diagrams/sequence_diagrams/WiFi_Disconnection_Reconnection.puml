@@ -1,0 +1,121 @@
+@startuml WiFi_Disconnection_Reconnection
+!theme cerulean-outline
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title <size:16><b>WiFi Disconnection and Reconnection</b></size>\n<size:12><i>Network Resilience with Auto-Retry Logic</i></size>
+
+participant "STM32" as STM32
+participant "UART Link" as UART
+participant "ESP32" as ESP32
+participant "WiFi\nNetwork" as WiFi
+participant "MQTT\nBroker" as MQTT
+
+note over ESP32 #87CEEB: System running, WiFi connected
+
+WiFi -> ESP32: WIFI_STATE_DISCONNECTED event
+activate ESP32
+ESP32 -> ESP32: on_wifi_event(DISCONNECTED)
+ESP32 -> ESP32: Log: WiFi disconnected
+ESP32 -> ESP32: Set WiFi LED OFF
+
+ESP32 -> ESP32: Check MQTT state
+
+alt MQTT was connected
+    ESP32 -> MQTT: MQTT_Handler_Stop
+    activate MQTT
+    MQTT -> MQTT: Disconnect from broker
+    MQTT --> ESP32: Stopped
+    deactivate MQTT
+
+    ESP32 -> ESP32: mqtt_current_state = false
+    ESP32 -> UART: Send "MQTT DISCONNECTED\n"
+    activate UART
+    UART -> STM32: UART RX
+    deactivate UART
+
+    activate STM32
+    STM32 -> STM32: mqtt_current_state = DISCONNECTED
+    STM32 -> STM32: Switch to SD buffering mode
+    note over STM32 #FF6B6B: Buffering data to SD card
+    deactivate STM32
+end
+
+ESP32 -> ESP32: Enter retry loop
+deactivate ESP32
+
+loop Retry attempts 1-5
+    ESP32 -> ESP32: Wait 2 seconds
+    ESP32 -> WiFi: WiFi_Connect
+    activate WiFi
+    WiFi -> WiFi: Scan and connect
+
+    alt Connection successful
+        WiFi -> ESP32: WIFI_STATE_CONNECTED
+        ESP32 -> ESP32: Mark wifi_reconnect_time
+        ESP32 -> ESP32: Set WiFi LED ON
+        ESP32 -> ESP32: Break retry loop
+        note over ESP32 #87CEEB: Proceed to MQTT restart
+    else Connection failed
+        WiFi -> ESP32: WIFI_STATE_FAILED
+        ESP32 -> ESP32: Increment retry count
+        note over ESP32 #FFD700: Continue to next retry
+    end
+    deactivate WiFi
+end
+
+alt Max retries (5) exceeded
+    ESP32 -> ESP32: Enter manual retry mode
+    loop Manual retry every 5s
+        ESP32 -> ESP32: Wait 5 seconds
+        ESP32 -> WiFi: WiFi_Connect
+        WiFi -> ESP32: Result
+        note over ESP32 #FFD700: Continue until successful
+    end
+end
+
+note over ESP32 #87CEEB: WiFi reconnected
+
+activate ESP32
+ESP32 -> ESP32: Wait 4s for network stability
+ESP32 -> MQTT: MQTT_Handler_Start
+activate MQTT
+MQTT -> MQTT: Connect to broker
+MQTT -> ESP32: MQTT_CONNECTED event
+deactivate MQTT
+
+ESP32 -> ESP32: mqtt_current_state = true
+ESP32 -> ESP32: Set mqtt_reconnected flag
+ESP32 -> UART: Send "MQTT CONNECTED\n"
+activate UART
+UART -> STM32: UART RX
+deactivate UART
+
+activate STM32
+STM32 -> STM32: mqtt_current_state = CONNECTED
+
+STM32 -> STM32: Check for buffered data
+
+loop Transmit buffered data
+    STM32 -> STM32: SDCardManager_ReadData
+    STM32 -> UART: Send buffered JSON
+    activate UART
+    UART -> ESP32: Data received
+    deactivate UART
+
+    ESP32 -> MQTT: Publish buffered data
+    activate MQTT
+    MQTT -> MQTT: Forward to subscribers
+    deactivate MQTT
+
+    STM32 -> STM32: SDCardManager_RemoveRecord
+    STM32 -> STM32: Delay 100ms
+end
+
+STM32 -> STM32: Resume normal operation
+note over STM32 #87CEEB: All buffered data transmitted
+deactivate STM32
+deactivate ESP32
+
+@enduml

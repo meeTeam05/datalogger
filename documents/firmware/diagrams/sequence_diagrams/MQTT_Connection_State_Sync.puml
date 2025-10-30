@@ -1,0 +1,117 @@
+@startuml MQTT_Connection_State_Sync
+!theme cerulean-outline
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title <size:16><b>MQTT Connection State Change and Synchronization</b></size>\n<size:12><i>Connection Management with Buffer Transmission</i></size>
+
+participant "STM32" as STM32
+participant "UART Link" as UART
+participant "ESP32" as ESP32
+participant "WiFi\nNetwork" as WiFi
+participant "MQTT\nBroker" as MQTT
+participant "ILI9225\nDisplay" as Display
+
+note over ESP32 #FFD700: System running, MQTT disconnected
+
+ESP32 -> WiFi: Monitor WiFi state
+activate WiFi
+WiFi -> ESP32: WIFI_STATE_CONNECTED
+deactivate WiFi
+
+activate ESP32
+ESP32 -> ESP32: Check: stable for 4s?
+ESP32 -> ESP32: Yes - start MQTT
+
+ESP32 -> MQTT: MQTT_Handler_Start
+activate MQTT
+MQTT -> MQTT: Connect to broker
+MQTT --> ESP32: Connecting...
+
+alt Connection Successful
+    MQTT -> ESP32: MQTT_CONNECTED event
+    ESP32 -> ESP32: connected = true
+    ESP32 -> ESP32: mqtt_current_state = true
+    ESP32 -> ESP32: Set mqtt_reconnected flag
+
+    ESP32 -> MQTT: Subscribe to command topics
+    MQTT --> ESP32: Subscriptions confirmed
+
+    ESP32 -> UART: Send "MQTT CONNECTED\n"
+    activate UART
+    UART -> STM32: UART RX
+    deactivate UART
+
+    activate STM32
+    STM32 -> STM32: Parse: MQTT CONNECTED
+    STM32 -> STM32: MQTT_CONNECTED_PARSER
+    STM32 -> STM32: mqtt_current_state = CONNECTED
+    STM32 -> Display: Update MQTT icon (connected)
+
+    STM32 -> STM32: Check: Has buffered data?
+
+    alt Has Buffered Data
+        loop For each buffered record
+            STM32 -> STM32: SDCardManager_ReadData
+            STM32 -> STM32: Format buffered JSON
+            STM32 -> UART: Transmit buffered record
+            activate UART
+            UART -> ESP32: Data received
+            deactivate UART
+
+            activate ESP32
+            ESP32 -> ESP32: Parse JSON
+            ESP32 -> MQTT: Publish buffered data
+            MQTT -> MQTT: Forward to subscribers
+            deactivate ESP32
+
+            STM32 -> STM32: SDCardManager_RemoveRecord
+            STM32 -> Display: Update buffer count
+            STM32 -> STM32: Delay 100ms (rate limiting)
+        end
+
+        STM32 -> Display: Buffer empty indicator
+        note over STM32 #87CEEB: All buffered data transmitted
+    end
+
+    deactivate STM32
+
+else Connection Failed
+    MQTT -> ESP32: MQTT_ERROR event
+    ESP32 -> ESP32: Increment retry_count
+    ESP32 -> ESP32: Calculate backoff:\nmin(60, 2^retry)
+    ESP32 -> ESP32: Wait backoff delay
+    ESP32 -> MQTT: Retry connection
+    note over ESP32, MQTT #FFD700: Exponential backoff retry
+end
+deactivate MQTT
+
+note over ESP32, STM32 #FFD700: Time passes, WiFi disconnects
+
+WiFi -> ESP32: WIFI_STATE_DISCONNECTED
+activate ESP32
+ESP32 -> ESP32: Detect WiFi loss
+ESP32 -> MQTT: MQTT_Handler_Stop
+activate MQTT
+MQTT -> MQTT: Disconnect from broker
+MQTT --> ESP32: Stopped
+deactivate MQTT
+
+ESP32 -> ESP32: mqtt_current_state = false
+ESP32 -> UART: Send "MQTT DISCONNECTED\n"
+activate UART
+UART -> STM32: UART RX
+deactivate UART
+
+activate STM32
+STM32 -> STM32: Parse: MQTT DISCONNECTED
+STM32 -> STM32: MQTT_DISCONNECTED_PARSER
+STM32 -> STM32: mqtt_current_state = DISCONNECTED
+STM32 -> Display: Update MQTT icon (disconnected)
+
+note over STM32 #FF6B6B: Switch to SD buffering mode
+deactivate STM32
+deactivate ESP32
+
+@enduml
