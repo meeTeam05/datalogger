@@ -1,0 +1,110 @@
+@startuml System_State_Synchronization
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    StartColor #4CAF50
+    EndColor #F44336
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>System State Synchronization Flow</b></size>\n<size:12><i>Multi-Device State Management with MQTT Retain</i></size>
+
+start
+
+:<b>State Change Event</b>|#90EE90;
+
+switch (State Type?)
+
+case (Device State)
+    :g_device_on changed;
+    
+    if (New Value?) then (ON)
+        :Device turned ON;
+        :ESP32 updates state;
+    else (OFF)
+        :Device turned OFF;
+        :Force periodic OFF;
+        :Send <b>PERIODIC OFF</b>
+        to STM32;
+        :ESP32 updates state;
+    endif
+    
+    :Create state JSON;
+    
+    if (MQTT Connected?) then (yes)
+        :JSON_Utils_CreateSystemState();
+        :MQTT Publish with <b>retain=1</b>
+        <i>datalogger/esp32/system/state</i>|#87CEEB;
+        :Broker stores retained message;
+        :<b>Web receives state update</b>;
+        :Web UI updates display;
+    else (no)
+        :Log state change only;
+    endif
+    
+    stop
+
+case (Periodic State)
+    :g_periodic_active changed;
+    
+    if (New Value?) then (ON)
+        :Periodic mode started;
+        :Send <b>PERIODIC ON</b>
+        to STM32;
+    else (OFF)
+        :Periodic mode stopped;
+        :Send <b>PERIODIC OFF</b>
+        to STM32;
+    endif
+    
+    :ESP32 updates state;
+    :Create state JSON;
+    
+    if (MQTT Connected?) then (yes)
+        :JSON_Utils_CreateSystemState();
+        :MQTT Publish with <b>retain=1</b>
+        <i>datalogger/esp32/system/state</i>|#87CEEB;
+        :Broker stores retained message;
+        :<b>Web receives state update</b>;
+        :Web UI updates display;
+    else (no)
+        :Log state change only;
+    endif
+    
+    stop
+
+case (MQTT State)
+    :mqtt_current_state changed;
+    
+    if (New State?) then (CONNECTED)
+        :MQTT connection established;
+        :Send <b>MQTT CONNECTED</b>
+        to STM32;
+        :STM32 switches to
+        live transmission|#87CEEB;
+        
+        if (Has buffered data?) then (yes)
+            :Transmit SD buffer;
+        endif
+        
+    else (DISCONNECTED)
+        :MQTT connection lost;
+        :Send <b>MQTT DISCONNECTED</b>
+        to STM32;
+        :STM32 switches to
+        SD buffering|#FF6B6B;
+    endif
+    
+    stop
+
+endswitch
+
+@enduml

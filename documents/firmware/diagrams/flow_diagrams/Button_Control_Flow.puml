@@ -1,0 +1,89 @@
+@startuml Button_Control_Flow
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    StartColor #4CAF50
+    EndColor #F44336
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>Button Control Flow (ESP32 Buttons)</b></size>\n<size:12><i>Physical Button Interface with Debouncing</i></size>
+
+start
+
+:<b>Button Event</b>|#90EE90;
+:Software debounce
+<i>200ms</i>;
+
+switch (Which Button?)
+
+case (GPIO5)
+    :<b>Relay Toggle Button</b>;
+    :on_button_relay_pressed();
+    :Toggle relay state;
+    :See Relay Control Flow;
+    stop
+
+case (GPIO16)
+    :<b>Single Measurement Button</b>;
+    
+    if (Device ON?) then (no)
+        :Log: Ignored - device OFF|#FF6B6B;
+        stop
+    else (yes)
+        :Send <b>SINGLE</b> to STM32;
+        :STM32 performs
+        single measurement;
+        stop
+    endif
+
+case (GPIO17)
+    :<b>Periodic Toggle Button</b>;
+    
+    if (Device ON?) then (no)
+        :Log: Ignored - device OFF|#FF6B6B;
+        stop
+    else (yes)
+        :Toggle g_periodic_active;
+        
+        if (New State?) then (ON)
+            :Send <b>PERIODIC ON</b>
+            to STM32;
+        else (OFF)
+            :Send <b>PERIODIC OFF</b>
+            to STM32;
+        endif
+        
+        :update_and_publish_state()|#87CEEB;
+        :STM32 starts/stops periodic;
+        stop
+    endif
+
+case (GPIO4)
+    :<b>Interval Adjustment Button</b>;
+    
+    if (Device ON?) then (no)
+        :Log: Ignored - device OFF|#FF6B6B;
+        stop
+    else (yes)
+        :Cycle interval:
+        <i>5s → 10s → 15s → 30s → 60s → 5s</i>;
+        :Build <b>SET PERIODIC INTERVAL</b>
+        command;
+        :Send to STM32;
+        :STM32 updates
+        periodic_interval_ms;
+        stop
+    endif
+
+endswitch
+
+@enduml

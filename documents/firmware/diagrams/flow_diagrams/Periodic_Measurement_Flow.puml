@@ -1,0 +1,81 @@
+@startuml Periodic_Measurement_Flow
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    StartColor #4CAF50
+    EndColor #F44336
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>Periodic Measurement Flow</b></size>\n<size:12><i>Continuous Data Collection with SD Buffering</i></size>
+
+start
+
+:<b>PERIODIC ON Command</b>|#90EE90;
+:ESP32 receives command;
+:ESP32: g_periodic_active = true;
+:ESP32 forwards
+<b>PERIODIC ON</b> to STM32;
+:ESP32 publishes state to MQTT;
+:STM32 parses PERIODIC ON;
+:SHT3X_Periodic
+<i>1MPS HIGH</i>;
+:I2C Write <b>0x2032</b>;
+
+if (I2C OK?) then (no)
+    :temp=0.0, hum=0.0|#FF6B6B;
+else (yes)
+    :currentState = PERIODIC_1MPS;
+    :Initialize next_fetch_ms;
+    :Fetch first data;
+endif
+
+:DataManager_UpdatePeriodic();
+
+repeat
+    :<b>STM32 Main Loop</b>;
+    
+    if (Time to fetch?) then (yes)
+        :SHT3X_FetchData();
+        
+        if (Fetch OK?) then (no)
+            :Use 0.0 values|#FF6B6B;
+        else (yes)
+            :Use fetched data;
+        endif
+        
+        :DataManager_UpdatePeriodic();
+        
+        if (MQTT Connected?) then (yes)
+            :Send JSON to ESP32;
+            :ESP32 publishes to MQTT|#87CEEB;
+            :<b>Web receives periodic data</b>;
+        else (no)
+            :Buffer to SD Card|#FF6B6B;
+            
+            if (SD Buffer Full?) then (yes)
+                :Circular buffer
+                overwrites oldest;
+            else (no)
+                :Store successfully;
+            endif
+        endif
+    endif
+    
+    if (<b>PERIODIC OFF</b>\ncommand?) then (yes)
+        :SHT3X_PeriodicStop();
+        :currentState = IDLE;
+        stop
+    endif
+
+repeat while (Continue periodic mode?) is (yes)
+
+@enduml

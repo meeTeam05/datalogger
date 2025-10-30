@@ -1,0 +1,97 @@
+@startuml Single_Measurement_Flow
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    StartColor #4CAF50
+    EndColor #F44336
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>Single Measurement End-to-End Flow</b></size>\n<size:12><i>From User Request to Web Interface Display</i></size>
+
+start
+
+:<b>User/Button Request Single</b>|#90EE90;
+
+switch (Request Source?)
+
+case (Web Interface)
+    :Web sends to
+    MQTT broker;
+    :ESP32 receives on
+    <b>datalogger/stm32/command</b>;
+    :ESP32 forwards via UART;
+
+case (ESP32 Button)
+    :Button pressed
+    <i>GPIO16</i>;
+    
+    if (Device ON?) then (no)
+        :Log: Ignored - device OFF|#FF6B6B;
+        stop
+    else (yes)
+        :ESP32 sends
+        <b>SINGLE</b> command;
+    endif
+
+endswitch
+
+:STM32 UART RX Interrupt;
+:Store in Ring Buffer;
+:UART_Handle detects newline;
+:Parse: <b>SINGLE</b>;
+:SHT3X_Single
+<i>HIGH repeatability</i>;
+:I2C Write <b>0x2400</b>;
+:Delay 15ms for measurement;
+:I2C Read 6 bytes;
+
+if (I2C OK?) then (no)
+    :temp=0.0, hum=0.0|#FF6B6B;
+else (yes)
+    if (CRC Valid?) then (no)
+        :temp=0.0, hum=0.0|#FF6B6B;
+    else (yes)
+        :Parse temperature
+        & humidity;
+    endif
+endif
+
+:DataManager_UpdateSingle();
+:Set data_ready flag;
+:Wait for next main loop;
+
+if (MQTT Connected?) then (yes)
+    :DS3231_Get_Time();
+    :Format JSON
+    with timestamp;
+    :HAL_UART_Transmit
+    to ESP32;
+    :ESP32 JSON Parser;
+    
+    if (JSON Valid?) then (no)
+        :Log parse error|#FF6B6B;
+        stop
+    else (yes)
+        :MQTT Publish to
+        <b>datalogger/stm32/single/data</b>|#87CEEB;
+        :<b>Web Interface receives data</b>;
+        stop
+    endif
+
+else (no)
+    :SDCardManager_WriteData()|#FF6B6B;
+    :Wait for MQTT
+    reconnection;
+    stop
+endif
+
+@enduml

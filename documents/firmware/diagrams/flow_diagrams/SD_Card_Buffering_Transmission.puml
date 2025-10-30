@@ -1,0 +1,85 @@
+@startuml SD_Card_Buffering_Transmission
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    StartColor #4CAF50
+    EndColor #F44336
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>SD Card Buffering and Transmission Flow</b></size>\n<size:12><i>Resilient Data Storage with Circular Buffer</i></size>
+
+start
+
+:<b>Data Ready to Send</b>|#90EE90;
+
+if (MQTT Connected?) then (yes)
+    :STM32 sends live to ESP32;
+    :ESP32 parses JSON;
+    :Publish to MQTT broker|#87CEEB;
+    :<b>Web receives real-time data</b>;
+    stop
+
+else (no)
+    :STM32 decides to buffer|#FF6B6B;
+    :Format JSON with timestamp;
+    :SDCardManager_WriteData();
+    
+    if (Buffer Space?) then (Full)
+        :Circular buffer
+        <b>overwrites oldest record</b>;
+    else (Available)
+        :Write new record;
+    endif
+    
+    :Update read/write pointers;
+    :Display: Buffered count;
+    
+    repeat
+        :Wait for MQTT reconnection;
+        
+        if (MQTT Reconnected?) then (yes)
+            :ESP32 sends
+            <b>MQTT CONNECTED</b>;
+            
+            if (Has buffered data?) then (no)
+                :<b>Resume normal operation</b>;
+                stop
+            else (yes)
+                repeat
+                    :SDCardManager_ReadData();
+                    
+                    if (Valid record?) then (no)
+                        :Remove corrupted record;
+                    else (yes)
+                        :Transmit buffered JSON;
+                        :ESP32 forwards to MQTT|#87CEEB;
+                        :SDCardManager_RemoveRecord();
+                    endif
+                    
+                    if (More records?) then (no)
+                        :<b>All buffered data sent</b>;
+                        :Display: Buffer empty;
+                        :<b>Resume normal operation</b>;
+                        stop
+                    else (yes)
+                        :Delay 100ms
+                        <i>rate limiting</i>;
+                    endif
+                    
+                repeat while (More data?) is (yes)
+            endif
+        endif
+        
+    repeat while (Waiting for connection?) is (yes)
+endif
+
+@enduml

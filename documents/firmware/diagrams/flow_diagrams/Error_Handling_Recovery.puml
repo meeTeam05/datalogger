@@ -1,0 +1,128 @@
+@startuml Error_Handling_Recovery
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    StartColor #4CAF50
+    EndColor #F44336
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>Error Handling and Recovery Flow</b></size>\n<size:12><i>Comprehensive Fault Tolerance Strategy</i></size>
+
+start
+
+:<b>Error Detected</b>|#FF6B6B;
+
+switch (Error Type?)
+
+case (I2C Sensor Error)
+    :SHT3X I2C
+    timeout/NACK;
+    :Set temp=0.0, hum=0.0;
+    :Continue operation
+    with error values;
+    :Log sensor failure
+    to display;
+    :Retry on next
+    measurement cycle;
+    :Monitor for recovery;
+    stop
+
+case (RTC Error)
+    :DS3231 I2C
+    timeout/NACK;
+    :Use timestamp=0;
+    :Continue operation
+    with zero timestamp;
+    :Log RTC failure
+    to display;
+    :Retry on next
+    time query;
+    :Monitor for recovery;
+    stop
+
+case (SD Card Error)
+    :SD Card mount/write
+    failure;
+    
+    if (Initialization error?) then (yes)
+        :Disable SD buffering;
+        :Log SD disabled
+        to display;
+        :Rely on MQTT only;
+        stop
+    else (no)
+        :Retry write operation;
+        
+        if (Write successful?) then (yes)
+            :SD recovered;
+            stop
+        else (no)
+            :Disable SD buffering;
+            :Log SD disabled
+            to display;
+            :Rely on MQTT only;
+            stop
+        endif
+    endif
+
+case (WiFi Error)
+    :WiFi connection failed;
+    
+    repeat
+        if (Retry count?) then (< 5)
+            :Wait 2s;
+        else (>= 5)
+            :Wait 5s for
+            manual retry;
+        endif
+        
+        :WiFi_Connect();
+        
+        if (Connected?) then (yes)
+            :<b>WiFi recovered</b>|#87CEEB;
+            :Wait 4s stability;
+            :Start MQTT;
+            stop
+        endif
+        
+    repeat while (Keep retrying?) is (yes)
+
+case (MQTT Error)
+    :MQTT broker connection
+    failed;
+    
+    repeat
+        :Increment retry_count;
+        :Calculate backoff:
+        <i>min 60s, 2^retry</i>;
+        :Wait backoff delay;
+        :MQTT_Handler_Start();
+        
+        if (Connected?) then (yes)
+            :<b>MQTT recovered</b>|#87CEEB;
+            :Send <b>MQTT CONNECTED</b>
+            to STM32;
+            :Transmit buffered
+            SD data;
+            stop
+        else (no)
+            if (Max retries?) then (yes)
+                :Reset retry_count;
+                :Wait 60s;
+            endif
+        endif
+        
+    repeat while (Keep retrying?) is (yes)
+
+endswitch
+
+@enduml
