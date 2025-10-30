@@ -170,8 +170,8 @@ classDiagram
     ESP32_Main --> ESP32_JSONParser : uses
     ESP32_Main --> ESP32_ButtonHandler : uses
 
-    ESP32_UART -.->|UART Communication| STM32_UART : bidirectional
-    ESP32_RelayControl -.->|Power Control| STM32_Main : controls
+    ESP32_UART ..> STM32_UART : UART Communication
+    ESP32_RelayControl ..> STM32_Main : Power Control
 ```
 
 ## Memory and Resource Management Class Diagram
@@ -247,126 +247,6 @@ classDiagram
 
     STM32_Resources ..> STM32_Memory : constrained by
     ESP32_Resources ..> ESP32_Memory : constrained by
-```
-
-## Component Diagram - STM32 Modules
-
-```mermaid
-graph TB
-    subgraph STM32_System[STM32 System Components]
-        direction TB
-
-        subgraph HAL[Hardware Abstraction Layer]
-            I2C_HAL[I2C HAL Driver]
-            SPI_HAL[SPI HAL Driver]
-            UART_HAL[UART HAL Driver]
-            GPIO_HAL[GPIO HAL Driver]
-        end
-
-        subgraph Drivers[Device Drivers]
-            SHT3X_Driver[SHT3X Driver<br/>Temperature & Humidity]
-            DS3231_Driver[DS3231 Driver<br/>Real-Time Clock]
-            SD_Driver[SD Card Driver<br/>FAT32 Filesystem]
-            Display_Driver[ILI9225 Driver<br/>TFT Display]
-        end
-
-        subgraph Middleware[Middleware Layer]
-            UART_Handler[UART Handler<br/>Ring Buffer + Protocol]
-            CMD_Parser[Command Parser<br/>JSON Commands]
-            Data_Mgr[Data Manager<br/>Mode Control]
-            SD_Mgr[SD Card Manager<br/>Circular Buffer]
-        end
-
-        subgraph Application[Application Layer]
-            Main_App[Main Application<br/>System Control]
-        end
-    end
-
-    Main_App --> UART_Handler
-    Main_App --> Data_Mgr
-    Main_App --> SD_Mgr
-    Main_App --> Display_Driver
-
-    UART_Handler --> CMD_Parser
-    CMD_Parser --> Data_Mgr
-    CMD_Parser --> SHT3X_Driver
-
-    Data_Mgr --> SHT3X_Driver
-    Data_Mgr --> DS3231_Driver
-    Data_Mgr --> SD_Mgr
-    Data_Mgr --> UART_Handler
-
-    SD_Mgr --> SD_Driver
-
-    SHT3X_Driver --> I2C_HAL
-    DS3231_Driver --> I2C_HAL
-    SD_Driver --> SPI_HAL
-    Display_Driver --> SPI_HAL
-    UART_Handler --> UART_HAL
-
-    style HAL fill:#FFE4B5
-    style Drivers fill:#F0E68C
-    style Middleware fill:#DDA0DD
-    style Application fill:#90EE90
-```
-
-## Component Diagram - ESP32 Modules
-
-```mermaid
-graph TB
-    subgraph ESP32_System[ESP32 System Components]
-        direction TB
-
-        subgraph ESP_IDF[ESP-IDF Framework]
-            WiFi_Stack[WiFi Stack<br/>802.11 b/g/n]
-            TCP_IP[TCP/IP Stack<br/>LwIP]
-            MQTT_Client[MQTT Client<br/>esp-mqtt]
-            UART_Driver[UART Driver<br/>esp_uart]
-            GPIO_Driver[GPIO Driver<br/>esp_gpio]
-        end
-
-        subgraph Custom_Drivers[Custom Drivers]
-            WiFi_Mgr[WiFi Manager<br/>Connection Management]
-            MQTT_Handler[MQTT Handler<br/>Pub/Sub + Reconnect]
-            UART_Handler[STM32 UART Handler<br/>Protocol Layer]
-            Relay_Ctrl[Relay Control<br/>Power Management]
-            Button_Handler[Button Handler<br/>Input Processing]
-        end
-
-        subgraph Protocol[Protocol Layer]
-            JSON_Parser[JSON Parser<br/>Data Validation]
-            State_Mgr[State Manager<br/>System State Sync]
-        end
-
-        subgraph Application[Application Layer]
-            Main_App[Main Application<br/>Coordination Logic]
-        end
-    end
-
-    Main_App --> WiFi_Mgr
-    Main_App --> MQTT_Handler
-    Main_App --> UART_Handler
-    Main_App --> Relay_Ctrl
-    Main_App --> Button_Handler
-    Main_App --> State_Mgr
-
-    WiFi_Mgr --> WiFi_Stack
-    MQTT_Handler --> MQTT_Client
-    UART_Handler --> UART_Driver
-    UART_Handler --> JSON_Parser
-    Relay_Ctrl --> GPIO_Driver
-    Button_Handler --> GPIO_Driver
-
-    JSON_Parser --> State_Mgr
-    State_Mgr --> MQTT_Handler
-
-    MQTT_Client --> TCP_IP
-    WiFi_Stack --> TCP_IP
-
-    style ESP_IDF fill:#B0E0E6
-    style Custom_Drivers fill:#DDA0DD
-    style Protocol fill:#F0E68C
-    style Application fill:#90EE90
 ```
 
 ## State Machine - System Lifecycle
@@ -462,110 +342,64 @@ stateDiagram-v2
 ## Deployment Diagram
 
 ```mermaid
-C4Deployment
-    title Firmware Deployment Diagram - ESP32 and STM32 Coordination
-
-    Deployment_Node(device, "IoT Device", "Hardware"){
-        Deployment_Node(stm32, "STM32F103C8T6", "ARM Cortex-M3 Microcontroller"){
-            Container(stm32_fw, "STM32 Firmware", "C, STM32 HAL", "Data collection, buffering, and local control")
-        }
-
-        Deployment_Node(esp32, "ESP32-WROOM-32", "Xtensa LX6 WiFi Module"){
-            Container(esp32_fw, "ESP32 Firmware", "C, ESP-IDF", "IoT gateway, MQTT client, and coordination")
-        }
-
-        Deployment_Node(sensors, "Sensors & Peripherals", "I2C/SPI Hardware"){
-            Container(sht3x, "SHT3X Sensor", "I2C 0x44", "Temperature & Humidity measurement")
-            Container(rtc, "DS3231 RTC", "I2C 0x68", "Real-time clock with battery backup")
-            Container(sd, "SD Card", "SPI 18MHz", "Non-volatile data buffering")
-            Container(display, "ILI9225 TFT", "SPI 36MHz", "Status display 176x220")
-        }
-
-        Deployment_Node(actuators, "Actuators & Inputs", "GPIO Hardware"){
-            Container(relay, "Relay Module", "GPIO4", "Power control for STM32")
-            Container(buttons, "4x Buttons", "GPIO 5,16,17,4", "User input interface")
-        }
-    }
-
-    Deployment_Node(network, "Local Network", "WiFi 2.4GHz"){
-        Deployment_Node(broker, "MQTT Broker", "Mosquitto Server"){
-            Container(mqtt, "MQTT Server", "v5.0 Port 1883", "Message broker and persistence")
-        }
-
-        Deployment_Node(clients, "Client Devices", "Web/Mobile"){
-            Container(web, "Web Dashboard", "Browser", "Monitoring and control interface")
-            Container(mobile, "Mobile App", "MQTT Client", "Remote monitoring")
-        }
-    }
-
-    Rel(stm32_fw, esp32_fw, "UART 115200 baud", "JSON Protocol")
-    Rel(stm32_fw, sht3x, "I2C 100kHz", "Read sensor data")
-    Rel(stm32_fw, rtc, "I2C 100kHz", "Get/Set timestamp")
-    Rel(stm32_fw, sd, "SPI 18MHz", "Write/Read buffer")
-    Rel(stm32_fw, display, "SPI 36MHz", "Update display")
-
-    Rel(esp32_fw, mqtt, "MQTT over TCP", "Pub/Sub messages")
-    Rel(esp32_fw, relay, "GPIO Control", "Power ON/OFF")
-    Rel(buttons, esp32_fw, "GPIO Interrupt", "Button events")
-
-    Rel(web, mqtt, "MQTT WebSocket", "Commands & Data")
-    Rel(mobile, mqtt, "MQTT over TCP", "Commands & Data")
-
-    Rel(relay, stm32, "Power Control", "Enable/Disable")
-
-    UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="2")
-```
-
-## Package Diagram - Overall System Structure
-
-```mermaid
 graph TB
-    subgraph Firmware_System[Complete Firmware System]
-        direction LR
-
-        subgraph STM32_Package[STM32 Firmware Package]
-            STM32_Core[Core<br/>main.c, system_init]
-            STM32_Drivers[Drivers<br/>sht3x, ds3231, sd, display]
-            STM32_Middleware[Middleware<br/>uart, cmd_parser, data_mgr]
-            STM32_HAL[HAL<br/>i2c, spi, uart, gpio]
-
-            STM32_Core --> STM32_Middleware
-            STM32_Middleware --> STM32_Drivers
-            STM32_Drivers --> STM32_HAL
+    subgraph Device["IoT Device - Hardware"]
+        subgraph STM32["STM32F103C8T6 - ARM Cortex-M3"]
+            STM32_FW[STM32 Firmware<br/>C, STM32 HAL<br/>Data collection & buffering]
         end
 
-        subgraph ESP32_Package[ESP32 Firmware Package]
-            ESP32_Core[Core<br/>app_main.c, init]
-            ESP32_Components[Components<br/>wifi, mqtt, uart, relay]
-            ESP32_Protocol[Protocol<br/>json_parser, state_mgr]
-            ESP32_IDF[ESP-IDF<br/>wifi, mqtt, uart, gpio]
-
-            ESP32_Core --> ESP32_Components
-            ESP32_Components --> ESP32_Protocol
-            ESP32_Components --> ESP32_IDF
+        subgraph ESP32["ESP32-WROOM-32 - Xtensa LX6"]
+            ESP32_FW[ESP32 Firmware<br/>C, ESP-IDF<br/>IoT gateway & MQTT]
         end
 
-        subgraph Shared_Package[Shared Definitions]
-            Protocol_Def[Protocol<br/>JSON format, commands]
-            Data_Structures[Data Structures<br/>sensor_data, timestamps]
-            Constants[Constants<br/>topics, pins, configs]
+        subgraph Sensors["Sensors & Peripherals - I2C/SPI"]
+            SHT3X[SHT3X Sensor<br/>I2C 0x44<br/>Temp & Humidity]
+            RTC[DS3231 RTC<br/>I2C 0x68<br/>Real-time clock]
+            SD[SD Card<br/>SPI 18MHz<br/>Data buffering]
+            Display[ILI9225 TFT<br/>SPI 36MHz<br/>176x220 display]
+        end
+
+        subgraph Actuators["Actuators & Inputs - GPIO"]
+            Relay[Relay Module<br/>GPIO4<br/>Power control]
+            Buttons[4x Buttons<br/>GPIO 5,16,17,4<br/>User input]
         end
     end
 
-    STM32_Package -.->|UART Protocol| ESP32_Package
-    STM32_Middleware -.->|Uses| Protocol_Def
-    ESP32_Protocol -.->|Uses| Protocol_Def
-    STM32_Core -.->|Uses| Data_Structures
-    ESP32_Core -.->|Uses| Data_Structures
-    STM32_HAL -.->|Uses| Constants
-    ESP32_IDF -.->|Uses| Constants
+    subgraph Network["Local Network - WiFi 2.4GHz"]
+        subgraph Broker["MQTT Broker - Mosquitto"]
+            MQTT[MQTT Server<br/>v5.0 Port 1883<br/>Message broker]
+        end
 
-    style STM32_Package fill:#FFE4B5
-    style ESP32_Package fill:#B0E0E6
-    style Shared_Package fill:#F0E68C
+        subgraph Clients["Client Devices"]
+            Web[Web Dashboard<br/>Browser<br/>Monitoring UI]
+            Mobile[Mobile App<br/>MQTT Client<br/>Remote control]
+        end
+    end
+
+    STM32_FW <-->|UART 115200<br/>JSON Protocol| ESP32_FW
+    STM32_FW <-->|I2C 100kHz| SHT3X
+    STM32_FW <-->|I2C 100kHz| RTC
+    STM32_FW <-->|SPI 18MHz| SD
+    STM32_FW -->|SPI 36MHz| Display
+
+    ESP32_FW <-->|MQTT over TCP| MQTT
+    ESP32_FW -->|GPIO Control| Relay
+    Buttons -->|GPIO Interrupt| ESP32_FW
+
+    Web <-->|MQTT WebSocket| MQTT
+    Mobile <-->|MQTT over TCP| MQTT
+
+    Relay -.->|Power Control| STM32_FW
+
+    style Device fill:#FFE4B5
+    style STM32 fill:#FFB6C1
+    style ESP32 fill:#B0E0E6
+    style Sensors fill:#F0E68C
+    style Actuators fill:#DDA0DD
+    style Network fill:#98FB98
+    style Broker fill:#87CEEB
+    style Clients fill:#FFDAB9
 ```
-
----
 
 ## Class Details and Specifications
 

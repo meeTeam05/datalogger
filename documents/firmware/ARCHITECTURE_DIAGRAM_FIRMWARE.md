@@ -87,6 +87,175 @@ graph TB
     style Sensors fill:#F0E68C
 ```
 
+## Component Diagram - STM32 Modules
+
+```mermaid
+graph TB
+    subgraph STM32_System[STM32 System Components]
+        direction TB
+
+        subgraph HAL[Hardware Abstraction Layer]
+            I2C_HAL[I2C HAL Driver]
+            SPI_HAL[SPI HAL Driver]
+            UART_HAL[UART HAL Driver]
+            GPIO_HAL[GPIO HAL Driver]
+        end
+
+        subgraph Drivers[Device Drivers]
+            SHT3X_Driver[SHT3X Driver<br/>Temperature & Humidity]
+            DS3231_Driver[DS3231 Driver<br/>Real-Time Clock]
+            SD_Driver[SD Card Driver<br/>FAT32 Filesystem]
+            Display_Driver[ILI9225 Driver<br/>TFT Display]
+        end
+
+        subgraph Middleware[Middleware Layer]
+            UART_Handler[UART Handler<br/>Ring Buffer + Protocol]
+            CMD_Parser[Command Parser<br/>JSON Commands]
+            Data_Mgr[Data Manager<br/>Mode Control]
+            SD_Mgr[SD Card Manager<br/>Circular Buffer]
+        end
+
+        subgraph Application[Application Layer]
+            Main_App[Main Application<br/>System Control]
+        end
+    end
+
+    Main_App --> UART_Handler
+    Main_App --> Data_Mgr
+    Main_App --> SD_Mgr
+    Main_App --> Display_Driver
+
+    UART_Handler --> CMD_Parser
+    CMD_Parser --> Data_Mgr
+    CMD_Parser --> SHT3X_Driver
+
+    Data_Mgr --> SHT3X_Driver
+    Data_Mgr --> DS3231_Driver
+    Data_Mgr --> SD_Mgr
+    Data_Mgr --> UART_Handler
+
+    SD_Mgr --> SD_Driver
+
+    SHT3X_Driver --> I2C_HAL
+    DS3231_Driver --> I2C_HAL
+    SD_Driver --> SPI_HAL
+    Display_Driver --> SPI_HAL
+    UART_Handler --> UART_HAL
+
+    style HAL fill:#FFE4B5
+    style Drivers fill:#F0E68C
+    style Middleware fill:#DDA0DD
+    style Application fill:#90EE90
+```
+
+## Component Diagram - ESP32 Modules
+
+```mermaid
+graph TB
+    subgraph ESP32_System[ESP32 System Components]
+        direction TB
+
+        subgraph ESP_IDF[ESP-IDF Framework]
+            WiFi_Stack[WiFi Stack<br/>802.11 b/g/n]
+            TCP_IP[TCP/IP Stack<br/>LwIP]
+            MQTT_Client[MQTT Client<br/>esp-mqtt]
+            UART_Driver[UART Driver<br/>esp_uart]
+            GPIO_Driver[GPIO Driver<br/>esp_gpio]
+        end
+
+        subgraph Custom_Drivers[Custom Drivers]
+            WiFi_Mgr[WiFi Manager<br/>Connection Management]
+            MQTT_Handler[MQTT Handler<br/>Pub/Sub + Reconnect]
+            UART_Handler[STM32 UART Handler<br/>Protocol Layer]
+            Relay_Ctrl[Relay Control<br/>Power Management]
+            Button_Handler[Button Handler<br/>Input Processing]
+        end
+
+        subgraph Protocol[Protocol Layer]
+            JSON_Parser[JSON Parser<br/>Data Validation]
+            State_Mgr[State Manager<br/>System State Sync]
+        end
+
+        subgraph Application[Application Layer]
+            Main_App[Main Application<br/>Coordination Logic]
+        end
+    end
+
+    Main_App --> WiFi_Mgr
+    Main_App --> MQTT_Handler
+    Main_App --> UART_Handler
+    Main_App --> Relay_Ctrl
+    Main_App --> Button_Handler
+    Main_App --> State_Mgr
+
+    WiFi_Mgr --> WiFi_Stack
+    MQTT_Handler --> MQTT_Client
+    UART_Handler --> UART_Driver
+    UART_Handler --> JSON_Parser
+    Relay_Ctrl --> GPIO_Driver
+    Button_Handler --> GPIO_Driver
+
+    JSON_Parser --> State_Mgr
+    State_Mgr --> MQTT_Handler
+
+    MQTT_Client --> TCP_IP
+    WiFi_Stack --> TCP_IP
+
+    style ESP_IDF fill:#B0E0E6
+    style Custom_Drivers fill:#DDA0DD
+    style Protocol fill:#F0E68C
+    style Application fill:#90EE90
+```
+
+## Package Diagram - Overall System Structure
+
+```mermaid
+graph TB
+    subgraph Firmware_System[Complete Firmware System]
+        direction LR
+
+        subgraph STM32_Package[STM32 Firmware Package]
+            STM32_Core[Core<br/>main.c, system_init]
+            STM32_Drivers[Drivers<br/>sht3x, ds3231, sd, display]
+            STM32_Middleware[Middleware<br/>uart, cmd_parser, data_mgr]
+            STM32_HAL[HAL<br/>i2c, spi, uart, gpio]
+
+            STM32_Core --> STM32_Middleware
+            STM32_Middleware --> STM32_Drivers
+            STM32_Drivers --> STM32_HAL
+        end
+
+        subgraph ESP32_Package[ESP32 Firmware Package]
+            ESP32_Core[Core<br/>app_main.c, init]
+            ESP32_Components[Components<br/>wifi, mqtt, uart, relay]
+            ESP32_Protocol[Protocol<br/>json_parser, state_mgr]
+            ESP32_IDF[ESP-IDF<br/>wifi, mqtt, uart, gpio]
+
+            ESP32_Core --> ESP32_Components
+            ESP32_Components --> ESP32_Protocol
+            ESP32_Components --> ESP32_IDF
+        end
+
+        subgraph Shared_Package[Shared Definitions]
+            Protocol_Def[Protocol<br/>JSON format, commands]
+            Data_Structures[Data Structures<br/>sensor_data, timestamps]
+            Constants[Constants<br/>topics, pins, configs]
+        end
+    end
+
+    STM32_Package -.->|UART Protocol| ESP32_Package
+    STM32_Middleware -.->|Uses| Protocol_Def
+    ESP32_Protocol -.->|Uses| Protocol_Def
+    STM32_Core -.->|Uses| Data_Structures
+    ESP32_Core -.->|Uses| Data_Structures
+    STM32_HAL -.->|Uses| Constants
+    ESP32_IDF -.->|Uses| Constants
+
+    style STM32_Package fill:#FFE4B5
+    style ESP32_Package fill:#B0E0E6
+    style Shared_Package fill:#F0E68C
+```
+
 ## Data Flow Architecture
 
 ```mermaid
@@ -424,8 +593,6 @@ gantt
     MQTT Backoff 4s       :milestone, 4000
     Button Debounce 200ms :milestone, 200
 ```
-
----
 
 ## System Performance Characteristics
 
