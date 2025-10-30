@@ -1,5 +1,4 @@
 @startuml I2C_Communication_Error_Recovery_Sequence
-!theme cerulean-outline
 skinparam sequenceMessageAlign center
 skinparam responseMessageBelowArrow true
 skinparam BoxPadding 10

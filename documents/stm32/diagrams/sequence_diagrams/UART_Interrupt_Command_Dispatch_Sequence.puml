@@ -1,5 +1,4 @@
 @startuml UART_Interrupt_Command_Dispatch_Sequence
-!theme cerulean-outline
 skinparam sequenceMessageAlign center
 skinparam responseMessageBelowArrow true
 skinparam BoxPadding 10

@@ -1,5 +1,4 @@
 @startuml System_Initialization_Sequence
-!theme cerulean-outline
 skinparam sequenceMessageAlign center
 skinparam responseMessageBelowArrow true
 skinparam BoxPadding 10
