@@ -1,0 +1,62 @@
+@startuml Periodic_Mode_Control_Flow
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>Periodic Mode Control Flow</b></size>\n<size:12><i>Automated Periodic Reading Management</i></size>
+
+start
+
+:User Clicks Periodic Button;
+
+if (MQTT Connected?) then (no)
+    :Show Error
+    MQTT not connected;
+    stop
+endif
+
+if (isDeviceOn?) then (no)
+    :Show Warning
+    Device must be ON first;
+    stop
+endif
+
+:Toggle isPeriodic
+isPeriodic = !isPeriodic;
+
+if (isPeriodic?) then (true)
+    :command = PERIODIC ON;
+else (false)
+    :command = PERIODIC OFF;
+endif
+
+:Publish to MQTT
+Topic: stm32Command
+QoS: 1;
+
+if (isPeriodic?) then (true)
+    :Set Button Style
+    className = btn-success
+    text = Periodic ON;
+else (false)
+    :Set Button Style
+    className = btn-secondary
+    text = Periodic OFF;
+endif
+
+:Log to Console
+Periodic ON/OFF
+command sent;
+
+stop
+
+@enduml

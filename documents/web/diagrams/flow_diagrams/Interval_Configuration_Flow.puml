@@ -1,0 +1,88 @@
+@startuml Interval_Configuration_Flow
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>Interval Configuration Flow</b></size>\n<size:12><i>Periodic Reading Interval Setup</i></size>
+
+start
+
+:User Clicks Interval Button;
+
+if (MQTT Connected?) then (no)
+    :Show Error
+    MQTT not connected;
+    stop
+endif
+
+if (isDeviceOn?) then (no)
+    :Show Warning
+    Device must be ON first;
+    stop
+endif
+
+:Open Interval Modal
+Display: block
+Show minute/second pickers;
+
+:Initialize Picker Values
+selectedMinute = 0
+selectedSecond = 5;
+
+:Bind Minute Up/Down
+Range: 0-59
+Wrap around;
+
+:Bind Second Up/Down
+Range: 0-59
+Wrap around;
+
+repeat
+    :Wait for User Action
+    Update display on
+    Up/Down clicks;
+    
+    if (User Action?) then (Cancel)
+        :Close Modal
+        Display: none
+        No changes;
+        stop
+    elseif (Set) then (yes)
+        :Calculate Total Seconds
+        interval = minute * 60 + second;
+        
+        if (interval >= 5?) then (no)
+            :Show Error
+            Interval must be
+            at least 5 seconds;
+        else (yes)
+            :Build Command
+            SET INTERVAL <seconds>;
+            
+            :Publish to MQTT
+            Topic: stm32Command
+            QoS: 1;
+            
+            :Log to Console
+            Interval set to <MM:SS>;
+            
+            :Close Modal
+            Display: none;
+            
+            stop
+        endif
+    endif
+repeat while (Waiting?) is (yes)
+
+stop
+
+@enduml

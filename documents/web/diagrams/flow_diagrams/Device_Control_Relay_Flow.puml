@@ -1,0 +1,78 @@
+@startuml Device_Control_Relay_Flow
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>Device Control (Relay) Flow</b></size>\n<size:12><i>Power Management and Relay Control</i></size>
+
+start
+
+:User Clicks Device Button;
+
+if (MQTT Connected?) then (no)
+    :Show Error
+    MQTT not connected;
+    stop
+endif
+
+:Toggle isDeviceOn
+isDeviceOn = !isDeviceOn;
+
+if (isDeviceOn?) then (true)
+    :command = RELAY ON;
+else (false)
+    :command = RELAY OFF;
+endif
+
+:Publish to MQTT
+Topic: relayControl
+QoS: 1;
+
+if (isDeviceOn?) then (true)
+    :Set Button Style
+    className = btn-success
+    text = Device ON;
+else (false)
+    :Set Button Style
+    className = btn-secondary
+    text = Device OFF;
+    
+    if (isPeriodic?) then (yes)
+        :Stop Periodic Mode
+        isPeriodic = false;
+        
+        :Update Periodic Button
+        className = btn-secondary
+        text = Periodic OFF;
+        
+        :Publish to MQTT
+        Topic: stm32Command
+        Message: PERIODIC OFF
+        QoS: 1;
+        
+        :Log to Console
+        Periodic mode stopped
+        device OFF;
+        
+        :Reset Current Display
+        currentTemp = null
+        currentHumi = null
+        text = --;
+    endif
+endif
+
+:Log to Console
+Device RELAY ON/OFF sent;
+
+stop
+
+@enduml

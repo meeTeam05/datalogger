@@ -1,0 +1,69 @@
+@startuml Navigation_Page_Switching_Flow
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>Navigation & Page Switching Flow</b></size>\n<size:12><i>Multi-page Interface Management</i></size>
+
+start
+
+:User Clicks Menu Item;
+
+:Get Page ID
+page = item.dataset.page;
+
+:Remove Active Class
+All menu items
+classList.remove active;
+
+:Add Active Class
+Clicked item
+classList.add active;
+
+:Hide All Pages
+All .page-section
+classList.remove active;
+
+:Show Selected Page
+#page-page
+classList.add active;
+
+if (Page Type?) then (time)
+    :renderCalendar
+    updateTimeDisplay
+    bindCalendarButtons
+    attachTimeButtons;
+elseif (livedata) then
+    :renderLiveDataTable
+    bindLiveDataButtons;
+elseif (data) then
+    :bindDataManagementButtons
+    applyDataFilters;
+elseif (logs) then
+    :bindLogsButtons
+    renderFullConsole;
+elseif (config) then
+    :loadSettingsPage;
+elseif (dashboard) then
+    :Default View
+    No special init;
+elseif (settings) then
+    :Default View
+    No special init;
+endif
+
+:Refresh Feather Icons
+feather.replace;
+
+stop
+
+@enduml

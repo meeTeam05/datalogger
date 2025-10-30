@@ -1,0 +1,93 @@
+@startuml Load_History_Firebase_Flow
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>Load History from Firebase Flow</b></size>\n<size:12><i>24-Hour Historical Data Retrieval</i></size>
+
+start
+
+:User Clicks Load History;
+
+if (Firebase Connected?) then (no)
+    :Show Error
+    Cannot load history
+    Firebase not connected;
+    stop
+else (yes)
+endif
+
+:Get Last 24 Hours
+now = new Date
+yesterday = now minus 24h;
+
+:Generate Date Range
+dates = empty array
+currentDate = yesterday
+while currentDate <= now
+dates.push date string;
+
+:Load Firebase Data
+For each date
+firebase.ref readings/date
+call once value method;
+
+:Process Each Day
+dayData = snapshot.val
+Extract id, record
+Add date field;
+
+:Merge All Data
+allData = results.flat;
+
+if (Data Length Greater Than 0?) then (no)
+    :Show Warning
+    No historical data
+    in last 24 hours;
+    stop
+else (yes)
+endif
+
+:Sort by Timestamp
+Newest first
+b.timestamp minus a.timestamp;
+
+:Take Last 50 Points
+recentData = allData
+slice 0 to 50
+reverse order;
+
+:Clear Existing Charts
+temperatureData = empty array
+humidityData = empty array;
+
+:Populate Data Arrays
+For each record
+pushTemperature false
+pushHumidity false;
+
+:Update Chart.js
+tempChart.data.labels
+tempChart.data.datasets
+tempChart.update active;
+
+:Update Chart Stats
+Calculate min, max, avg
+Update UI elements;
+
+:Log to Console
+Loaded X records from 24h
+showing Y on charts;
+
+stop
+
+@enduml

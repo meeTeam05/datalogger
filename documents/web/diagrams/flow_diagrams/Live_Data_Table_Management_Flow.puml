@@ -1,0 +1,80 @@
+@startuml Live_Data_Table_Management_Flow
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>Live Data Table Management Flow</b></size>\n<size:12><i>Real-time Data Display and Filtering</i></size>
+
+start
+
+:Add to Live Data Table;
+
+:Create Table Entry
+time, temp, humi,
+mode, status;
+
+:Add to Buffer Head
+liveDataBuffer.unshift entry;
+
+if (Buffer Length > 100?) then (yes)
+    :Remove Last Entry
+    liveDataBuffer.pop;
+else (no)
+endif
+
+:Get Filter Selection
+filter = #liveDataFilter.value;
+
+if (Filter Type?) then (all)
+    :filtered = liveDataBuffer;
+elseif (success) then
+    :filtered = buffer.filter
+    d => d.status == success;
+elseif (error) then
+    :filtered = buffer.filter
+    d => d.status == error;
+endif
+
+if (Filtered Length > 0?) then (no)
+    :Show Empty State
+    No data available
+    Count = 0;
+    stop
+else (yes)
+endif
+
+:Build HTML Rows
+For each entry:
+#, Time, Temp, Humi,
+Mode, Status Badge;
+
+if (Status?) then (success)
+    :Badge: connected
+    Success;
+else (error)
+    :Badge: disconnected
+    Error;
+endif
+
+:Render to #liveDataTable
+tbody.innerHTML = rows;
+
+:Update Entry Count
+#liveDataCount.textContent
+= filtered.length;
+
+:Refresh Feather Icons
+feather.replace;
+
+stop
+
+@enduml

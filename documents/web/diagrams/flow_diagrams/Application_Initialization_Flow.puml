@@ -1,0 +1,120 @@
+@startuml Application_Initialization_Flow
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>Application Initialization Flow</b></size>\n<size:12><i>System Startup and Configuration</i></size>
+
+start
+
+:Page Load;
+
+:Initialize Feather Icons;
+
+:Initialize Global Variables
+Set isPeriodic to false
+Set isDeviceOn to false
+Create temperatureData array
+Create humidityData array;
+
+:Initialize Firebase;
+
+if (Firebase Config Complete?) then (yes)
+    :Call firebase.initializeApp
+    Get Database Reference;
+    
+    :Test Write Permission
+    Path: test/connection;
+    
+    if (Write Success?) then (yes)
+        :Update Status to Connected
+        Listen to info/connected;
+    else (no)
+        :Update Status to Error
+        Show Permission Error;
+    endif
+else (no)
+    :Skip Firebase
+    Update Status to Disconnected;
+endif
+
+:Initialize MQTT Client;
+
+:Call mqtt.connect
+Host: 127.0.0.1:8083
+Path: /mqtt
+Username: DataLogger;
+
+:Register Event Handlers
+Events: connect, message, error,
+offline, reconnect, close;
+
+repeat
+    if (MQTT Connected?) then (yes)
+        :Connection Established;
+        break
+    else (no)
+        :Wait and Reconnect After 2s;
+    endif
+repeat while (Keep Trying?)
+
+:Subscribe to Topics
+Topic: systemState
+Topic: singleData
+Topic: periodicData;
+
+:Publish REQUEST Command
+Target: systemState
+Delay: 500ms;
+
+:Initialize Charts
+Create Temperature Chart
+Create Humidity Chart
+Use Chart.js Line Charts;
+
+if (Chart Canvas Ready?) then (yes)
+    :Create Chart Instances
+    Configure Chart Options
+    Set Colors and Animations;
+else (no)
+    :Retry Chart Init After 500ms
+    Maximum 10 attempts;
+    
+    if (Init Success?) then (yes)
+        :Create Chart Instances
+        Configure Chart Options
+        Set Colors and Animations;
+    else (no)
+        :Chart Initialization Failed
+        Log Error Message;
+    endif
+endif
+
+:Bind Navigation Menu
+Pages: Dashboard, Live Data,
+Settings, Time, Data,
+Logs, Config;
+
+:Bind Quick Action Buttons
+Buttons: Device, Periodic, Single,
+Interval, Load History,
+Clear Charts;
+
+:Start Clock Ticker
+Update Footer Time Display
+Interval: Every 1 second;
+
+:System Ready for User Interaction;
+
+stop
+
+@enduml
