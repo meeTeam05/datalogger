@@ -152,501 +152,822 @@ graph TB
 
 ```mermaid
 graph TB
-    subgraph STM32_System[STM32 System Components]
+    subgraph STM32_System["STM32 System - Layered Architecture"]
         direction TB
 
-        subgraph HAL[Hardware Abstraction Layer]
-            I2C_HAL[I2C HAL Driver]
-            SPI_HAL[SPI HAL Driver]
-            UART_HAL[UART HAL Driver]
-            GPIO_HAL[GPIO HAL Driver]
+        subgraph Application_Layer["Application Layer"]
+            Main_Control[Main Control<br/>System Orchestration<br/>Event Loop]
         end
 
-        subgraph Drivers[Device Drivers]
-            SHT3X_Driver[SHT3X Driver<br/>Temperature & Humidity]
-            DS3231_Driver[DS3231 Driver<br/>Real-Time Clock]
-            SD_Driver[SD Card Driver<br/>FAT32 Filesystem]
-            Display_Driver[ILI9225 Driver<br/>TFT Display]
+        subgraph Business_Logic["Business Logic Layer"]
+            Data_Manager[Data Manager<br/>Single/Periodic Mode<br/>State Control]
+            SD_Manager[SD Card Manager<br/>Circular Buffer<br/>204800 Records]
+            Display_Manager[Display Manager<br/>Status Rendering<br/>UI Update]
         end
 
-        subgraph Middleware[Middleware Layer]
-            UART_Handler[UART Handler<br/>Ring Buffer + Protocol]
-            CMD_Parser[Command Parser<br/>JSON Commands]
-            Data_Mgr[Data Manager<br/>Mode Control]
-            SD_Mgr[SD Card Manager<br/>Circular Buffer]
+        subgraph Protocol_Layer["Protocol Layer"]
+            UART_Protocol[UART Protocol Handler<br/>Ring Buffer 512B<br/>JSON Processing]
+            Command_Parser[Command Parser<br/>8 Commands<br/>Validation]
         end
 
-        subgraph Application[Application Layer]
-            Main_App[Main Application<br/>System Control]
+        subgraph Driver_Layer["Device Driver Layer"]
+            SHT3X_Driver[SHT3X Driver<br/>Temperature Humidity<br/>Single/Periodic Mode]
+            DS3231_Driver[DS3231 RTC Driver<br/>Time Management<br/>Battery Backup]
+            SD_Card_Driver[SD Card Driver<br/>FAT32 Filesystem<br/>SPI Interface]
+            Display_Driver[ILI9225 Driver<br/>176x220 TFT<br/>SPI Interface]
         end
+
+        subgraph HAL_Layer["Hardware Abstraction Layer"]
+            I2C_HAL[I2C HAL<br/>100kHz<br/>PB6/PB7]
+            SPI1_HAL[SPI1 HAL<br/>18MHz<br/>PA4/5/6/7]
+            SPI2_HAL[SPI2 HAL<br/>36MHz<br/>PB12/13/14/15]
+            UART_HAL[UART HAL<br/>115200 baud<br/>PA9/PA10]
+            GPIO_HAL[GPIO HAL<br/>Digital IO<br/>PC13/PA8/11/12]
+        end
+
+        Main_Control --> Data_Manager
+        Main_Control --> SD_Manager
+        Main_Control --> Display_Manager
+        Main_Control --> UART_Protocol
+
+        Data_Manager --> SHT3X_Driver
+        Data_Manager --> DS3231_Driver
+        Data_Manager --> SD_Manager
+
+        SD_Manager --> SD_Card_Driver
+        Display_Manager --> Display_Driver
+
+        UART_Protocol --> Command_Parser
+        Command_Parser --> Data_Manager
+        Command_Parser --> SHT3X_Driver
+
+        SHT3X_Driver --> I2C_HAL
+        DS3231_Driver --> I2C_HAL
+        SD_Card_Driver --> SPI1_HAL
+        Display_Driver --> SPI2_HAL
+        Display_Driver --> GPIO_HAL
+        UART_Protocol --> UART_HAL
     end
 
-    Main_App --> UART_Handler
-    Main_App --> Data_Mgr
-    Main_App --> SD_Mgr
-    Main_App --> Display_Driver
-
-    UART_Handler --> CMD_Parser
-    CMD_Parser --> Data_Mgr
-    CMD_Parser --> SHT3X_Driver
-
-    Data_Mgr --> SHT3X_Driver
-    Data_Mgr --> DS3231_Driver
-    Data_Mgr --> SD_Mgr
-    Data_Mgr --> UART_Handler
-
-    SD_Mgr --> SD_Driver
-
-    SHT3X_Driver --> I2C_HAL
-    DS3231_Driver --> I2C_HAL
-    SD_Driver --> SPI_HAL
-    Display_Driver --> SPI_HAL
-    UART_Handler --> UART_HAL
-
-    style HAL fill:#FFE4B5, color:#000000
-    style Drivers fill:#F0E68C, color:#000000
-    style Middleware fill:#DDA0DD, color:#000000
-    style Application fill:#90EE90, color:#000000
+    style Application_Layer fill:#C8E6C9,stroke:#388E3C,stroke-width:3px,color:#000
+    style Business_Logic fill:#BBDEFB,stroke:#1976D2,stroke-width:3px,color:#000
+    style Protocol_Layer fill:#FFF9C4,stroke:#F57F17,stroke-width:3px,color:#000
+    style Driver_Layer fill:#FFE0B2,stroke:#E65100,stroke-width:3px,color:#000
+    style HAL_Layer fill:#F8BBD0,stroke:#C2185B,stroke-width:3px,color:#000
 ```
 
 ## Component Diagram - ESP32 Modules
 
 ```mermaid
 graph TB
-    subgraph ESP32_System[ESP32 System Components]
+    subgraph ESP32_System["ESP32 System - Layered Architecture"]
         direction TB
 
-        subgraph ESP_IDF[ESP-IDF Framework]
-            WiFi_Stack[WiFi Stack<br/>802.11 b/g/n]
-            TCP_IP[TCP/IP Stack<br/>LwIP]
-            MQTT_Client[MQTT Client<br/>esp-mqtt]
-            UART_Driver[UART Driver<br/>esp_uart]
-            GPIO_Driver[GPIO Driver<br/>esp_gpio]
+        subgraph Application_Layer["Application Layer"]
+            Main_Coordinator[Main Coordinator<br/>FreeRTOS Tasks<br/>System Control]
         end
 
-        subgraph Custom_Drivers[Custom Drivers]
-            WiFi_Mgr[WiFi Manager<br/>Connection Management]
-            MQTT_Handler[MQTT Handler<br/>Pub/Sub + Reconnect]
-            UART_Handler[STM32 UART Handler<br/>Protocol Layer]
-            Relay_Ctrl[Relay Control<br/>Power Management]
-            Button_Handler[Button Handler<br/>Input Processing]
+        subgraph Business_Logic["Business Logic Layer"]
+            State_Manager[State Manager<br/>System State Sync<br/>Retained Messages]
+            Event_Coordinator[Event Coordinator<br/>Callback Dispatch<br/>Event Queue]
         end
 
-        subgraph Protocol[Protocol Layer]
-            JSON_Parser[JSON Parser<br/>Data Validation]
-            State_Mgr[State Manager<br/>System State Sync]
+        subgraph Protocol_Layer["Protocol Layer"]
+            JSON_Parser[JSON Parser<br/>Sensor Data Validation<br/>Mode Detection]
+            MQTT_Protocol[MQTT Protocol<br/>Topic Management<br/>QoS Handling]
+            UART_Protocol[UART Protocol<br/>STM32 Communication<br/>Command Format]
         end
 
-        subgraph Application[Application Layer]
-            Main_App[Main Application<br/>Coordination Logic]
+        subgraph Service_Layer["Service Layer"]
+            WiFi_Manager[WiFi Manager<br/>Connection Management<br/>Auto Reconnect]
+            MQTT_Handler[MQTT Handler<br/>Pub/Sub Management<br/>Reconnect Logic]
+            STM32_Interface[STM32 Interface<br/>UART Communication<br/>Ring Buffer 1024B]
+            Relay_Controller[Relay Controller<br/>Power Management<br/>State Callback]
+            Button_Manager[Button Manager<br/>Debounce 200ms<br/>4x GPIO Input]
         end
+
+        subgraph Driver_Layer["ESP-IDF Framework Layer"]
+            WiFi_Stack[WiFi Stack<br/>802.11 b/g/n<br/>STA Mode]
+            TCP_IP_Stack[TCP/IP Stack<br/>LwIP<br/>Socket API]
+            MQTT_Client[MQTT Client<br/>esp-mqtt<br/>QoS 0/1]
+            UART_Driver[UART Driver<br/>esp_uart<br/>DMA Support]
+            GPIO_Driver[GPIO Driver<br/>esp_gpio<br/>Interrupt]
+        end
+
+        Main_Coordinator --> WiFi_Manager
+        Main_Coordinator --> MQTT_Handler
+        Main_Coordinator --> STM32_Interface
+        Main_Coordinator --> Relay_Controller
+        Main_Coordinator --> Button_Manager
+        Main_Coordinator --> State_Manager
+        Main_Coordinator --> Event_Coordinator
+
+        State_Manager --> MQTT_Protocol
+        Event_Coordinator --> State_Manager
+
+        WiFi_Manager --> WiFi_Stack
+        MQTT_Handler --> MQTT_Protocol
+        MQTT_Handler --> MQTT_Client
+        STM32_Interface --> UART_Protocol
+        STM32_Interface --> JSON_Parser
+        STM32_Interface --> UART_Driver
+        Relay_Controller --> GPIO_Driver
+        Button_Manager --> GPIO_Driver
+
+        MQTT_Protocol --> State_Manager
+        UART_Protocol --> JSON_Parser
+
+        WiFi_Stack --> TCP_IP_Stack
+        MQTT_Client --> TCP_IP_Stack
     end
 
-    Main_App --> WiFi_Mgr
-    Main_App --> MQTT_Handler
-    Main_App --> UART_Handler
-    Main_App --> Relay_Ctrl
-    Main_App --> Button_Handler
-    Main_App --> State_Mgr
-
-    WiFi_Mgr --> WiFi_Stack
-    MQTT_Handler --> MQTT_Client
-    UART_Handler --> UART_Driver
-    UART_Handler --> JSON_Parser
-    Relay_Ctrl --> GPIO_Driver
-    Button_Handler --> GPIO_Driver
-
-    JSON_Parser --> State_Mgr
-    State_Mgr --> MQTT_Handler
-
-    MQTT_Client --> TCP_IP
-    WiFi_Stack --> TCP_IP
-
-    style ESP_IDF fill:#B0E0E6, color:#000000
-    style Custom_Drivers fill:#DDA0DD, color:#000000
-    style Protocol fill:#F0E68C, color:#000000
-    style Application fill:#90EE90, color:#000000
+    style Application_Layer fill:#C8E6C9,stroke:#388E3C,stroke-width:3px,color:#000
+    style Business_Logic fill:#BBDEFB,stroke:#1976D2,stroke-width:3px,color:#000
+    style Protocol_Layer fill:#FFF9C4,stroke:#F57F17,stroke-width:3px,color:#000
+    style Service_Layer fill:#FFE0B2,stroke:#E65100,stroke-width:3px,color:#000
+    style Driver_Layer fill:#F8BBD0,stroke:#C2185B,stroke-width:3px,color:#000
 ```
 
 ## Package Diagram - Overall System Structure
 
 ```mermaid
 graph TB
-    subgraph Firmware_System[Complete Firmware System]
-        direction LR
+    subgraph System_Architecture["Complete Firmware System Architecture"]
+        direction TB
 
-        subgraph STM32_Package[STM32 Firmware Package]
-            STM32_Core[Core<br/>main.c, system_init]
-            STM32_Drivers[Drivers<br/>sht3x, ds3231, sd, display]
-            STM32_Middleware[Middleware<br/>uart, cmd_parser, data_mgr]
-            STM32_HAL[HAL<br/>i2c, spi, uart, gpio]
+        subgraph STM32_Firmware["STM32 Firmware Package"]
+            direction TB
 
-            STM32_Core --> STM32_Middleware
-            STM32_Middleware --> STM32_Drivers
+            subgraph STM32_App["Application Module"]
+                STM32_Main[main.c<br/>system_init.c<br/>System Control]
+            end
+
+            subgraph STM32_Business["Business Logic Module"]
+                STM32_DataMgr[data_manager.c/h<br/>sd_card_manager.c/h<br/>display_manager.c/h]
+            end
+
+            subgraph STM32_Protocol["Protocol Module"]
+                STM32_UART[uart_handler.c/h<br/>command_parser.c/h<br/>ring_buffer.c/h]
+            end
+
+            subgraph STM32_Drivers["Device Drivers Module"]
+                STM32_DevDrivers[sht3x.c/h<br/>ds3231.c/h<br/>sd_card.c/h<br/>ili9225.c/h]
+            end
+
+            subgraph STM32_HAL["HAL Module"]
+                STM32_HAL_Drivers[stm32f1xx_hal_i2c.c<br/>stm32f1xx_hal_spi.c<br/>stm32f1xx_hal_uart.c<br/>stm32f1xx_hal_gpio.c]
+            end
+
+            STM32_Main --> STM32_Business
+            STM32_Main --> STM32_Protocol
+            STM32_Business --> STM32_Drivers
+            STM32_Protocol --> STM32_Drivers
             STM32_Drivers --> STM32_HAL
         end
 
-        subgraph ESP32_Package[ESP32 Firmware Package]
-            ESP32_Core[Core<br/>app_main.c, init]
-            ESP32_Components[Components<br/>wifi, mqtt, uart, relay]
-            ESP32_Protocol[Protocol<br/>json_parser, state_mgr]
-            ESP32_IDF[ESP-IDF<br/>wifi, mqtt, uart, gpio]
+        subgraph ESP32_Firmware["ESP32 Firmware Package"]
+            direction TB
 
-            ESP32_Core --> ESP32_Components
-            ESP32_Components --> ESP32_Protocol
-            ESP32_Components --> ESP32_IDF
+            subgraph ESP32_App["Application Module"]
+                ESP32_Main[app_main.c<br/>system_init.c<br/>Main Coordinator]
+            end
+
+            subgraph ESP32_Business["Business Logic Module"]
+                ESP32_State[state_manager.c/h<br/>event_coordinator.c/h]
+            end
+
+            subgraph ESP32_Protocol["Protocol Module"]
+                ESP32_Proto[json_parser.c/h<br/>mqtt_protocol.c/h<br/>uart_protocol.c/h]
+            end
+
+            subgraph ESP32_Services["Service Module"]
+                ESP32_Svc[wifi_manager.c/h<br/>mqtt_handler.c/h<br/>stm32_uart.c/h<br/>relay_control.c/h<br/>button_handler.c/h]
+            end
+
+            subgraph ESP32_IDF["ESP-IDF Framework"]
+                ESP32_Framework[esp_wifi.h<br/>esp_mqtt_client.h<br/>driver/uart.h<br/>driver/gpio.h]
+            end
+
+            ESP32_Main --> ESP32_Business
+            ESP32_Main --> ESP32_Services
+            ESP32_Business --> ESP32_Protocol
+            ESP32_Services --> ESP32_Protocol
+            ESP32_Services --> ESP32_IDF
         end
 
-        subgraph Shared_Package[Shared Definitions]
-            Protocol_Def[Protocol<br/>JSON format, commands]
-            Data_Structures[Data Structures<br/>sensor_data, timestamps]
-            Constants[Constants<br/>topics, pins, configs]
+        subgraph Shared_Definitions["Shared Protocol Package"]
+            direction TB
+
+            subgraph Protocol_Spec["Protocol Specification"]
+                JSON_Format[JSON Format<br/>Message Structure<br/>Field Definitions]
+            end
+
+            subgraph Command_Spec["Command Specification"]
+                Commands[UART Commands<br/>MQTT Topics<br/>Command Syntax]
+            end
+
+            subgraph Data_Spec["Data Structure Specification"]
+                DataStructs[sensor_data_t<br/>timestamp_t<br/>state_t]
+            end
+
+            subgraph Config_Spec["Configuration Specification"]
+                Configs[GPIO Pins<br/>MQTT Topics<br/>System Constants]
+            end
         end
+
+        STM32_Protocol -.->|Uses| JSON_Format
+        STM32_Protocol -.->|Uses| Commands
+        STM32_Business -.->|Uses| DataStructs
+        STM32_HAL -.->|Uses| Configs
+
+        ESP32_Proto -.->|Uses| JSON_Format
+        ESP32_Proto -.->|Uses| Commands
+        ESP32_Business -.->|Uses| DataStructs
+        ESP32_IDF -.->|Uses| Configs
+
+        STM32_UART <-->|UART 115200<br/>JSON Protocol| ESP32_Svc
     end
 
-    STM32_Package -.->|UART Protocol| ESP32_Package
-    STM32_Middleware -.->|Uses| Protocol_Def
-    ESP32_Protocol -.->|Uses| Protocol_Def
-    STM32_Core -.->|Uses| Data_Structures
-    ESP32_Core -.->|Uses| Data_Structures
-    STM32_HAL -.->|Uses| Constants
-    ESP32_IDF -.->|Uses| Constants
+    style STM32_Firmware fill:#FFE0B2,stroke:#E65100,stroke-width:4px,color:#000
+    style ESP32_Firmware fill:#BBDEFB,stroke:#1976D2,stroke-width:4px,color:#000
+    style Shared_Definitions fill:#FFF9C4,stroke:#F57F17,stroke-width:4px,color:#000
 
-    style STM32_Package fill:#FFE4B5, color:#000000
-    style ESP32_Package fill:#B0E0E6, color:#000000
-    style Shared_Package fill:#F0E68C, color:#000000
+    style STM32_App fill:#FFCCBC,stroke:#D84315,stroke-width:2px,color:#000
+    style STM32_Business fill:#FFB74D,stroke:#F57C00,stroke-width:2px,color:#000
+    style STM32_Protocol fill:#FFA726,stroke:#EF6C00,stroke-width:2px,color:#000
+    style STM32_Drivers fill:#FF9800,stroke:#E65100,stroke-width:2px,color:#000
+    style STM32_HAL fill:#FB8C00,stroke:#D84315,stroke-width:2px,color:#000
+
+    style ESP32_App fill:#90CAF9,stroke:#1565C0,stroke-width:2px,color:#000
+    style ESP32_Business fill:#64B5F6,stroke:#1976D2,stroke-width:2px,color:#000
+    style ESP32_Protocol fill:#42A5F5,stroke:#1E88E5,stroke-width:2px,color:#000
+    style ESP32_Services fill:#2196F3,stroke:#1976D2,stroke-width:2px,color:#000
+    style ESP32_IDF fill:#1E88E5,stroke:#1565C0,stroke-width:2px,color:#000
+
+    style Protocol_Spec fill:#FFF59D,stroke:#F9A825,stroke-width:2px,color:#000
+    style Command_Spec fill:#FFEE58,stroke:#F57F17,stroke-width:2px,color:#000
+    style Data_Spec fill:#FFEB3B,stroke:#F57F17,stroke-width:2px,color:#000
+    style Config_Spec fill:#FDD835,stroke:#F57F17,stroke-width:2px,color:#000
 ```
 
 ## Data Flow Architecture
 
 ```mermaid
 graph LR
-    subgraph Input[Data Input Sources]
-        Sensor[SHT3X Sensor<br/>Temperature & Humidity<br/>I2C Read 15ms]
-        Time[DS3231 RTC<br/>Timestamp<br/>I2C Read 5ms]
-        WebCmd[Web Commands<br/>via MQTT<br/>QoS 1]
-        ButtonCmd[Button Presses<br/>GPIO Interrupt<br/>200ms debounce]
+    subgraph Input_Sources["Data Input Layer"]
+        direction TB
+
+        subgraph Physical_Sensors["Physical Sensors"]
+            Sensor[SHT3X Sensor<br/>Temperature Humidity<br/>I2C Read 15ms]
+            Clock[DS3231 RTC<br/>Timestamp Source<br/>I2C Read 5ms]
+        end
+
+        subgraph External_Commands["External Commands"]
+            MQTT_Cmd[MQTT Commands<br/>Remote Control<br/>QoS 1]
+            Button_Input[Button Input<br/>Local Control<br/>Debounced 200ms]
+        end
     end
 
-    subgraph STM32_Processing[STM32 Processing]
-        I2C[I2C Read<br/>100kHz<br/>~20ms total]
-        Parse[JSON Format<br/>with Timestamp<br/>~5ms]
-        Route{MQTT<br/>Connected?}
-        Buffer[SD Card Buffer<br/>204,800 records<br/>Write ~10ms]
+    subgraph STM32_Layer["STM32 Processing Layer"]
+        direction TB
 
-        Sensor --> I2C
-        Time --> I2C
-        I2C --> Parse
-        Parse --> Route
-        Route -->|No| Buffer
+        subgraph Data_Acquisition["Data Acquisition"]
+            I2C_Read[I2C Bus Read<br/>100kHz Bus<br/>20ms Total Time]
+            Format_Data[JSON Formatter<br/>Add Timestamp<br/>5ms Processing]
+        end
+
+        subgraph Routing_Logic["Data Routing Logic"]
+            Connection_Check{MQTT Status<br/>Connected?}
+            Buffer_Write[SD Buffer Write<br/>Circular Buffer<br/>10ms Write Time]
+            UART_Send[UART Transmit<br/>115200 baud<br/>JSON Format]
+        end
     end
 
-    subgraph ESP32_Processing[ESP32 Processing]
-        UARTRx[UART RX<br/>Ring Buffer<br/>115200 baud]
-        JSONParse[JSON Parser<br/>Mode Detection<br/>Validation]
-        MQTTPub[MQTT Publish<br/>QoS 0/1<br/>Retained State]
-        CmdRoute[Command Router<br/>Topic-based<br/>Dispatch]
-        StateSync[State Manager<br/>Retained Messages<br/>System State]
+    subgraph ESP32_Layer["ESP32 Processing Layer"]
+        direction TB
 
-        Route -->|Yes| UARTRx
-        UARTRx --> JSONParse
-        JSONParse --> MQTTPub
+        subgraph Reception["Data Reception"]
+            UART_Receive[UART Receive<br/>Ring Buffer 1024B<br/>DMA Transfer]
+            Parse_JSON[JSON Parser<br/>Mode Detection<br/>Validation]
+        end
 
-        WebCmd --> CmdRoute
-        ButtonCmd --> CmdRoute
-        CmdRoute --> StateSync
+        subgraph Publishing["Data Publishing"]
+            Publish_MQTT[MQTT Publish<br/>QoS 0 for Data<br/>QoS 1 for State]
+        end
+
+        subgraph Command_Processing["Command Processing"]
+            Route_Command[Command Router<br/>Topic Based<br/>Dispatch Logic]
+            Update_State[State Manager<br/>System State<br/>Retained Msg]
+        end
     end
 
-    subgraph Output[Data Output]
-        Cloud[MQTT Broker<br/>192.168.1.39<br/>Port 1883]
-        Display[TFT Display<br/>ILI9225<br/>Status Info]
-        LED[Status LEDs<br/>WiFi/MQTT<br/>Connection State]
-        RelayOut[Relay Output<br/>Device Control<br/>Power Management]
+    subgraph Output_Layer["Data Output Layer"]
+        direction TB
 
-        MQTTPub --> Cloud
-        Parse --> Display
-        StateSync --> Display
-        StateSync --> LED
-        CmdRoute --> RelayOut
+        subgraph Cloud_Output["Cloud Services"]
+            Broker[MQTT Broker<br/>192.168.1.39<br/>Port 1883]
+        end
+
+        subgraph Local_Output["Local Outputs"]
+            TFT_Display[TFT Display<br/>ILI9225 176x220<br/>Status Info]
+            Status_LED[Status LEDs<br/>WiFi MQTT<br/>Connection State]
+            Power_Relay[Relay Output<br/>Device Control<br/>Power Switch]
+        end
     end
 
-    Buffer -.->|On Reconnect<br/>Buffered Data| UARTRx
+    Sensor --> I2C_Read
+    Clock --> I2C_Read
+    I2C_Read --> Format_Data
+    Format_Data --> Connection_Check
+    Connection_Check -->|Connected| UART_Send
+    Connection_Check -->|Disconnected| Buffer_Write
 
-    style Input fill:#90EE90, color:#000000
-    style STM32_Processing fill:#FFE4B5, color:#000000
-    style ESP32_Processing fill:#B0E0E6, color:#000000
-    style Output fill:#DDA0DD, color:#000000
+    UART_Send --> UART_Receive
+    Buffer_Write -.->|On Reconnect<br/>Replay Data| UART_Receive
+
+    UART_Receive --> Parse_JSON
+    Parse_JSON --> Publish_MQTT
+    Publish_MQTT --> Broker
+
+    MQTT_Cmd --> Route_Command
+    Button_Input --> Route_Command
+    Route_Command --> Update_State
+
+    Update_State --> Publish_MQTT
+    Update_State --> TFT_Display
+    Update_State --> Status_LED
+    Route_Command --> Power_Relay
+    Format_Data --> TFT_Display
+
+    style Input_Sources fill:#C8E6C9,stroke:#388E3C,stroke-width:3px,color:#000
+    style STM32_Layer fill:#FFE0B2,stroke:#E65100,stroke-width:3px,color:#000
+    style ESP32_Layer fill:#BBDEFB,stroke:#1976D2,stroke-width:3px,color:#000
+    style Output_Layer fill:#E1BEE7,stroke:#7B1FA2,stroke-width:3px,color:#000
+
+    style Physical_Sensors fill:#A5D6A7,stroke:#388E3C,stroke-width:2px,color:#000
+    style External_Commands fill:#81C784,stroke:#388E3C,stroke-width:2px,color:#000
+    style Data_Acquisition fill:#FFCC80,stroke:#E65100,stroke-width:2px,color:#000
+    style Routing_Logic fill:#FFB74D,stroke:#E65100,stroke-width:2px,color:#000
+    style Reception fill:#90CAF9,stroke:#1976D2,stroke-width:2px,color:#000
+    style Publishing fill:#64B5F6,stroke:#1976D2,stroke-width:2px,color:#000
+    style Command_Processing fill:#42A5F5,stroke:#1976D2,stroke-width:2px,color:#000
+    style Cloud_Output fill:#CE93D8,stroke:#7B1FA2,stroke-width:2px,color:#000
+    style Local_Output fill:#BA68C8,stroke:#7B1FA2,stroke-width:2px,color:#000
 ```
 
 ## Hardware Configuration and Pinout
 
 ```mermaid
 graph TB
-    subgraph STM32_HW[STM32F103C8T6 Hardware Configuration]
-        STM32_MCU[ARM Cortex-M3<br/>Clock: 72MHz<br/>Flash: 64KB<br/>RAM: 20KB<br/>Power: 20mA active]
+    subgraph Hardware_System["Hardware System Configuration"]
+        direction TB
 
-        STM32_I2C[I2C1 Interface<br/>PB6: SCL<br/>PB7: SDA<br/>Speed: 100kHz<br/>Pull-up: 4.7k ohm]
+        subgraph STM32_Hardware["STM32F103C8T6 Hardware Layer"]
+            direction TB
 
-        STM32_SPI1[SPI1 SD Card<br/>PA5: SCK<br/>PA6: MISO<br/>PA7: MOSI<br/>PA4: CS<br/>Speed: 18MHz]
+            subgraph STM32_Core["Core Specifications"]
+                STM32_Processor[Processor<br/>ARM Cortex-M3<br/>Clock 72MHz<br/>Flash 64KB<br/>RAM 20KB]
+            end
 
-        STM32_SPI2[SPI2 Display<br/>PB13: SCK<br/>PB14: MISO<br/>PB15: MOSI<br/>PB12: CS<br/>Speed: 36MHz]
+            subgraph STM32_Interfaces["Communication Interfaces"]
+                STM32_I2C_Bus[I2C1 Bus<br/>Pins PB6 SCL PB7 SDA<br/>Speed 100kHz<br/>Pull-up 4.7k ohm]
 
-        STM32_UART[UART1 Interface<br/>PA9: TX<br/>PA10: RX<br/>Baud: 115200<br/>Format: 8N1]
+                STM32_SPI1_Bus[SPI1 Bus<br/>Pins PA5 SCK PA6 MISO<br/>PA7 MOSI PA4 CS<br/>Speed 18MHz]
 
-        STM32_GPIO[GPIO Pins<br/>LED: PC13<br/>Display DC: PA8<br/>Display RS: PA11<br/>Display BL: PA12]
+                STM32_SPI2_Bus[SPI2 Bus<br/>Pins PB13 SCK PB14 MISO<br/>PB15 MOSI PB12 CS<br/>Speed 36MHz]
 
-        STM32_MCU --> STM32_I2C
-        STM32_MCU --> STM32_SPI1
-        STM32_MCU --> STM32_SPI2
-        STM32_MCU --> STM32_UART
-        STM32_MCU --> STM32_GPIO
+                STM32_UART_Port[UART1 Port<br/>Pins PA9 TX PA10 RX<br/>Baud 115200<br/>Format 8N1]
+            end
+
+            subgraph STM32_GPIO["GPIO Configuration"]
+                STM32_Control[Control Pins<br/>LED PC13<br/>Display DC PA8<br/>Display RS PA11<br/>Display BL PA12]
+            end
+
+            STM32_Processor --> STM32_I2C_Bus
+            STM32_Processor --> STM32_SPI1_Bus
+            STM32_Processor --> STM32_SPI2_Bus
+            STM32_Processor --> STM32_UART_Port
+            STM32_Processor --> STM32_Control
+        end
+
+        subgraph ESP32_Hardware["ESP32-WROOM-32 Hardware Layer"]
+            direction TB
+
+            subgraph ESP32_Core["Core Specifications"]
+                ESP32_Processor[Processor<br/>Xtensa LX6 Dual-core<br/>Clock 240MHz<br/>Flash 4MB<br/>SRAM 520KB]
+            end
+
+            subgraph ESP32_Wireless["Wireless Interface"]
+                ESP32_WiFi_Radio[WiFi Radio<br/>Standard 802.11 b/g/n<br/>Frequency 2.4GHz<br/>Range Indoor 50m<br/>Power Configurable]
+            end
+
+            subgraph ESP32_Interfaces["Communication Interfaces"]
+                ESP32_UART_Port[UART1 Port<br/>Pins GPIO17 TX GPIO16 RX<br/>Baud 115200<br/>Format 8N1]
+            end
+
+            subgraph ESP32_GPIO["GPIO Configuration"]
+                ESP32_Outputs[Output Pins<br/>GPIO4 Relay Control<br/>GPIO2 WiFi LED<br/>GPIO15 MQTT LED<br/>Active HIGH]
+
+                ESP32_Inputs[Input Pins<br/>GPIO5 Button1<br/>GPIO16 Button2<br/>GPIO17 Button3<br/>GPIO4 Button4<br/>Pull-up Internal]
+            end
+
+            ESP32_Processor --> ESP32_WiFi_Radio
+            ESP32_Processor --> ESP32_UART_Port
+            ESP32_Processor --> ESP32_Outputs
+            ESP32_Processor --> ESP32_Inputs
+        end
+
+        subgraph Peripheral_Hardware["Peripheral Hardware Layer"]
+            direction TB
+
+            subgraph I2C_Peripherals["I2C Peripheral Devices"]
+                SHT3X_Module[SHT3X Sensor<br/>Address 0x44<br/>Voltage 2.4V to 5.5V<br/>Accuracy Temp 0.2C Hum 2 percent<br/>Power 1.5uA idle]
+
+                RTC_Module[DS3231 RTC<br/>Address 0x68<br/>Voltage 3.3V<br/>Accuracy 2ppm<br/>Battery CR2032<br/>Backup 10 years]
+            end
+
+            subgraph SPI_Peripherals["SPI Peripheral Devices"]
+                SD_Module[SD Card Module<br/>Interface SPI<br/>Format FAT32<br/>Capacity 4GB to 32GB<br/>Voltage 3.3V<br/>Speed Class 10]
+
+                Display_Module[ILI9225 Display<br/>Resolution 176x220<br/>Size 2.2 inch<br/>Interface SPI<br/>Colors 262K<br/>Backlight LED]
+            end
+
+            subgraph GPIO_Peripherals["GPIO Peripheral Devices"]
+                Relay_Module[Relay Module<br/>Type Mechanical<br/>Control Active HIGH<br/>Voltage 5V<br/>Current 10A max<br/>Switching 250VAC 30VDC]
+
+                Button_Module[Button Array<br/>Type 4x Tactile<br/>Configuration Active LOW<br/>Debounce 200ms<br/>Pull-up 10k ohm]
+            end
+        end
+
+        subgraph Physical_Connections["Physical Connection Layer"]
+            direction LR
+
+            I2C_Connection[I2C Bus Connection<br/>Speed 100kHz<br/>Protocol I2C Standard]
+
+            SPI_Connection[SPI Bus Connection<br/>Speed 18MHz and 36MHz<br/>Protocol SPI Mode 0]
+
+            UART_Connection[UART Connection<br/>Speed 115200 baud<br/>Protocol 8N1<br/>Voltage 3.3V Logic]
+
+            GPIO_Connection[GPIO Connection<br/>Digital Signals<br/>3.3V Logic Level]
+
+            Power_Connection[Power Connection<br/>Voltage 5V DC<br/>Control via Relay]
+        end
     end
 
-    subgraph ESP32_HW[ESP32-WROOM-32 Hardware Configuration]
-        ESP32_MCU[Xtensa LX6 Dual-core<br/>Clock: 240MHz<br/>Flash: 4MB<br/>SRAM: 520KB<br/>Power: 160mA WiFi ON]
+    STM32_I2C_Bus <--> I2C_Connection
+    I2C_Connection <--> SHT3X_Module
+    I2C_Connection <--> RTC_Module
 
-        ESP32_WiFi[WiFi Radio<br/>802.11 b/g/n<br/>Frequency: 2.4GHz<br/>Range: 50m indoor<br/>Power: -40dBm to +20dBm]
+    STM32_SPI1_Bus <--> SPI_Connection
+    SPI_Connection <--> SD_Module
 
-        ESP32_UART_HW[UART1 Interface<br/>GPIO17: TX<br/>GPIO16: RX<br/>Baud: 115200<br/>Format: 8N1]
+    STM32_SPI2_Bus <--> SPI_Connection
+    SPI_Connection <--> Display_Module
 
-        ESP32_GPIO[GPIO Configuration<br/>GPIO4: Relay Output<br/>GPIO5: Button1 Input<br/>GPIO16: Button2 Input<br/>GPIO17: Button3 Input<br/>Pull-up: Internal]
+    STM32_UART_Port <--> UART_Connection
+    UART_Connection <--> ESP32_UART_Port
 
-        ESP32_LED[Status LEDs<br/>GPIO2: WiFi Status<br/>GPIO15: MQTT Status<br/>Active: HIGH]
+    ESP32_Outputs --> GPIO_Connection
+    GPIO_Connection --> Relay_Module
 
-        ESP32_MCU --> ESP32_WiFi
-        ESP32_MCU --> ESP32_UART_HW
-        ESP32_MCU --> ESP32_GPIO
-        ESP32_MCU --> ESP32_LED
-    end
+    Button_Module --> GPIO_Connection
+    GPIO_Connection --> ESP32_Inputs
 
-    subgraph Peripherals_HW[Peripheral Hardware Specifications]
-        SHT3X_HW[SHT3X Sensor Module<br/>I2C Address: 0x44<br/>Voltage: 2.4V-5.5V<br/>Accuracy: ±0.2°C, ±2% RH<br/>Response: 8s typical<br/>Power: 1.5uA idle]
+    Relay_Module -.-> Power_Connection
+    Power_Connection -.-> STM32_Processor
 
-        RTC_HW[DS3231 RTC Module<br/>I2C Address: 0x68<br/>Voltage: 3.3V<br/>Accuracy: ±2ppm<br/>Battery: CR2032<br/>Backup: 10 years]
+    ESP32_WiFi_Radio <-.->|Wireless Protocol<br/>2.4GHz Band| Network_AP[WiFi Access Point<br/>SSID Configuration<br/>Security WPA2-PSK]
 
-        SD_HW[SD Card Module<br/>Interface: SPI<br/>Format: FAT32<br/>Capacity: 4GB-32GB<br/>Voltage: 3.3V<br/>Speed Class: 10]
+    style Hardware_System fill:#F5F5F5,stroke:#424242,stroke-width:2px,color:#000
+    style STM32_Hardware fill:#FFE0B2,stroke:#E65100,stroke-width:3px,color:#000
+    style ESP32_Hardware fill:#BBDEFB,stroke:#1976D2,stroke-width:3px,color:#000
+    style Peripheral_Hardware fill:#C8E6C9,stroke:#388E3C,stroke-width:3px,color:#000
+    style Physical_Connections fill:#FFF9C4,stroke:#F57F17,stroke-width:3px,color:#000
 
-        Display_HW[ILI9225 TFT Display<br/>Resolution: 176x220<br/>Size: 2.2 inch<br/>Interface: SPI<br/>Colors: 262K<br/>Backlight: LED]
+    style STM32_Core fill:#FFCCBC,stroke:#D84315,stroke-width:2px,color:#000
+    style STM32_Interfaces fill:#FFB74D,stroke:#F57C00,stroke-width:2px,color:#000
+    style STM32_GPIO fill:#FFA726,stroke:#EF6C00,stroke-width:2px,color:#000
 
-        Relay_HW[Relay Module<br/>Type: Mechanical<br/>Control: Active HIGH<br/>Voltage: 5V<br/>Current: 10A max<br/>Switching: 250VAC/30VDC]
+    style ESP32_Core fill:#90CAF9,stroke:#1565C0,stroke-width:2px,color:#000
+    style ESP32_Wireless fill:#64B5F6,stroke:#1976D2,stroke-width:2px,color:#000
+    style ESP32_Interfaces fill:#42A5F5,stroke:#1E88E5,stroke-width:2px,color:#000
+    style ESP32_GPIO fill:#2196F3,stroke:#1976D2,stroke-width:2px,color:#000
 
-        Buttons_HW[Tactile Buttons<br/>Type: 4x Push button<br/>Configuration: Active LOW<br/>Debounce: 200ms<br/>Pull-up: 10k ohm internal]
-    end
-
-    STM32_I2C <-->|I2C Bus<br/>100kHz| SHT3X_HW
-    STM32_I2C <-->|I2C Bus<br/>100kHz| RTC_HW
-    STM32_SPI1 <-->|SPI Bus<br/>18MHz| SD_HW
-    STM32_SPI2 <-->|SPI Bus<br/>36MHz| Display_HW
-
-    STM32_UART <-->|UART<br/>115200 baud<br/>3.3V logic| ESP32_UART_HW
-
-    ESP32_GPIO -->|Digital Out<br/>3.3V| Relay_HW
-    Buttons_HW -->|Digital In<br/>Pull-up| ESP32_GPIO
-    Relay_HW -.->|Power Switch<br/>5V DC| STM32_MCU
-
-    ESP32_WiFi <-.->|Wireless<br/>2.4GHz| Network[WiFi Access Point<br/>SSID: Redmi Note 9 Pro<br/>Security: WPA2-PSK]
-
-    style STM32_HW fill:#FFE4B5, color:#000000
-    style ESP32_HW fill:#B0E0E6, color:#000000
-    style Peripherals_HW fill:#F0E68C, color:#000000
+    style I2C_Peripherals fill:#A5D6A7,stroke:#388E3C,stroke-width:2px,color:#000
+    style SPI_Peripherals fill:#81C784,stroke:#388E3C,stroke-width:2px,color:#000
+    style GPIO_Peripherals fill:#66BB6A,stroke:#388E3C,stroke-width:2px,color:#000
 ```
 
 ## MQTT Protocol and Topic Architecture
 
 ```mermaid
 graph TB
-    subgraph Broker[MQTT Broker: 192.168.1.39:1883]
+    subgraph MQTT_Architecture["MQTT Protocol Architecture"]
         direction TB
 
-        subgraph Subscribe[ESP32 Subscribes To]
-            T1[Topic: datalogger/stm32/command<br/>QoS: 1<br/>Retained: No<br/>Purpose: STM32 control commands]
-
-            T2[Topic: datalogger/esp32/relay/control<br/>QoS: 1<br/>Retained: No<br/>Purpose: Relay ON/OFF/TOGGLE]
-
-            T3[Topic: datalogger/esp32/system/state<br/>QoS: 1<br/>Retained: No<br/>Purpose: State request trigger]
+        subgraph Broker_Layer["Message Broker Layer"]
+            Broker_Server[MQTT Broker Server<br/>Protocol MQTT v5.0<br/>Address IP Address Port 1883<br/>Server Mosquitto<br/>Authentication Username Password]
         end
 
-        subgraph Publish[ESP32 Publishes To]
-            T4[Topic: datalogger/stm32/single/data<br/>QoS: 0<br/>Retained: No<br/>Purpose: Single measurements]
+        subgraph Topic_Structure["Topic Hierarchy Structure"]
+            direction TB
 
-            T5[Topic: datalogger/stm32/periodic/data<br/>QoS: 0<br/>Retained: No<br/>Purpose: Periodic measurements]
+            subgraph Command_Topics["Command Topics - ESP32 Subscribes"]
+                Topic_STM32_Cmd[Topic Path<br/>datalogger/stm32/command<br/>QoS Level 1<br/>Retained No<br/>Purpose STM32 Control Commands]
 
-            T6[Topic: datalogger/esp32/system/state<br/>QoS: 1<br/>Retained: Yes<br/>Purpose: System state sync]
+                Topic_Relay_Cmd[Topic Path<br/>datalogger/esp32/relay/control<br/>QoS Level 1<br/>Retained No<br/>Purpose Relay ON OFF TOGGLE]
+
+                Topic_State_Req[Topic Path<br/>datalogger/esp32/system/state<br/>QoS Level 1<br/>Retained No<br/>Purpose State Request Trigger]
+            end
+
+            subgraph Data_Topics["Data Topics - ESP32 Publishes"]
+                Topic_Single_Data[Topic Path<br/>datalogger/stm32/single/data<br/>QoS Level 0<br/>Retained No<br/>Purpose Single Measurements]
+
+                Topic_Periodic_Data[Topic Path<br/>datalogger/stm32/periodic/data<br/>QoS Level 0<br/>Retained No<br/>Purpose Periodic Measurements]
+
+                Topic_System_State[Topic Path<br/>datalogger/esp32/system/state<br/>QoS Level 1<br/>Retained Yes<br/>Purpose System State Sync]
+            end
+        end
+
+        subgraph Message_Formats["Message Format Specifications"]
+            direction TB
+
+            subgraph Command_Messages["Command Message Formats"]
+                STM32_Commands[STM32 Command Set<br/>SINGLE<br/>PERIODIC ON interval_seconds<br/>PERIODIC OFF<br/>SET TIME timestamp_value<br/>SD CLEAR<br/>MQTT CONNECTED<br/>MQTT DISCONNECTED]
+
+                Relay_Commands[Relay Command Set<br/>ON<br/>OFF<br/>TOGGLE]
+
+                State_Request[State Request Format<br/>REQUEST]
+            end
+
+            subgraph Data_Messages["Data Message Formats JSON"]
+                Single_Format[Single Measurement<br/>mode SINGLE<br/>timestamp unix_time<br/>temperature celsius_value<br/>humidity percent_value]
+
+                Periodic_Format[Periodic Measurement<br/>mode PERIODIC<br/>timestamp unix_time<br/>temperature celsius_value<br/>humidity percent_value]
+
+                State_Format[System State<br/>device ON or OFF<br/>periodic ON or OFF<br/>timestamp unix_time<br/>wifi connected or disconnected<br/>mqtt connected or disconnected]
+            end
+        end
+
+        subgraph Client_Layer["Client Application Layer"]
+            direction LR
+
+            Web_Client[Web Dashboard<br/>Technology MQTT.js<br/>Protocol WebSocket<br/>Function Monitoring Control]
+
+            Mobile_Client[Mobile Application<br/>Technology Native MQTT<br/>Protocol TCP<br/>Function Remote Monitoring]
+
+            ESP32_Client[ESP32 Device<br/>Technology esp-mqtt<br/>Protocol TCP<br/>Function IoT Gateway]
         end
     end
 
-    subgraph Messages[Message Formats and Examples]
-        direction TB
+    Broker_Server --> Topic_STM32_Cmd
+    Broker_Server --> Topic_Relay_Cmd
+    Broker_Server --> Topic_State_Req
+    Broker_Server --> Topic_Single_Data
+    Broker_Server --> Topic_Periodic_Data
+    Broker_Server --> Topic_System_State
 
-        CMD1["STM32 Commands:<br/>• SINGLE<br/>• PERIODIC ON [interval_sec]<br/>• PERIODIC OFF<br/>• SET TIME [timestamp]<br/>• SD CLEAR<br/>• MQTT CONNECTED<br/>• MQTT DISCONNECTED"]
+    Topic_STM32_Cmd -.->|Message Format| STM32_Commands
+    Topic_Relay_Cmd -.->|Message Format| Relay_Commands
+    Topic_State_Req -.->|Message Format| State_Request
+    Topic_Single_Data -.->|Message Format| Single_Format
+    Topic_Periodic_Data -.->|Message Format| Periodic_Format
+    Topic_System_State -.->|Message Format| State_Format
 
-        CMD2["Relay Commands:<br/>• ON<br/>• OFF<br/>• TOGGLE"]
+    Web_Client -->|Publish Commands| Broker_Server
+    Web_Client <-->|Subscribe Data| Broker_Server
 
-        CMD3["State Request:<br/>• REQUEST"]
+    Mobile_Client -->|Publish Commands| Broker_Server
+    Mobile_Client <-->|Subscribe Data| Broker_Server
 
-        DATA1["Single Measurement JSON:<br/>{<br/>  'mode': 'SINGLE',<br/>  'timestamp': 1698765432,<br/>  'temperature': 25.3,<br/>  'humidity': 65.2<br/>}"]
+    ESP32_Client <-->|Pub/Sub All Topics| Broker_Server
 
-        DATA2["Periodic Measurement JSON:<br/>{<br/>  'mode': 'PERIODIC',<br/>  'timestamp': 1698765437,<br/>  'temperature': 25.4,<br/>  'humidity': 65.1<br/>}"]
+    style MQTT_Architecture fill:#F5F5F5,stroke:#424242,stroke-width:2px,color:#000
+    style Broker_Layer fill:#B39DDB,stroke:#5E35B1,stroke-width:3px,color:#000
+    style Topic_Structure fill:#90CAF9,stroke:#1976D2,stroke-width:3px,color:#000
+    style Message_Formats fill:#FFF59D,stroke:#F57F17,stroke-width:3px,color:#000
+    style Client_Layer fill:#A5D6A7,stroke:#388E3C,stroke-width:3px,color:#000
 
-        DATA3["System State JSON:<br/>{<br/>  'device': 'ON',<br/>  'periodic': 'OFF',<br/>  'timestamp': 1698765432,<br/>  'wifi': 'connected',<br/>  'mqtt': 'connected'<br/>}"]
-    end
-
-    T1 -.-> CMD1
-    T2 -.-> CMD2
-    T3 -.-> CMD3
-    T4 -.-> DATA1
-    T5 -.-> DATA2
-    T6 -.-> DATA3
-
-    Web[Web Dashboard<br/>MQTT.js Client] -->|Publish Command| T1
-    Web -->|Publish Control| T2
-    Web -->|Publish Request| T3
-
-    T4 -->|Subscribe Data| Web
-    T5 -->|Subscribe Data| Web
-    T6 -->|Subscribe State| Web
-
-    Mobile[Mobile App<br/>MQTT Client] -->|Publish| T1
-    Mobile -->|Publish| T2
-    T4 -->|Subscribe| Mobile
-    T5 -->|Subscribe| Mobile
-
-    style Broker fill:#87CEEB, color:#000000
-    style Messages fill:#FFE4B5, color:#000000
-    style Web fill:#90EE90, color:#000000
-    style Mobile fill:#98FB98, color:#000000
+    style Command_Topics fill:#64B5F6,stroke:#1976D2,stroke-width:2px,color:#000
+    style Data_Topics fill:#42A5F5,stroke:#1E88E5,stroke-width:2px,color:#000
+    style Command_Messages fill:#FFEE58,stroke:#F9A825,stroke-width:2px,color:#000
+    style Data_Messages fill:#FDD835,stroke:#F57F17,stroke-width:2px,color:#000
 ```
 
 ## Error Handling and Recovery Strategy
 
 ```mermaid
 graph TB
-    subgraph Errors[Error Types and Detection]
-        E1[I2C Sensor Timeout<br/>Detection: HAL timeout<br/>Frequency: Rare]
-        E2[RTC Communication Fail<br/>Detection: I2C error<br/>Impact: Timestamp loss]
-        E3[SD Card Mount Fail<br/>Detection: FAT init error<br/>Impact: No buffering]
-        E4[WiFi Connection Lost<br/>Detection: Event callback<br/>Frequency: Periodic]
-        E5[MQTT Broker Disconnect<br/>Detection: Client event<br/>Frequency: Occasional]
-        E6[UART Buffer Overflow<br/>Detection: Buffer full<br/>Impact: Data loss]
-        E7[JSON Parse Error<br/>Detection: Syntax check<br/>Impact: Invalid data]
+    subgraph Error_Management["Error Management System"]
+        direction TB
+
+        subgraph Error_Detection["Error Detection Layer"]
+            direction TB
+
+            subgraph Hardware_Errors["Hardware Error Types"]
+                I2C_Error[I2C Communication Error<br/>Detection HAL Timeout<br/>Frequency Rare<br/>Impact Sensor Read Fail]
+
+                RTC_Error[RTC Communication Error<br/>Detection I2C Bus Error<br/>Frequency Rare<br/>Impact Timestamp Loss]
+
+                SD_Error[SD Card Error<br/>Detection FAT Init Fail<br/>Frequency Occasional<br/>Impact No Buffering]
+            end
+
+            subgraph Network_Errors["Network Error Types"]
+                WiFi_Error[WiFi Connection Error<br/>Detection Event Callback<br/>Frequency Periodic<br/>Impact No Network Access]
+
+                MQTT_Error[MQTT Broker Error<br/>Detection Client Event<br/>Frequency Occasional<br/>Impact No Cloud Sync]
+            end
+
+            subgraph Software_Errors["Software Error Types"]
+                Buffer_Error[Buffer Overflow Error<br/>Detection Buffer Full Check<br/>Frequency Rare<br/>Impact Data Loss]
+
+                Parse_Error[JSON Parse Error<br/>Detection Syntax Validation<br/>Frequency Occasional<br/>Impact Invalid Data]
+            end
+        end
+
+        subgraph Recovery_Strategies["Recovery Strategy Layer"]
+            direction TB
+
+            subgraph Hardware_Recovery["Hardware Error Recovery"]
+                Sensor_Recovery[Sensor Error Strategy<br/>Action Return Zero Values<br/>Action Continue Operation<br/>Action Auto Retry Next Cycle<br/>Action Log to Display]
+
+                RTC_Recovery[RTC Error Strategy<br/>Action Use Timestamp Zero<br/>Action Continue Operation<br/>Action Auto Retry Query<br/>Action Display Warning]
+
+                SD_Recovery[SD Error Strategy<br/>Action Disable Buffering<br/>Action MQTT Only Mode<br/>Action Log Error Display<br/>Action Continue Operation]
+            end
+
+            subgraph Network_Recovery["Network Error Recovery"]
+                WiFi_Recovery[WiFi Error Strategy<br/>Action Auto Retry 5 Times<br/>Action Retry Interval 2 Seconds<br/>Action Manual Retry 5 Seconds<br/>Action Update LED Status]
+
+                MQTT_Recovery[MQTT Error Strategy<br/>Action Exponential Backoff<br/>Action Max Delay 60 Seconds<br/>Action Infinite Retries<br/>Action Buffer to SD Card]
+            end
+
+            subgraph Software_Recovery["Software Error Recovery"]
+                Buffer_Recovery[Buffer Error Strategy<br/>Action Discard Oldest Data<br/>Action Log Overflow Event<br/>Action Continue Reception<br/>Action Alert via MQTT]
+
+                Parse_Recovery[Parse Error Strategy<br/>Action Log Parse Error<br/>Action Discard Message<br/>Action Continue Processing<br/>Action Increment Counter]
+            end
+        end
+
+        subgraph Monitoring_Layer["Error Monitoring Layer"]
+            direction TB
+
+            subgraph Display_Monitor["Display Monitoring"]
+                TFT_Monitor[TFT Display Output<br/>Error Messages<br/>Connection Status<br/>Buffer Status<br/>System Health]
+            end
+
+            subgraph LED_Monitor["LED Indicator Monitoring"]
+                LED_Indicator[LED Status Indicators<br/>WiFi Blink or Solid<br/>MQTT Blink or Solid<br/>Error Fast Blink<br/>Normal Slow Blink]
+            end
+
+            subgraph Remote_Monitor["Remote Monitoring"]
+                MQTT_Report[MQTT Error Reports<br/>Error Topic Publish<br/>Error Counters<br/>System Health Status<br/>Diagnostic Data]
+            end
+
+            subgraph Persistent_Monitor["Persistent Monitoring"]
+                SD_Log[SD Card Error Log<br/>Log to Storage<br/>Timestamp Events<br/>Persist Error History<br/>Analysis Support]
+            end
+        end
     end
 
-    subgraph Recovery[Recovery Strategies and Actions]
-        R1[Sensor Error Recovery:<br/>• Return 0.0 values<br/>• Continue operation<br/>• Retry next cycle<br/>• Log to display]
+    I2C_Error --> Sensor_Recovery
+    RTC_Error --> RTC_Recovery
+    SD_Error --> SD_Recovery
+    WiFi_Error --> WiFi_Recovery
+    MQTT_Error --> MQTT_Recovery
+    Buffer_Error --> Buffer_Recovery
+    Parse_Error --> Parse_Recovery
 
-        R2[RTC Error Recovery:<br/>• Use timestamp=0<br/>• Continue operation<br/>• Retry next query<br/>• Display warning]
+    Sensor_Recovery --> TFT_Monitor
+    RTC_Recovery --> TFT_Monitor
+    SD_Recovery --> TFT_Monitor
+    Buffer_Recovery --> TFT_Monitor
+    Parse_Recovery --> TFT_Monitor
 
-        R3[SD Card Error Recovery:<br/>• Disable SD buffering<br/>• Switch to MQTT-only<br/>• Log error to display<br/>• Continue operation]
+    WiFi_Recovery --> LED_Indicator
+    MQTT_Recovery --> LED_Indicator
 
-        R4[WiFi Error Recovery:<br/>• Auto-retry 5x @ 2s<br/>• Manual retry @ 5s<br/>• Continue until success<br/>• Update LED status]
+    Sensor_Recovery --> MQTT_Report
+    SD_Recovery --> MQTT_Report
+    WiFi_Recovery --> MQTT_Report
+    MQTT_Recovery --> MQTT_Report
 
-        R5[MQTT Error Recovery:<br/>• Exponential backoff<br/>• Min 60s, 2^retry<br/>• Infinite retries<br/>• Buffer data to SD]
+    Sensor_Recovery --> SD_Log
+    RTC_Recovery --> SD_Log
+    SD_Recovery --> SD_Log
+    Buffer_Recovery --> SD_Log
 
-        R6[UART Overflow Recovery:<br/>• Discard oldest data<br/>• Log overflow event<br/>• Continue reception<br/>• Alert via MQTT]
+    style Error_Management fill:#F5F5F5,stroke:#424242,stroke-width:2px,color:#000
+    style Error_Detection fill:#FFCDD2,stroke:#C62828,stroke-width:3px,color:#000
+    style Recovery_Strategies fill:#C8E6C9,stroke:#388E3C,stroke-width:3px,color:#000
+    style Monitoring_Layer fill:#FFF9C4,stroke:#F57F17,stroke-width:3px,color:#000
 
-        R7[JSON Error Recovery:<br/>• Log parse error<br/>• Discard message<br/>• Continue processing<br/>• Increment error count]
-    end
+    style Hardware_Errors fill:#EF9A9A,stroke:#C62828,stroke-width:2px,color:#000
+    style Network_Errors fill:#E57373,stroke:#C62828,stroke-width:2px,color:#000
+    style Software_Errors fill:#EF5350,stroke:#C62828,stroke-width:2px,color:#000
 
-    subgraph Monitoring[Error Monitoring and Reporting]
-        M1[Display Status<br/>• Error messages<br/>• Connection state<br/>• Buffer status]
+    style Hardware_Recovery fill:#A5D6A7,stroke:#388E3C,stroke-width:2px,color:#000
+    style Network_Recovery fill:#81C784,stroke:#388E3C,stroke-width:2px,color:#000
+    style Software_Recovery fill:#66BB6A,stroke:#388E3C,stroke-width:2px,color:#000
 
-        M2[LED Indicators<br/>• WiFi: Blink/Solid<br/>• MQTT: Blink/Solid<br/>• Error: Fast blink]
-
-        M3[MQTT Error Reports<br/>• Error topic pub<br/>• Error counters<br/>• System health]
-
-        M4[Buffered Error Data<br/>• Log to SD card<br/>• Timestamp errors<br/>• Persist events]
-    end
-
-    E1 --> R1
-    E2 --> R2
-    E3 --> R3
-    E4 --> R4
-    E5 --> R5
-    E6 --> R6
-    E7 --> R7
-
-    R1 --> M1
-    R2 --> M1
-    R3 --> M1
-    R4 --> M2
-    R5 --> M2
-    R6 --> M1
-    R7 --> M1
-
-    R1 --> M3
-    R3 --> M3
-    R4 --> M3
-    R5 --> M3
-
-    R1 --> M4
-    R2 --> M4
-    R3 --> M4
-
-    style Errors fill:#FF6B6B, color:#000000
-    style Recovery fill:#90EE90, color:#000000
-    style Monitoring fill:#FFD700, color:#000000
+    style Display_Monitor fill:#FFF59D,stroke:#F9A825,stroke-width:2px,color:#000
+    style LED_Monitor fill:#FFEE58,stroke:#F9A825,stroke-width:2px,color:#000
+    style Remote_Monitor fill:#FFEB3B,stroke:#F57F17,stroke-width:2px,color:#000
+    style Persistent_Monitor fill:#FDD835,stroke:#F57F17,stroke-width:2px,color:#000
 ```
 
 ## Deployment Diagram
 
 ```mermaid
 graph TB
-    subgraph Device["IoT Device - Hardware"]
-        subgraph STM32["STM32F103C8T6 - ARM Cortex-M3"]
-            STM32_FW[STM32 Firmware<br/>C, STM32 HAL<br/>Data collection & buffering]
+    subgraph Deployment_System["System Deployment Architecture"]
+        direction TB
+
+        subgraph Physical_Device["Physical Device Layer"]
+            direction TB
+
+            subgraph MCU_STM32["STM32 Microcontroller Node"]
+                STM32_Deployment[STM32 Firmware<br/>Language C<br/>Framework STM32 HAL<br/>Function Data Collection<br/>Function Local Buffering<br/>Function Display Control]
+            end
+
+            subgraph MCU_ESP32["ESP32 Microcontroller Node"]
+                ESP32_Deployment[ESP32 Firmware<br/>Language C<br/>Framework ESP-IDF<br/>Function IoT Gateway<br/>Function MQTT Client<br/>Function WiFi Management]
+            end
+
+            subgraph Sensor_Node["Sensor Peripheral Node"]
+                Sensor_SHT3X[SHT3X Sensor<br/>Interface I2C<br/>Address 0x44<br/>Function Temperature Humidity]
+
+                Sensor_RTC[DS3231 RTC<br/>Interface I2C<br/>Address 0x68<br/>Function Real-time Clock]
+            end
+
+            subgraph Storage_Node["Storage Peripheral Node"]
+                Storage_SD[SD Card Storage<br/>Interface SPI<br/>Speed 18MHz<br/>Function Data Buffering<br/>Capacity Configurable]
+            end
+
+            subgraph Display_Node["Display Peripheral Node"]
+                Display_TFT[ILI9225 Display<br/>Interface SPI<br/>Speed 36MHz<br/>Resolution 176x220<br/>Function Status Display]
+            end
+
+            subgraph Control_Node["Control Peripheral Node"]
+                Control_Relay[Relay Module<br/>Interface GPIO<br/>Pin Configurable<br/>Function Power Control]
+
+                Control_Buttons[Button Array<br/>Interface GPIO<br/>Count 4 Units<br/>Function User Input]
+            end
         end
 
-        subgraph ESP32["ESP32-WROOM-32 - Xtensa LX6"]
-            ESP32_FW[ESP32 Firmware<br/>C, ESP-IDF<br/>IoT gateway & MQTT]
+        subgraph Network_Infrastructure["Network Infrastructure Layer"]
+            direction TB
+
+            subgraph Broker_Node["MQTT Broker Node"]
+                Broker_Deploy[MQTT Broker<br/>Software Mosquitto<br/>Protocol MQTT v5.0<br/>Port Standard Port<br/>Function Message Routing<br/>Function Message Persistence]
+            end
+
+            subgraph WiFi_Node["WiFi Access Point Node"]
+                WiFi_AP[WiFi Access Point<br/>Standard 802.11 b/g/n<br/>Band 2.4GHz<br/>Security WPA2-PSK<br/>Function Network Access]
+            end
         end
 
-        subgraph Sensors["Sensors & Peripherals - I2C/SPI"]
-            SHT3X[SHT3X Sensor<br/>I2C 0x44<br/>Temp & Humidity]
-            RTC[DS3231 RTC<br/>I2C 0x68<br/>Real-time clock]
-            SD[SD Card<br/>SPI 18MHz<br/>Data buffering]
-            Display[ILI9225 TFT<br/>SPI 36MHz<br/>176x220 display]
-        end
+        subgraph Client_Applications["Client Application Layer"]
+            direction LR
 
-        subgraph Actuators["Actuators & Inputs - GPIO"]
-            Relay[Relay Module<br/>GPIO4<br/>Power control]
-            Buttons[4x Buttons<br/>GPIO 5,16,17,4<br/>User input]
+            Web_App[Web Dashboard<br/>Platform Browser<br/>Technology HTML CSS JavaScript<br/>Library MQTT.js<br/>Function Monitoring<br/>Function Control Interface]
+
+            Mobile_App[Mobile Application<br/>Platform iOS Android<br/>Technology Native App<br/>Library MQTT Client<br/>Function Remote Monitoring<br/>Function Remote Control]
         end
     end
 
-    subgraph Network["Local Network - WiFi 2.4GHz"]
-        subgraph Broker["MQTT Broker - Mosquitto"]
-            MQTT[MQTT Server<br/>v5.0 Port 1883<br/>Message broker]
-        end
+    STM32_Deployment <-->|Protocol UART 115200<br/>Format JSON| ESP32_Deployment
 
-        subgraph Clients["Client Devices"]
-            Web[Web Dashboard<br/>Browser<br/>Monitoring UI]
-            Mobile[Mobile App<br/>MQTT Client<br/>Remote control]
-        end
-    end
+    STM32_Deployment <-->|Protocol I2C<br/>Speed 100kHz| Sensor_SHT3X
+    STM32_Deployment <-->|Protocol I2C<br/>Speed 100kHz| Sensor_RTC
+    STM32_Deployment <-->|Protocol SPI<br/>Speed 18MHz| Storage_SD
+    STM32_Deployment -->|Protocol SPI<br/>Speed 36MHz| Display_TFT
 
-    STM32_FW <-->|UART 115200<br/>JSON Protocol| ESP32_FW
-    STM32_FW <-->|I2C 100kHz| SHT3X
-    STM32_FW <-->|I2C 100kHz| RTC
-    STM32_FW <-->|SPI 18MHz| SD
-    STM32_FW -->|SPI 36MHz| Display
+    ESP32_Deployment <-->|Protocol MQTT<br/>Transport TCP| Broker_Deploy
+    ESP32_Deployment -->|Protocol GPIO<br/>Level Digital| Control_Relay
+    Control_Buttons -->|Protocol GPIO<br/>Trigger Interrupt| ESP32_Deployment
 
-    ESP32_FW <-->|MQTT over TCP| MQTT
-    ESP32_FW -->|GPIO Control| Relay
-    Buttons -->|GPIO Interrupt| ESP32_FW
+    ESP32_Deployment <-->|Protocol 802.11<br/>Band 2.4GHz| WiFi_AP
+    WiFi_AP <-->|Protocol TCP/IP<br/>Layer Network| Broker_Deploy
 
-    Web <-->|MQTT WebSocket| MQTT
-    Mobile <-->|MQTT over TCP| MQTT
+    Web_App <-->|Protocol MQTT<br/>Transport WebSocket| Broker_Deploy
+    Mobile_App <-->|Protocol MQTT<br/>Transport TCP| Broker_Deploy
 
-    Relay -.->|Power Control| STM32_FW
+    Control_Relay -.->|Function Power Switch<br/>Voltage 5V DC| STM32_Deployment
 
-    style Device fill:#FFE4B5, color:#000000
-    style STM32 fill:#FFB6C1, color:#000000
-    style ESP32 fill:#B0E0E6, color:#000000
-    style Sensors fill:#F0E68C, color:#000000
-    style Actuators fill:#DDA0DD, color:#000000
-    style Network fill:#98FB98, color:#000000
-    style Broker fill:#87CEEB, color:#000000
-    style Clients fill:#FFDAB9, color:#000000
+    style Deployment_System fill:#F5F5F5,stroke:#424242,stroke-width:2px,color:#000
+    style Physical_Device fill:#FFE0B2,stroke:#E65100,stroke-width:3px,color:#000
+    style Network_Infrastructure fill:#BBDEFB,stroke:#1976D2,stroke-width:3px,color:#000
+    style Client_Applications fill:#C8E6C9,stroke:#388E3C,stroke-width:3px,color:#000
+
+    style MCU_STM32 fill:#FFCCBC,stroke:#D84315,stroke-width:2px,color:#000
+    style MCU_ESP32 fill:#90CAF9,stroke:#1565C0,stroke-width:2px,color:#000
+    style Sensor_Node fill:#FFF59D,stroke:#F9A825,stroke-width:2px,color:#000
+    style Storage_Node fill:#FFEE58,stroke:#F9A825,stroke-width:2px,color:#000
+    style Display_Node fill:#FFEB3B,stroke:#F57F17,stroke-width:2px,color:#000
+    style Control_Node fill:#FDD835,stroke:#F57F17,stroke-width:2px,color:#000
+    style Broker_Node fill:#64B5F6,stroke:#1976D2,stroke-width:2px,color:#000
+    style WiFi_Node fill:#42A5F5,stroke:#1E88E5,stroke-width:2px,color:#000
 ```
 
 ## System Timing and Synchronization Diagram
