@@ -9,7 +9,7 @@ graph TB
     subgraph External[External Systems]
         User[External Clients<br/>Web/Mobile Apps]
         Power[Power Supply<br/>5V DC]
-        Network[WiFi Network<br/>Redmi Note 9 Pro]
+        Network[WiFi Network<br/>WiFi network name]
         Broker[MQTT Broker<br/>192.168.1.39:1883<br/>admin/password]
     end
 
@@ -81,10 +81,10 @@ graph TB
 
     User -.->|MQTT Protocol| Broker
 
-    style STM32 fill:#FFE4B5
-    style ESP32 fill:#B0E0E6
-    style External fill:#E0E0E0
-    style Sensors fill:#F0E68C
+    style STM32 fill:#FFE4B5, color:#000000
+    style ESP32 fill:#B0E0E6, color:#000000
+    style External fill:#E0E0E0, color:#000000
+    style Sensors fill:#F0E68C, color:#000000
 ```
 
 ## Component Diagram - STM32 Modules
@@ -142,10 +142,10 @@ graph TB
     Display_Driver --> SPI_HAL
     UART_Handler --> UART_HAL
 
-    style HAL fill:#FFE4B5
-    style Drivers fill:#F0E68C
-    style Middleware fill:#DDA0DD
-    style Application fill:#90EE90
+    style HAL fill:#FFE4B5, color:#000000
+    style Drivers fill:#F0E68C, color:#000000
+    style Middleware fill:#DDA0DD, color:#000000
+    style Application fill:#90EE90, color:#000000
 ```
 
 ## Component Diagram - ESP32 Modules
@@ -201,10 +201,10 @@ graph TB
     MQTT_Client --> TCP_IP
     WiFi_Stack --> TCP_IP
 
-    style ESP_IDF fill:#B0E0E6
-    style Custom_Drivers fill:#DDA0DD
-    style Protocol fill:#F0E68C
-    style Application fill:#90EE90
+    style ESP_IDF fill:#B0E0E6, color:#000000
+    style Custom_Drivers fill:#DDA0DD, color:#000000
+    style Protocol fill:#F0E68C, color:#000000
+    style Application fill:#90EE90, color:#000000
 ```
 
 ## Package Diagram - Overall System Structure
@@ -251,9 +251,9 @@ graph TB
     STM32_HAL -.->|Uses| Constants
     ESP32_IDF -.->|Uses| Constants
 
-    style STM32_Package fill:#FFE4B5
-    style ESP32_Package fill:#B0E0E6
-    style Shared_Package fill:#F0E68C
+    style STM32_Package fill:#FFE4B5, color:#000000
+    style ESP32_Package fill:#B0E0E6, color:#000000
+    style Shared_Package fill:#F0E68C, color:#000000
 ```
 
 ## Data Flow Architecture
@@ -311,10 +311,10 @@ graph LR
 
     Buffer -.->|On Reconnect<br/>Buffered Data| UARTRx
 
-    style Input fill:#90EE90
-    style STM32_Processing fill:#FFE4B5
-    style ESP32_Processing fill:#B0E0E6
-    style Output fill:#DDA0DD
+    style Input fill:#90EE90, color:#000000
+    style STM32_Processing fill:#FFE4B5, color:#000000
+    style ESP32_Processing fill:#B0E0E6, color:#000000
+    style Output fill:#DDA0DD, color:#000000
 ```
 
 ## Hardware Configuration and Pinout
@@ -385,9 +385,9 @@ graph TB
 
     ESP32_WiFi <-.->|Wireless<br/>2.4GHz| Network[WiFi Access Point<br/>SSID: Redmi Note 9 Pro<br/>Security: WPA2-PSK]
 
-    style STM32_HW fill:#FFE4B5
-    style ESP32_HW fill:#B0E0E6
-    style Peripherals_HW fill:#F0E68C
+    style STM32_HW fill:#FFE4B5, color:#000000
+    style ESP32_HW fill:#B0E0E6, color:#000000
+    style Peripherals_HW fill:#F0E68C, color:#000000
 ```
 
 ## MQTT Protocol and Topic Architecture
@@ -450,10 +450,10 @@ graph TB
     T4 -->|Subscribe| Mobile
     T5 -->|Subscribe| Mobile
 
-    style Broker fill:#87CEEB
-    style Messages fill:#FFE4B5
-    style Web fill:#90EE90
-    style Mobile fill:#98FB98
+    style Broker fill:#87CEEB, color:#000000
+    style Messages fill:#FFE4B5, color:#000000
+    style Web fill:#90EE90, color:#000000
+    style Mobile fill:#98FB98, color:#000000
 ```
 
 ## Error Handling and Recovery Strategy
@@ -521,9 +521,71 @@ graph TB
     R2 --> M4
     R3 --> M4
 
-    style Errors fill:#FF6B6B
-    style Recovery fill:#90EE90
-    style Monitoring fill:#FFD700
+    style Errors fill:#FF6B6B, color:#000000
+    style Recovery fill:#90EE90, color:#000000
+    style Monitoring fill:#FFD700, color:#000000
+```
+
+## Deployment Diagram
+
+```mermaid
+graph TB
+    subgraph Device["IoT Device - Hardware"]
+        subgraph STM32["STM32F103C8T6 - ARM Cortex-M3"]
+            STM32_FW[STM32 Firmware<br/>C, STM32 HAL<br/>Data collection & buffering]
+        end
+
+        subgraph ESP32["ESP32-WROOM-32 - Xtensa LX6"]
+            ESP32_FW[ESP32 Firmware<br/>C, ESP-IDF<br/>IoT gateway & MQTT]
+        end
+
+        subgraph Sensors["Sensors & Peripherals - I2C/SPI"]
+            SHT3X[SHT3X Sensor<br/>I2C 0x44<br/>Temp & Humidity]
+            RTC[DS3231 RTC<br/>I2C 0x68<br/>Real-time clock]
+            SD[SD Card<br/>SPI 18MHz<br/>Data buffering]
+            Display[ILI9225 TFT<br/>SPI 36MHz<br/>176x220 display]
+        end
+
+        subgraph Actuators["Actuators & Inputs - GPIO"]
+            Relay[Relay Module<br/>GPIO4<br/>Power control]
+            Buttons[4x Buttons<br/>GPIO 5,16,17,4<br/>User input]
+        end
+    end
+
+    subgraph Network["Local Network - WiFi 2.4GHz"]
+        subgraph Broker["MQTT Broker - Mosquitto"]
+            MQTT[MQTT Server<br/>v5.0 Port 1883<br/>Message broker]
+        end
+
+        subgraph Clients["Client Devices"]
+            Web[Web Dashboard<br/>Browser<br/>Monitoring UI]
+            Mobile[Mobile App<br/>MQTT Client<br/>Remote control]
+        end
+    end
+
+    STM32_FW <-->|UART 115200<br/>JSON Protocol| ESP32_FW
+    STM32_FW <-->|I2C 100kHz| SHT3X
+    STM32_FW <-->|I2C 100kHz| RTC
+    STM32_FW <-->|SPI 18MHz| SD
+    STM32_FW -->|SPI 36MHz| Display
+
+    ESP32_FW <-->|MQTT over TCP| MQTT
+    ESP32_FW -->|GPIO Control| Relay
+    Buttons -->|GPIO Interrupt| ESP32_FW
+
+    Web <-->|MQTT WebSocket| MQTT
+    Mobile <-->|MQTT over TCP| MQTT
+
+    Relay -.->|Power Control| STM32_FW
+
+    style Device fill:#FFE4B5, color:#000000
+    style STM32 fill:#FFB6C1, color:#000000
+    style ESP32 fill:#B0E0E6, color:#000000
+    style Sensors fill:#F0E68C, color:#000000
+    style Actuators fill:#DDA0DD, color:#000000
+    style Network fill:#98FB98, color:#000000
+    style Broker fill:#87CEEB, color:#000000
+    style Clients fill:#FFDAB9, color:#000000
 ```
 
 ## System Timing and Synchronization Diagram

@@ -339,68 +339,6 @@ stateDiagram-v2
     ErrorRecovery --> PowerOn : Critical error<br/>Reset required
 ```
 
-## Deployment Diagram
-
-```mermaid
-graph TB
-    subgraph Device["IoT Device - Hardware"]
-        subgraph STM32["STM32F103C8T6 - ARM Cortex-M3"]
-            STM32_FW[STM32 Firmware<br/>C, STM32 HAL<br/>Data collection & buffering]
-        end
-
-        subgraph ESP32["ESP32-WROOM-32 - Xtensa LX6"]
-            ESP32_FW[ESP32 Firmware<br/>C, ESP-IDF<br/>IoT gateway & MQTT]
-        end
-
-        subgraph Sensors["Sensors & Peripherals - I2C/SPI"]
-            SHT3X[SHT3X Sensor<br/>I2C 0x44<br/>Temp & Humidity]
-            RTC[DS3231 RTC<br/>I2C 0x68<br/>Real-time clock]
-            SD[SD Card<br/>SPI 18MHz<br/>Data buffering]
-            Display[ILI9225 TFT<br/>SPI 36MHz<br/>176x220 display]
-        end
-
-        subgraph Actuators["Actuators & Inputs - GPIO"]
-            Relay[Relay Module<br/>GPIO4<br/>Power control]
-            Buttons[4x Buttons<br/>GPIO 5,16,17,4<br/>User input]
-        end
-    end
-
-    subgraph Network["Local Network - WiFi 2.4GHz"]
-        subgraph Broker["MQTT Broker - Mosquitto"]
-            MQTT[MQTT Server<br/>v5.0 Port 1883<br/>Message broker]
-        end
-
-        subgraph Clients["Client Devices"]
-            Web[Web Dashboard<br/>Browser<br/>Monitoring UI]
-            Mobile[Mobile App<br/>MQTT Client<br/>Remote control]
-        end
-    end
-
-    STM32_FW <-->|UART 115200<br/>JSON Protocol| ESP32_FW
-    STM32_FW <-->|I2C 100kHz| SHT3X
-    STM32_FW <-->|I2C 100kHz| RTC
-    STM32_FW <-->|SPI 18MHz| SD
-    STM32_FW -->|SPI 36MHz| Display
-
-    ESP32_FW <-->|MQTT over TCP| MQTT
-    ESP32_FW -->|GPIO Control| Relay
-    Buttons -->|GPIO Interrupt| ESP32_FW
-
-    Web <-->|MQTT WebSocket| MQTT
-    Mobile <-->|MQTT over TCP| MQTT
-
-    Relay -.->|Power Control| STM32_FW
-
-    style Device fill:#FFE4B5
-    style STM32 fill:#FFB6C1
-    style ESP32 fill:#B0E0E6
-    style Sensors fill:#F0E68C
-    style Actuators fill:#DDA0DD
-    style Network fill:#98FB98
-    style Broker fill:#87CEEB
-    style Clients fill:#FFDAB9
-```
-
 ## Class Details and Specifications
 
 ### STM32 Key Classes
