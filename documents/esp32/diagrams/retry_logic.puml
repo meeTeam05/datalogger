@@ -1,0 +1,98 @@
+@startuml Retry_Logic
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam state {
+  BackgroundColor<<wifi>> #FFF3E0
+  BorderColor<<wifi>> #E65100
+  BackgroundColor<<mqtt>> #F3E5F5
+  BorderColor<<mqtt>> #6A1B9A
+  BackgroundColor<<success>> #C8E6C9
+  BorderColor<<success>> #2E7D32
+  FontSize 13
+  FontName Arial
+  ArrowColor #424242
+  ArrowThickness 2
+}
+
+title <size:18><b>Retry Logic and Error Handling</b></size>\n<size:12><i>WiFi and MQTT Connection Recovery Strategy</i></size>
+
+[*] -right-> WiFi_Retry_Logic : <color:blue><b>Start</b></color>
+
+state "WiFi Retry Strategy" as WiFi_Retry_Logic <<wifi>> {
+  state "Attempt 1" as Attempt_1 <<wifi>>
+  state "Attempt 2" as Attempt_2 <<wifi>>
+  state "Attempt 3" as Attempt_3 <<wifi>>
+  state "Attempt 4" as Attempt_4 <<wifi>>
+  state "Attempt 5" as Attempt_5 <<wifi>>
+  state "Manual Retry" as Manual_Retry <<wifi>>
+  state "WiFi Success" as WiFi_Success <<success>>
+
+  [*] -down-> Attempt_1 : <b>Initial attempt</b>
+  Attempt_1 -down-> Attempt_2 : ✗ failed\n<i>delay 2s</i>
+  Attempt_2 -down-> Attempt_3 : ✗ failed\n<i>delay 2s</i>
+  Attempt_3 -down-> Attempt_4 : ✗ failed\n<i>delay 2s</i>
+  Attempt_4 -down-> Attempt_5 : ✗ failed\n<i>delay 2s</i>
+  Attempt_5 -down-> Manual_Retry : ✗ failed\n<i>delay 2s</i>
+  Manual_Retry -up-> Attempt_1 : <b>retry</b>\n<i>(interval 5s)</i>
+
+  Attempt_1 -right-> WiFi_Success : <color:green>✓ success</color>
+  Attempt_2 -right-> WiFi_Success : <color:green>✓ success</color>
+  Attempt_3 -right-> WiFi_Success : <color:green>✓ success</color>
+  Attempt_4 -right-> WiFi_Success : <color:green>✓ success</color>
+  Attempt_5 -right-> WiFi_Success : <color:green>✓ success</color>
+
+  WiFi_Success -down-> [*]
+}
+
+WiFi_Retry_Logic -down-> MQTT_Retry_Logic : <b>WiFi established</b>
+
+state "MQTT Retry Strategy\n(Exponential Backoff)" as MQTT_Retry_Logic <<mqtt>> {
+  state "First Attempt" as First_Attempt <<mqtt>>
+  state "Retry 1" as Retry_1 <<mqtt>>
+  state "Retry 2" as Retry_2 <<mqtt>>
+  state "Retry 3" as Retry_3 <<mqtt>>
+  state "Retry 4" as Retry_4 <<mqtt>>
+  state "Retry 5" as Retry_5 <<mqtt>>
+  state "Retry Max" as Retry_Max <<mqtt>>
+  state "MQTT Success" as MQTT_Success <<success>>
+
+  [*] -down-> First_Attempt : <b>Initial attempt</b>
+  First_Attempt -down-> Retry_1 : ✗ failed\n<i>delay 1s</i>
+  Retry_1 -down-> Retry_2 : ✗ failed\n<i>delay 2s</i>
+  Retry_2 -down-> Retry_3 : ✗ failed\n<i>delay 4s</i>
+  Retry_3 -down-> Retry_4 : ✗ failed\n<i>delay 8s</i>
+  Retry_4 -down-> Retry_5 : ✗ failed\n<i>delay 16s</i>
+  Retry_5 -down-> Retry_Max : ✗ failed\n<i>delay 32s</i>
+  Retry_Max -left-> Retry_Max : ✗ failed\n<i>delay 60s max</i>
+
+  First_Attempt -right-> MQTT_Success : <color:green>✓ success</color>
+  Retry_1 -right-> MQTT_Success : <color:green>✓ success</color>
+  Retry_2 -right-> MQTT_Success : <color:green>✓ success</color>
+  Retry_3 -right-> MQTT_Success : <color:green>✓ success</color>
+  Retry_4 -right-> MQTT_Success : <color:green>✓ success</color>
+  Retry_5 -right-> MQTT_Success : <color:green>✓ success</color>
+  Retry_Max -right-> MQTT_Success : <color:green>✓ success</color>
+
+  MQTT_Success -down-> [*]
+}
+
+MQTT_Retry_Logic -down-> [*] : <color:green><b>All connections established</b></color>
+
+note right of WiFi_Retry_Logic
+  <b>WiFi Retry Policy</b>
+  • Fixed delay: 2 seconds
+  • Max auto attempts: 5
+  • Manual retry: every 5 seconds
+  • No exponential backoff
+end note
+
+note right of MQTT_Retry_Logic
+  <b>MQTT Retry Policy</b>
+  • Exponential backoff
+  • Doubles delay each retry
+  • Max delay capped at 60s
+  • Infinite retry with max delay
+end note
+
+@enduml

@@ -1,0 +1,178 @@
+@startuml Overall_State_Machine
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam state {
+    BackgroundColor<<startup>> #E1F5FF
+    BorderColor<<startup>> #01579B
+    BackgroundColor<<operating>> #E8F5E9
+    BorderColor<<operating>> #2E7D32
+    BackgroundColor<<wifi>> #FFF3E0
+    BorderColor<<wifi>> #E65100
+    BackgroundColor<<mqtt>> #F3E5F5
+    BorderColor<<mqtt>> #6A1B9A
+    BackgroundColor<<button>> #FFF9C4
+    BorderColor<<button>> #F57F17
+    BackgroundColor<<relay>> #FCE4EC
+    BorderColor<<relay>> #C2185B
+    BackgroundColor<<error>> #FFCDD2
+    BorderColor<<error>> #C62828
+    FontSize 13
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:20><b>ESP32 Complete State Machine</b></size>\n<size:12><i>Full System Lifecycle from Boot to Shutdown</i></size>
+
+[*] -right-> Startup : <color:blue><b>System Boot</b></color>
+
+state Startup <<startup>> {
+    state "Init NVS" as Init_NVS <<startup>>
+    state "Init EventLoop" as Init_EventLoop <<startup>>
+    state "Init NetIf" as Init_NetIf <<startup>>
+    state "Init WiFi" as Init_WiFi <<wifi>>
+    state "Init UART" as Init_UART <<startup>>
+    state "Init LED" as Init_LED <<startup>>
+    state "Connect WiFi" as Connect_WiFi <<wifi>>
+    state "Init Components" as Init_Components <<startup>>
+    state "Start Services" as Start_Services <<startup>>
+
+    [*] -down-> Init_NVS
+    Init_NVS -down-> Init_EventLoop : <i>NVS ready</i>
+    Init_EventLoop -down-> Init_NetIf : <i>event loop ready</i>
+    Init_NetIf -down-> Init_WiFi : <i>network ready</i>
+    Init_WiFi -down-> Init_UART : <i>WiFi configured</i>
+    Init_UART -down-> Init_LED : <i>UART ready</i>
+    Init_LED -down-> Connect_WiFi : <i>LED ready</i>
+    Connect_WiFi -down-> Init_Components : <i>WiFi connected</i>
+    Init_Components -down-> Start_Services : <i>components ready</i>
+    Start_Services -down-> [*]
+}
+
+Startup -down-> Operating : <color:green><b>✓ initialization successful</b></color>
+Startup -right-> Init_Error : <color:red><b>✗ initialization failed</b></color>
+
+state "Operating Mode" as Operating <<operating>> {
+    state "Main Loop" as Main_Loop <<operating>>
+
+    [*] -down-> Main_Loop
+
+    state "Main Loop Control" as Main_Loop <<operating>> {
+        state "Check WiFi" as Check_WiFi <<wifi>>
+        state "Manage MQTT" as Manage_MQTT <<mqtt>>
+        state "Process Events" as Process_Events <<operating>>
+        state "Delay 100ms" as Delay_100ms <<operating>>
+
+        [*] -down-> Check_WiFi
+        Check_WiFi -right-> Manage_MQTT : <i>WiFi status checked</i>
+        Manage_MQTT -down-> Process_Events : <i>MQTT managed</i>
+        Process_Events -down-> Delay_100ms : <i>events processed</i>
+        Delay_100ms -left-> Check_WiFi : <i>wait complete</i>
+    }
+
+    Main_Loop -down-> WiFi_States : <b>WiFi event</b>
+    Main_Loop -down-> MQTT_States : <b>MQTT event</b>
+    Main_Loop -down-> Button_States : <b>Button event</b>
+    Main_Loop -down-> Relay_States : <b>Relay event</b>
+
+    state "WiFi Connection States" as WiFi_States <<wifi>> {
+        state "Disconnected" as Disconnected <<wifi>>
+        state "Connecting" as Connecting <<wifi>>
+        state "Connected" as Connected <<wifi>>
+        state "Failed" as Failed <<wifi>>
+
+        [*] -down-> Disconnected
+        Disconnected -right-> Connecting : retry
+        Connecting -right-> Connected : ✓ success
+        Connecting -down-> Failed : ✗ max retries
+        Connected -down-> Disconnected : lost connection
+        Failed -left-> Connecting : manual retry
+    }
+
+    state "MQTT Connection States" as MQTT_States <<mqtt>> {
+        state "MQTT Disconnected" as MQTT_Disconnected <<mqtt>>
+        state "MQTT Connecting" as MQTT_Connecting <<mqtt>>
+        state "MQTT Connected" as MQTT_Connected <<mqtt>>
+
+        [*] -down-> MQTT_Disconnected
+        MQTT_Disconnected -right-> MQTT_Connecting : WiFi stable\n<i>(4s wait)</i>
+        MQTT_Connecting -right-> MQTT_Connected : ✓ broker connected
+        MQTT_Connecting -down-> MQTT_Disconnected : ✗ failed
+        MQTT_Connected -down-> MQTT_Disconnected : WiFi lost
+    }
+
+    state "Button Processing States" as Button_States <<button>> {
+        state "Button Idle" as Button_Idle <<button>>
+        state "Button Pressed" as Button_Pressed <<button>>
+        state "Button Debounce" as Button_Debounce <<button>>
+        state "Button Released" as Button_Released <<button>>
+        state "Button Process" as Button_Process <<button>>
+
+        [*] -down-> Button_Idle
+        Button_Idle -right-> Button_Pressed : interrupt
+        Button_Pressed -down-> Button_Debounce : 50ms wait
+        Button_Debounce -down-> Button_Released : confirm release
+        Button_Released -down-> Button_Process : execute action
+        Button_Process -left-> Button_Idle : <i>action complete</i>
+    }
+
+    state "Relay Control States" as Relay_States <<relay>> {
+        state "Relay OFF" as Relay_OFF <<relay>>
+        state "Relay ON" as Relay_ON <<relay>>
+        state "State Update" as State_Update <<relay>>
+        state "MQTT Publish" as MQTT_Publish <<mqtt>>
+
+        [*] -down-> Relay_OFF
+        Relay_OFF -right-> Relay_ON : command/button
+        Relay_ON -left-> Relay_OFF : command/button
+        Relay_ON -down-> State_Update : state change
+        Relay_OFF -down-> State_Update : state change
+        State_Update -right-> MQTT_Publish : if connected
+        MQTT_Publish -down-> [*] : <i>published</i>
+    }
+
+    WiFi_States -up-> Main_Loop : <i>event handled</i>
+    MQTT_States -up-> Main_Loop : <i>event handled</i>
+    Button_States -up-> Main_Loop : <i>event handled</i>
+    Relay_States -up-> Main_Loop : <i>event handled</i>
+}
+
+state "Init Error" as Init_Error <<error>>
+state "Restart" as Restart <<error>>
+
+Init_Error -down-> Restart : <b>ESP32 restart</b>\n<i>recovery attempt</i>
+Restart -down-> [*]
+
+Operating -down-> [*] : <color:red><b>system shutdown</b></color>
+
+note right of Startup
+    <b>Startup Sequence</b>
+    1. Initialize core services
+    2. Configure peripherals
+    3. Establish WiFi connection
+    4. Initialize components
+    5. Start runtime services
+end note
+
+note right of Operating
+    <b>Operating Mode</b>
+    • Event-driven architecture
+    • 100ms main loop cycle
+    • Multi-state management
+    • Automatic recovery
+    • Real-time processing
+end note
+
+legend right
+|= Color |= Component |
+|<#E1F5FF> | Startup/Initialization |
+|<#E8F5E9> | Operating/Runtime |
+|<#FFF3E0> | WiFi Management |
+|<#F3E5F5> | MQTT Protocol |
+|<#FFF9C4> | Button Input |
+|<#FCE4EC> | Relay Control |
+|<#FFCDD2> | Error Handling |
+endlegend
+
+@enduml

@@ -1,0 +1,116 @@
+@startuml Configuration_Constants
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam class {
+    BackgroundColor<<config>> #E1F5FF
+    BorderColor<<config>> #01579B
+    FontSize 13
+    FontName Arial
+}
+
+title <size:18><b>System Configuration Constants</b></size>\n<size:12><i>Hardware and Protocol Configuration Parameters</i></size>
+
+class WiFi_Config <<config>> {
+    <b>== Connection Settings ==</b>
+    +SSID : "WiFi network name"
+    +Password : "WiFi password"
+    +Max_Retry : 5
+    +Connection_Timeout : 10000 ms
+    +Retry_Interval : 2000 ms
+    +Manual_Retry_Interval : 5000 ms
+}
+
+class MQTT_Config <<config>> {
+    <b>== Broker Settings ==</b>
+    +Broker_URI : "MQTT broker address and port"
+    +Client_ID : "Unique client identifier"
+    +Username : "Authentication username"
+    +Password : "Authentication password"
+
+    <b>== Protocol Settings ==</b>
+    +Protocol_Version : MQTT v5.0
+    +Keepalive : 60 s
+    +Reconnect_Backoff : min(60s, 2^retry)
+}
+
+class UART_Config <<config>> {
+    <b>== Serial Port Settings ==</b>
+    +Port : UART_NUM_1
+    +Baud_Rate : 115200
+    +TX_Pin : GPIO_NUM_17
+    +RX_Pin : GPIO_NUM_16
+
+    <b>== Buffer Settings ==</b>
+    +RX_Buffer_Size : 1024 bytes
+    +Line_Max_Length : 128 bytes
+}
+
+class Relay_Config <<config>> {
+    <b>== GPIO Settings ==</b>
+    +GPIO : GPIO_NUM_4
+    +Active_Level : HIGH
+
+    <b>== Timing ==</b>
+    +STM32_Boot_Delay : 500 ms
+}
+
+class Button_Config <<config>> {
+    <b>== GPIO Assignments ==</b>
+    +Relay_Button : GPIO_NUM_5
+    +Single_Button : GPIO_NUM_16
+    +Periodic_Button : GPIO_NUM_17
+    +Interval_Button : GPIO_NUM_4
+
+    <b>== Debounce ==</b>
+    +Debounce_Time : 200 ms
+}
+
+class LED_Config <<config>> {
+    <b>== Indicator LEDs ==</b>
+    +WiFi_LED : GPIO_Configurable
+    +MQTT_LED : GPIO_Configurable
+    +Active_Level : HIGH
+}
+
+class Timing_Config <<config>> {
+    <b>== System Delays ==</b>
+    +WiFi_Stabilization_Delay : 4000 ms
+    +Main_Loop_Delay : 100 ms
+    +Status_Log_Interval : 30000 ms
+    +Button_Debounce_Time : 50 ms
+    +STM32_Boot_Wait : 500 ms
+}
+
+WiFi_Config -[hidden]down- MQTT_Config
+MQTT_Config -[hidden]down- UART_Config
+UART_Config -[hidden]down- Relay_Config
+Relay_Config -[hidden]down- Button_Config
+Button_Config -[hidden]down- LED_Config
+LED_Config -[hidden]down- Timing_Config
+
+note top of WiFi_Config
+    <b>WiFi Configuration</b>
+    Standard 802.11 WiFi settings
+    with automatic reconnection
+end note
+
+note top of MQTT_Config
+    <b>MQTT Broker Configuration</b>
+    Connection parameters with
+    exponential backoff retry
+end note
+
+note top of UART_Config
+    <b>STM32 Communication</b>
+    Serial communication parameters
+    for sensor data exchange
+end note
+
+note bottom of Timing_Config
+    <b>System Timing Parameters</b>
+    All timing constants in milliseconds
+    for predictable system behavior
+end note
+
+@enduml

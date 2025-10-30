@@ -1,0 +1,296 @@
+@startuml Overall_System_Class_Diagram
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam class {
+    BackgroundColor<<main>> #E3F2FD
+    BorderColor<<main>> #1565C0
+    BackgroundColor<<wifi>> #FFF3E0
+    BorderColor<<wifi>> #E65100
+    BackgroundColor<<uart>> #E8F5E9
+    BorderColor<<uart>> #2E7D32
+    BackgroundColor<<mqtt>> #F3E5F5
+    BorderColor<<mqtt>> #6A1B9A
+    BackgroundColor<<relay>> #FCE4EC
+    BorderColor<<relay>> #C2185B
+    BackgroundColor<<parser>> #FFF9C4
+    BorderColor<<parser>> #F57F17
+    BackgroundColor<<button>> #E0F2F1
+    BorderColor<<button>> #00695C
+    BackgroundColor<<utils>> #F3E5F5
+    BorderColor<<utils>> #4A148C
+    BackgroundColor<<enum>> #ECEFF1
+    BorderColor<<enum>> #455A64
+    BackgroundColor<<struct>> #FFF8E1
+    BorderColor<<struct>> #F57C00
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 1.5
+}
+
+title <size:18><b>ESP32 Overall System Class Diagram</b></size>\n<size:12><i>IoT Device Architecture with WiFi, MQTT, UART and Sensor Integration</i></size>
+
+class main <<main>> {
+    <b>== Global Objects ==</b>
+    +wifi_manager_t g_wifi_manager
+    +stm32_uart_t g_stm32_uart
+    +mqtt_handler_t g_mqtt_handler
+    +relay_control_t g_relay
+    +json_sensor_parser_t g_json_parser
+
+    <b>== State Variables ==</b>
+    +bool g_device_on
+    +bool g_periodic_active
+    +bool mqtt_current_state
+    +uint8_t g_interval_index
+    +bool mqtt_reconnected
+    +int64_t wifi_reconnect_time_us
+
+    <b>== Initialization ==</b>
+    +app_main() : void
+    +initialize_components() : void
+    +start_services() : void
+
+    <b>== State Management ==</b>
+    +create_state_message(char*, size_t) : int
+    +publish_current_state() : void
+    +update_and_publish_state(bool, bool) : void
+
+    <b>== Event Callbacks ==</b>
+    +on_wifi_event(wifi_state_t, void*) : void
+    +on_stm32_data_received(const char*) : void
+    +on_mqtt_data_received(const char*, const char*, int) : void
+    +on_single_sensor_data(const sensor_data_t*) : void
+    +on_periodic_sensor_data(const sensor_data_t*) : void
+    +on_relay_state_changed(bool) : void
+    +on_button_relay_pressed(gpio_num_t) : void
+    +on_button_single_pressed(gpio_num_t) : void
+    +on_button_periodic_pressed(gpio_num_t) : void
+    +on_button_interval_pressed(gpio_num_t) : void
+}
+
+class WiFiManager <<wifi>> {
+    <b>== Private Members ==</b>
+    -wifi_state_t current_state
+    -uint8_t retry_count
+    -wifi_event_callback_t callback
+    -void* callback_arg
+
+    <b>== Public Methods ==</b>
+    +WiFi_Init(wifi_manager_config_t*) : bool
+    +WiFi_Connect() : bool
+    +WiFi_Disconnect() : bool
+    +WiFi_GetState() : wifi_state_t
+    +WiFi_IsConnected() : bool
+    +WiFi_GetIPInfo(esp_netif_ip_info_t*) : bool
+    +WiFi_GetRSSI(int8_t*) : bool
+    +WiFi_GetStateString(wifi_state_t) : const char*
+    +WiFi_SetPowerSave(bool) : bool
+    +WiFi_Deinit() : void
+}
+
+class wifi_manager_config_t <<struct>> {
+    +const char* ssid
+    +const char* password
+    +uint8_t maximum_retry
+    +uint8_t scan_method
+    +uint8_t sort_method
+    +int8_t rssi_threshold
+    +wifi_auth_mode_t auth_mode_threshold
+    +uint16_t listen_interval
+    +bool power_save_enabled
+    +wifi_ps_type_t power_save_mode
+    +bool ipv6_enabled
+    +uint32_t connection_timeout_ms
+    +wifi_event_callback_t event_callback
+    +void* callback_arg
+}
+
+enum wifi_state_t <<enum>> {
+    WIFI_STATE_DISCONNECTED
+    WIFI_STATE_CONNECTING
+    WIFI_STATE_CONNECTED
+    WIFI_STATE_FAILED
+}
+
+class STM32_UART <<uart>> {
+    <b>== Private Members ==</b>
+    -int uart_num
+    -int baud_rate
+    -int tx_pin
+    -int rx_pin
+    -ring_buffer_t rx_buffer
+    -stm32_data_callback_t data_callback
+    -bool initialized
+
+    <b>== Public Methods ==</b>
+    +STM32_UART_Init(stm32_uart_t*, int, int, int, int, stm32_data_callback_t) : bool
+    +STM32_UART_SendCommand(stm32_uart_t*, const char*) : bool
+    +STM32_UART_ProcessData(stm32_uart_t*) : void
+    +STM32_UART_StartTask(stm32_uart_t*) : bool
+    +STM32_UART_Deinit(stm32_uart_t*) : void
+}
+
+class RingBuffer <<uart>> {
+    <b>== Private Members ==</b>
+    -uint8_t* buffer
+    -size_t size
+    -size_t head
+    -size_t tail
+    -size_t count
+
+    <b>== Public Methods ==</b>
+    +RingBuffer_Init(ring_buffer_t*, size_t) : bool
+    +RingBuffer_Write(ring_buffer_t*, const uint8_t*, size_t) : bool
+    +RingBuffer_Read(ring_buffer_t*, uint8_t*, size_t) : size_t
+    +RingBuffer_Available(ring_buffer_t*) : size_t
+    +RingBuffer_IsFull(ring_buffer_t*) : bool
+    +RingBuffer_IsEmpty(ring_buffer_t*) : bool
+    +RingBuffer_Clear(ring_buffer_t*) : void
+    +RingBuffer_Free(ring_buffer_t*) : void
+}
+
+class MQTT_Handler <<mqtt>> {
+    <b>== Private Members ==</b>
+    -esp_mqtt_client_handle_t client
+    -mqtt_data_callback_t callback
+    -bool connected
+    -int retry_count
+
+    <b>== Public Methods ==</b>
+    +MQTT_Handler_Init(mqtt_handler_t*, const char*, const char*, const char*, const char*, mqtt_data_callback_t) : bool
+    +MQTT_Handler_Start(mqtt_handler_t*) : bool
+    +MQTT_Handler_Stop(mqtt_handler_t*) : bool
+    +MQTT_Handler_Subscribe(mqtt_handler_t*, const char*, int) : bool
+    +MQTT_Handler_Publish(mqtt_handler_t*, const char*, const char*, int, bool) : bool
+    +MQTT_Handler_IsConnected(mqtt_handler_t*) : bool
+    +MQTT_Handler_Deinit(mqtt_handler_t*) : void
+}
+
+class Relay_Control <<relay>> {
+    <b>== Private Members ==</b>
+    -int gpio_num
+    -bool state
+    -bool initialized
+    -relay_state_callback_t state_callback
+
+    <b>== Public Methods ==</b>
+    +Relay_Init(relay_control_t*, int, relay_state_callback_t) : bool
+    +Relay_SetState(relay_control_t*, bool) : bool
+    +Relay_GetState(relay_control_t*) : bool
+    +Relay_Toggle(relay_control_t*) : bool
+    +Relay_ProcessCommand(relay_control_t*, const char*) : bool
+    +Relay_Deinit(relay_control_t*) : void
+}
+
+class JSON_Sensor_Parser <<parser>> {
+    <b>== Private Members ==</b>
+    -sensor_data_callback_t single_callback
+    -sensor_data_callback_t periodic_callback
+    -sensor_data_callback_t error_callback
+
+    <b>== Public Methods ==</b>
+    +JSON_Parser_Init(json_sensor_parser_t*, sensor_data_callback_t, sensor_data_callback_t, sensor_data_callback_t) : bool
+    +JSON_Parser_ParseLine(json_sensor_parser_t*, const char*) : sensor_data_t
+    +JSON_Parser_ProcessLine(json_sensor_parser_t*, const char*) : bool
+    +JSON_Parser_GetMode(const char*) : sensor_mode_t
+    +JSON_Parser_GetModeString(sensor_mode_t) : const char*
+    +JSON_Parser_IsValid(const sensor_data_t*) : bool
+    +JSON_Parser_IsSensorFailed(const sensor_data_t*) : bool
+    +JSON_Parser_IsRTCFailed(const sensor_data_t*) : bool
+}
+
+class sensor_data_t <<struct>> {
+    +sensor_mode_t mode
+    +uint32_t timestamp
+    +bool valid
+    +bool has_temperature
+    +float temperature
+    +bool has_humidity
+    +float humidity
+}
+
+enum sensor_mode_t <<enum>> {
+    SENSOR_MODE_UNKNOWN
+    SENSOR_MODE_SINGLE
+    SENSOR_MODE_PERIODIC
+}
+
+class JSON_Utils <<utils>> {
+    <b>== Static Utility Methods ==</b>
+    +{static} JSON_Utils_CreateSensorData(char*, size_t, const char*, uint32_t, float, float) : int
+    +{static} JSON_Utils_CreateSystemState(char*, size_t, bool, bool, uint64_t) : int
+    +{static} JSON_Utils_CreateSimpleMessage(char*, size_t, const char*, const char*) : int
+    +{static} JSON_Utils_CreateIntMessage(char*, size_t, const char*, int) : int
+    +{static} JSON_Utils_FormatFloat(char*, size_t, float, int) : const char*
+    +{static} JSON_Utils_EscapeString(char*, size_t, const char*) : int
+}
+
+class Button_Handler <<button>> {
+    <b>== Private Members ==</b>
+    -gpio_num_t gpio_num
+    -button_press_callback_t callback
+    -uint32_t last_press_time
+    -bool initialized
+
+    <b>== Public Methods ==</b>
+    +Button_Init(gpio_num_t, button_press_callback_t) : bool
+    +Button_StartTask() : bool
+    +Button_StopTask() : void
+}
+
+' Relationships
+main --> WiFiManager : uses
+main --> STM32_UART : uses
+main --> MQTT_Handler : uses
+main --> Relay_Control : uses
+main --> JSON_Sensor_Parser : uses
+main --> Button_Handler : uses
+main --> JSON_Utils : uses
+
+WiFiManager --> wifi_manager_config_t : configured by
+WiFiManager ..> wifi_state_t : returns
+
+STM32_UART *-- RingBuffer : contains
+
+JSON_Sensor_Parser --> sensor_data_t : creates
+JSON_Sensor_Parser ..> sensor_mode_t : uses
+JSON_Sensor_Parser ..> JSON_Utils : may use
+
+main ..> sensor_data_t : processes
+
+note right of main
+    <b>Main Application Controller</b>
+    • Initializes all system components
+    • Manages event-driven callbacks
+    • Coordinates WiFi, MQTT, UART comm
+    • Handles button inputs and relay control
+    • Publishes sensor data to MQTT broker
+end note
+
+note right of WiFiManager
+    <b>WiFi Connection Manager</b>
+    • Automatic reconnection with retry logic
+    • Connection state monitoring
+    • Power save mode support
+    • RSSI and IP info retrieval
+end note
+
+note right of MQTT_Handler
+    <b>MQTT Protocol Handler</b>
+    • MQTT v5.0 support
+    • Pub/Sub messaging
+    • Auto-reconnect with backoff
+    • QoS level management
+end note
+
+note bottom of JSON_Sensor_Parser
+    <b>Sensor Data Parser</b>
+    • Parses JSON from STM32 UART
+    • Validates sensor readings
+    • Supports single & periodic modes
+    • Error detection (sensor/RTC failures)
+end note
+
+@enduml

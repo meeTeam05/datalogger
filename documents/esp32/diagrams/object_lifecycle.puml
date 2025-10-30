@@ -46,7 +46,7 @@ state Initialized <<init>> {
         state "Connected" as WiFi_Connected <<wifi>>
         state "Disconnected" as WiFi_Disconnected <<wifi>>
         state "Failed" as WiFi_Failed <<wifi>>
-        
+
         WiFi_Init -down-> WiFi_Connecting : <b>WiFi_Connect()</b>
         WiFi_Connecting -right-> WiFi_Connected : ✓ connection\nsuccessful
         WiFi_Connecting -down-> WiFi_Failed : ✗ max retries\nreached
@@ -60,7 +60,7 @@ state Initialized <<init>> {
         state "Relay Initialized" as Relay_Initialized <<relay>>
         state "Parser Initialized" as Parser_Initialized <<init>>
         state "Buttons Initialized" as Buttons_Initialized <<init>>
-        
+
         Components_Init -down-> MQTT_Initialized
         Components_Init -down-> Relay_Initialized
         Components_Init -down-> Parser_Initialized
@@ -71,7 +71,7 @@ state Initialized <<init>> {
         state "MQTT Connecting" as MQTT_Connecting <<mqtt>>
         state "MQTT Connected" as MQTT_Connected <<mqtt>>
         state "MQTT Disconnected" as MQTT_Disconnected <<mqtt>>
-        
+
         MQTT_Initialized -down-> MQTT_Connecting : WiFi stable\n<i>(4s wait)</i>
         MQTT_Connecting -right-> MQTT_Connected : ✓ broker\nconnected
         MQTT_Connecting -down-> MQTT_Disconnected : ✗ connection\nfailed
@@ -82,7 +82,7 @@ state Initialized <<init>> {
     state "Relay Control" as RelayStates <<relay>> {
         state "Relay OFF" as Relay_OFF <<relay>>
         state "Relay ON" as Relay_ON <<relay>>
-        
+
         Relay_Initialized -down-> Relay_OFF
         Relay_OFF -right-> Relay_ON : <b>Relay_SetState(true)</b>
         Relay_ON -left-> Relay_OFF : <b>Relay_SetState(false)</b>
@@ -95,7 +95,7 @@ state Running <<running>> {
     state "Main Loop" as Main_Loop <<running>>
     state "Monitor WiFi" as Monitor_WiFi <<wifi>>
     state "Check MQTT" as Check_MQTT <<mqtt>>
-    
+
     [*] -down-> Main_Loop
     Main_Loop -right-> Monitor_WiFi
     Monitor_WiFi -down-> Check_MQTT
@@ -109,9 +109,9 @@ state Running <<running>> {
         state "UART Event" as UART_Event <<init>>
         state "Button Event" as Button_Event <<init>>
         state "Relay Event" as Relay_Event <<relay>>
-        
+
         [*] -down-> Wait_Event
-        
+
         Wait_Event -down-> WiFi_Event : WiFi state\nchange
         Wait_Event -down-> MQTT_Event : MQTT\nmessage
         Wait_Event -down-> UART_Event : STM32\ndata
@@ -129,19 +129,19 @@ state Running <<running>> {
 Running -down-> [*] : <color:red><b>system shutdown</b></color>
 
 note right of Initialized
-  <b>Initialization Phase</b>
-  • NVS, Event Loop, NetIf setup
-  • WiFi and UART configuration
-  • Component initialization
-  • Service startup
+    <b>Initialization Phase</b>
+    • NVS, Event Loop, NetIf setup
+    • WiFi and UART configuration
+    • Component initialization
+    • Service startup
 end note
 
 note right of Running
-  <b>Runtime Phase</b>
-  • Continuous monitoring
-  • Event-driven processing
-  • State management
-  • Error recovery
+    <b>Runtime Phase</b>
+    • Continuous monitoring
+    • Event-driven processing
+    • State management
+    • Error recovery
 end note
 
 @enduml
