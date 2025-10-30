@@ -1,0 +1,94 @@
+@startuml Error_Recovery_Sensor_Failure
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title <size:16><b>Error Recovery - Sensor Failure Detection</b></size>\n<size:12><i>Graceful Degradation with Auto-Recovery</i></size>
+
+participant "STM32" as STM32
+participant "SHT3X\nSensor" as SHT3X
+participant "ILI9225\nDisplay" as Display
+participant "UART Link" as UART
+participant "ESP32" as ESP32
+participant "MQTT\nBroker" as MQTT
+participant "Web\nInterface" as Web
+
+note over STM32 #FFD700: Single/Periodic measurement requested
+
+STM32 -> SHT3X: I2C Read measurement
+activate SHT3X
+
+alt I2C Timeout/NACK
+    SHT3X --> STM32: HAL_TIMEOUT / HAL_ERROR
+    STM32 -> STM32: Log: I2C communication failed
+    STM32 -> STM32: Set temp=0.0, hum=0.0
+    note right of STM32 #FF6B6B: Hardware communication error
+
+else CRC Check Failed
+    SHT3X -> STM32: Data received
+    STM32 -> STM32: Validate CRC
+    STM32 -> STM32: CRC mismatch detected
+    STM32 -> STM32: Set temp=0.0, hum=0.0
+    note right of STM32 #FF6B6B: Data corruption detected
+
+else Sensor Disconnected
+    SHT3X --> STM32: No response
+    STM32 -> STM32: Set temp=0.0, hum=0.0
+    note right of STM32 #FF6B6B: Sensor not responding
+end
+deactivate SHT3X
+
+STM32 -> STM32: DataManager_Update (with 0.0 values)
+STM32 -> Display: Show error indicator:\ntemp=0.0, hum=0.0
+activate Display
+Display -> Display: Display shows "Sensor Error"\nor red values
+deactivate Display
+
+alt MQTT Connected
+    STM32 -> STM32: Format JSON with error values
+    note right of STM32: {"mode":"SINGLE","timestamp":1729699200,\n"temperature":0.0,"humidity":0.0}
+
+    STM32 -> UART: Transmit error JSON
+    activate UART
+    UART -> ESP32: Data received
+    deactivate UART
+
+    activate ESP32
+    ESP32 -> ESP32: Parse JSON
+    ESP32 -> ESP32: JSON_Parser_IsSensorFailed()\nreturns true
+    ESP32 -> ESP32: Log: Sensor failure detected
+
+    ESP32 -> MQTT: Publish error data
+    activate MQTT
+    MQTT -> Web: Forward
+    deactivate MQTT
+
+    Web -> Web: Display error state
+    Web -> Web: Show alert:\n"Sensor communication error"
+    deactivate ESP32
+
+else MQTT Disconnected
+    STM32 -> STM32: Buffer error data to SD
+    note over STM32 #FF6B6B: Error records also buffered
+end
+
+note over STM32 #FFD700: System continues operation
+
+STM32 -> STM32: Next measurement cycle
+STM32 -> SHT3X: Retry I2C communication
+
+alt Sensor Recovered
+    activate SHT3X
+    SHT3X -> STM32: Valid data
+    deactivate SHT3X
+    STM32 -> STM32: Parse valid temp & humidity
+    STM32 -> Display: Clear error indicator
+    STM32 -> STM32: Resume normal operation
+    note over STM32, Web #87CEEB: <b>System automatically recovered</b>
+
+else Sensor Still Failed
+    STM32 -> STM32: Continue with 0.0 values
+    note over STM32 #FFD700: Retry on each measurement
+end
+
+@enduml

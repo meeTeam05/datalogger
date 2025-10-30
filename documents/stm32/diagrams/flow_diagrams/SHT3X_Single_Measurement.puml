@@ -1,0 +1,62 @@
+@startuml SHT3X_Single_Measurement
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    StartColor #4CAF50
+    EndColor #F44336
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>SHT3X Single Measurement Flow</b></size>\n<size:12><i>One-shot Temperature & Humidity Reading</i></size>
+
+start
+:<b>SINGLE_PARSER</b>;
+
+if (argc == 1?) then (yes)
+    :Set Repeatability = HIGH
+    <i>(Maximum precision)</i>;
+    
+    :Send I2C Command
+    <i>(0x2400 for high repeat)</i>;
+    
+    :HAL_Delay Based on Repeatability
+    <i>(15ms for high)</i>;
+    
+    :I2C Read 6 Bytes
+    <i>(Temp + CRC + Hum + CRC)</i>;
+    
+    if (I2C Success?) then (yes)
+        if (CRC Valid?) then (yes)
+            :Parse Raw Temperature
+            <i>(-45 to +130°C)</i>;
+            :Parse Raw Humidity
+            <i>(0 to 100% RH)</i>;
+            :Store in sht3x_t Structure;
+        else (no)
+            :Set temp=0.0, hum=0.0
+            <i>(CRC error)</i>|#FFB74D;
+        endif
+    else (no)
+        :Set temp=0.0, hum=0.0
+        <i>(I2C timeout)</i>|#FFB74D;
+    endif
+    
+    :DataManager_UpdateSingle|#FF6B6B;
+    :Set data_ready Flag;
+    :<b>Return OK</b>;
+    
+else (no)
+    :<b>Invalid arguments</b>;
+endif
+
+stop
+
+@enduml

@@ -1,0 +1,73 @@
+@startuml Periodic_Fetch_Decision
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    StartColor #4CAF50
+    EndColor #F44336
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>Periodic Data Fetch Decision Flow</b></size>\n<size:12><i>Timed Sensor Reading in Main Loop</i></size>
+
+start
+:<b>Main Loop Iteration</b>;
+
+if (In Periodic\nState?) then (yes)
+    :now = HAL_GetTick
+    <i>(Get current ms)</i>;
+
+    if (now >=\nnext_fetch_ms?) then (yes)
+        if (now ==\nlast_fetch_ms?) then (yes)
+            :Skip Fetch
+            <i>(Duplicate prevention)</i>|#FFB74D;
+            stop
+        else (no)
+            :SHT3X_FetchData
+            <i>(Read from sensor)</i>;
+
+            :I2C Read Data
+            <i>(0xE000 fetch command)</i>;
+
+            if (I2C Success?) then (yes)
+                :Parse Temperature
+                <i>(16-bit raw → °C)</i>;
+                :Parse Humidity
+                <i>(16-bit raw → %RH)</i>;
+
+                :DataManager_UpdatePeriodic|#FF6B6B;
+
+                :Toggle PC13 LED
+                <i>(Visual indicator)</i>;
+
+                :last_fetch_ms = now
+                <i>(Record time)</i>;
+
+                :next_fetch_ms = now + interval
+                <i>(Schedule next)</i>;
+
+            else (no)
+                :Skip Fetch
+                <i>(I2C error)</i>|#FFB74D;
+            endif
+        endif
+    else (no)
+        :Skip Fetch
+        <i>(Not time yet)</i>;
+    endif
+else (no)
+    :Skip Fetch
+    <i>(Not in periodic mode)</i>;
+endif
+
+:Continue Main Loop;
+stop
+
+@enduml

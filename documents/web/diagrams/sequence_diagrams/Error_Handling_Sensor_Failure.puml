@@ -1,0 +1,81 @@
+@startuml Error_Handling_Sensor_Failure
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title Error Handling - Sensor Failure Sequence
+
+participant "STM32" as STM32
+participant "SHT31" as SHT31
+participant "DS3231" as DS3231
+participant "ESP32" as ESP32
+participant "MQTT Broker" as MQTT
+participant "app.js" as AppJS
+participant "Firebase" as Firebase
+participant "Browser" as Browser
+
+note over STM32: Periodic measurement triggered
+activate STM32
+STM32 -> SHT31: I2C read request
+activate SHT31
+
+alt Sensor Disconnected/Failed
+    SHT31 --> STM32: No response / NACK
+    deactivate SHT31
+
+    STM32 -> STM32: Detect I2C error\nSet temp = 0.0, humi = 0.0
+
+    STM32 -> DS3231: I2C read RTC (still works)
+    activate DS3231
+    DS3231 --> STM32: Valid timestamp
+    deactivate DS3231
+
+    STM32 -> STM32: Format JSON\n{"temperature":0.0,"humidity":0.0,"timestamp":X}
+
+    STM32 -> ESP32: UART transmit error JSON
+    deactivate STM32
+    activate ESP32
+    ESP32 -> MQTT: Publish(periodicData)
+    deactivate ESP32
+    activate MQTT
+    MQTT -> AppJS: Forward message
+    deactivate MQTT
+    activate AppJS
+
+    AppJS -> AppJS: Parse JSON
+    AppJS -> AppJS: Check: temp == 0.0 && humi == 0.0
+
+    AppJS -> AppJS: sensorFailed = true
+    AppJS -> AppJS: addStatus("ERROR: SHT31 sensor hardware failed\n(disconnected or wiring issue)")
+    AppJS -> AppJS: addStatus("WARNING: Sensor hardware failed")
+
+    AppJS -> AppJS: updateComponentHealth(SHT31, false)
+    AppJS -> AppJS: componentHealth.SHT31.healthy = false\nerrorCount++
+
+    AppJS -> Browser: Update component card\n#component-SHT31
+    activate Browser
+    AppJS -> Browser: Badge: disconnected "Error"
+    AppJS -> Browser: #sht31-temp = "Sensor Failed"\n#sht31-humi = "Check Wiring"\n#sht31-time = "Error"
+    deactivate Browser
+
+    AppJS -> AppJS: Save to Firebase\nstatus = "error"\nerror = "sensor_fail"
+
+    AppJS -> Firebase: Save record with error flag
+    activate Firebase
+    Firebase --> AppJS: Write complete
+    deactivate Firebase
+
+    AppJS -> AppJS: Skip chart update\n(Don't push 0 values)
+
+    AppJS -> AppJS: addToLiveDataTable\nstatus = "error"
+    AppJS -> Browser: Render error row\nRed badge "✗ Error"
+    activate Browser
+    deactivate Browser
+
+    AppJS -> Browser: Console shows error logs
+    activate Browser
+    deactivate Browser
+    deactivate AppJS
+end
+
+@enduml

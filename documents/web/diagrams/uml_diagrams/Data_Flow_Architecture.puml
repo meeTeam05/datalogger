@@ -1,0 +1,110 @@
+@startuml Data_Flow_Architecture
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam component {
+    BackgroundColor<<input>> #10B981
+    BorderColor<<input>> #059669
+    BackgroundColor<<processing>> #06B6D4
+    BorderColor<<processing>> #0891B2
+    BackgroundColor<<storage>> #F97316
+    BorderColor<<storage>> #EA580C
+    BackgroundColor<<output>> #8B5CF6
+    BorderColor<<output>> #7C3AED
+    FontSize 10
+    FontName Arial
+}
+
+title <size:18><b>Data Flow Architecture</b></size>\n<size:12><i>Unidirectional Data Flow</i></size>
+
+package "Data Input Sources" <<input>> {
+    component [MQTT Messages\nsingleData\nperiodicData\nsystemState] as MQTT_In
+    component [Firebase Queries\nLoad History\nLoad Filtered Data] as Firebase_Load
+    component [User Actions\nButton Clicks\nForm Inputs\nTime Settings] as User_Input
+}
+
+package "Processing Layer" <<processing>> {
+    component [handleMQTTMessage\nParse JSON\nValidate Data\nCheck Status] as MessageHandler
+    
+    component [Data Validation\nSensor Check\nRTC Check\nError Detection] as DataValidator
+    
+    component [State Updates\nUpdate Global Vars\nUpdate Component Health\nSync UI State] as StateUpdater
+    
+    component [Data Aggregation\nPush to Arrays\nCalculate Stats\nApply Filters] as DataAggregator
+}
+
+package "Data Storage" <<storage>> {
+    component [In-Memory Storage\ntemperatureData\nhumidityData\nlogBuffer\nliveDataBuffer\nfilteredDataCache] as Memory
+    
+    component [Firebase Database\nreadings/date/id\nPersistent Storage] as Firebase_Save
+    
+    component [Browser LocalStorage\nSettings\nPreferences] as LocalStorage
+}
+
+package "Data Output Destinations" <<output>> {
+    component [Chart.js Visualization\nLine Charts\nAnimated Updates] as Charts
+    
+    component [HTML Tables\nLive Data Table\nData Management Table] as Tables
+    
+    component [Console Display\nLog Preview\nFull Console] as Console_Log
+    
+    component [UI Updates\nCurrent Display\nStatus Badges\nComponent Cards] as UI_Updates
+    
+    component [Data Exports\nCSV Downloads\nLog Exports] as Exports
+}
+
+MQTT_In --> MessageHandler
+Firebase_Load --> DataAggregator
+User_Input --> StateUpdater
+
+MessageHandler --> DataValidator
+DataValidator --> StateUpdater
+StateUpdater --> DataAggregator
+
+DataAggregator --> Memory
+DataAggregator --> Firebase_Save
+StateUpdater --> LocalStorage
+
+Memory --> Charts
+Memory --> Tables
+Memory --> Console_Log
+Memory --> UI_Updates
+Memory --> Exports
+
+Firebase_Save .up.> Firebase_Load : Sync
+
+note right of MQTT_In
+    <b>Real-time Data</b>
+    • Sensor readings
+    • System state
+    • WebSocket messages
+end note
+
+note right of MessageHandler
+    <b>Message Processing</b>
+    • JSON parsing
+    • Topic routing
+    • Error handling
+end note
+
+note right of DataValidator
+    <b>Validation Rules</b>
+    • Sensor: temp/humi != 0
+    • RTC: timestamp != 0
+    • Status: success/error
+end note
+
+note right of Memory
+    <b>In-Memory Buffers</b>
+    • FIFO queues
+    • Max limits
+    • Fast access
+end note
+
+note right of Charts
+    <b>Visualization</b>
+    • Real-time updates
+    • 750ms animations
+    • Auto-scaling
+end note
+
+@enduml

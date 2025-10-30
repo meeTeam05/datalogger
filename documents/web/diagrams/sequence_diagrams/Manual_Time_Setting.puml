@@ -1,0 +1,112 @@
+@startuml Manual_Time_Setting
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title Manual Time Setting Sequence
+
+participant "User" as User
+participant "Browser" as Browser
+participant "app.js" as AppJS
+participant "MQTT Broker" as MQTT
+participant "ESP32" as ESP32
+participant "STM32" as STM32
+participant "DS3231" as DS3231
+
+note over User,Browser: User adjusts time picker
+
+User -> Browser: Select date in calendar
+activate Browser
+Browser -> AppJS: Click event
+activate AppJS
+AppJS -> AppJS: timePickerDay = selectedDay
+AppJS -> Browser: renderCalendar()\nHighlight selected date
+deactivate Browser
+deactivate AppJS
+
+User -> Browser: Click hour UP/DOWN
+activate Browser
+Browser -> AppJS: adjustTime('hour', delta)
+activate AppJS
+AppJS -> AppJS: timePickerHour += delta\nWrap 0-23
+AppJS -> Browser: updateTimeDisplay()\nShow HH:MM:SS
+deactivate Browser
+deactivate AppJS
+
+User -> Browser: Click minute UP/DOWN
+activate Browser
+Browser -> AppJS: adjustTime('min', delta)
+activate AppJS
+AppJS -> AppJS: timePickerMinute += delta\nWrap 0-59
+AppJS -> Browser: updateTimeDisplay()
+deactivate Browser
+deactivate AppJS
+
+User -> Browser: Click second UP/DOWN
+activate Browser
+Browser -> AppJS: adjustTime('sec', delta)
+activate AppJS
+AppJS -> AppJS: timePickerSecond += delta\nWrap 0-59
+AppJS -> Browser: updateTimeDisplay()
+deactivate Browser
+deactivate AppJS
+
+User -> Browser: Click "Set Time Manually"
+activate Browser
+Browser -> AppJS: Click event
+deactivate Browser
+activate AppJS
+
+AppJS -> AppJS: Read time picker state\nyear, month, day,\nhour, minute, second
+
+AppJS -> AppJS: Create Date object\ndate = new Date(year, month, day,\nhour, minute, second)
+
+AppJS -> AppJS: Get Unix timestamp\ntimestamp = date.getTime() / 1000
+
+AppJS -> AppJS: Add UTC+7 offset\ntimestampWithOffset = timestamp + 7*3600
+
+AppJS -> AppJS: Build command\n"SET TIME {timestampWithOffset}"
+
+AppJS -> AppJS: Check isMqttConnected
+
+alt MQTT Connected
+    AppJS -> MQTT: Publish(stm32Command,\n"SET TIME X", qos=1)
+    activate MQTT
+    
+    MQTT -> ESP32: Forward command
+    activate ESP32
+    deactivate MQTT
+    ESP32 -> STM32: UART transmit\n{"cmd":"SET TIME","value":X}
+    activate STM32
+    deactivate ESP32
+    
+    STM32 -> DS3231: I2C write\nSet RTC registers
+    activate DS3231
+    DS3231 --> STM32: Write complete
+    deactivate DS3231
+    deactivate STM32
+    
+    STM32 -> ESP32: UART confirm
+    activate ESP32
+    ESP32 -> MQTT: Publish(systemState)
+    activate MQTT
+    deactivate ESP32
+    MQTT -> AppJS: Confirmation
+    deactivate MQTT
+    
+    AppJS -> AppJS: addStatus("Manual time set:\n{datetime} (UTC+7)")
+else MQTT Not Connected
+    AppJS -> AppJS: addStatus("ERROR:\nMQTT not connected")
+end
+
+AppJS -> AppJS: Update local device clock\ndeviceClockMs = timestamp * 1000\ndeviceClockSetAtMs = Date.now()
+
+AppJS -> AppJS: startDeviceClockTicker()
+AppJS -> Browser: Update #footerTime
+activate Browser
+deactivate Browser
+
+AppJS -> User: Time updated
+deactivate AppJS
+
+@enduml

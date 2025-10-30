@@ -1,0 +1,165 @@
+@startuml System_Lifecycle_State_Machine
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam state {
+    BackgroundColor<<stm32>> #E3F2FD
+    BorderColor<<stm32>> #1565C0
+    BackgroundColor<<esp32>> #FFF3E0
+    BorderColor<<esp32>> #E65100
+    BackgroundColor<<wifi>> #E8F5E9
+    BorderColor<<wifi>> #2E7D32
+    BackgroundColor<<mqtt>> #F3E5F5
+    BorderColor<<mqtt>> #6A1B9A
+    BackgroundColor<<error>> #FFEBEE
+    BorderColor<<error>> #C62828
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>System Lifecycle State Machine</b></size>\n<size:12><i>STM32 and ESP32 Initialization and Operation Flow</i></size>
+
+[*] -right-> PowerOn : <color:blue><b>Power Applied</b></color>
+
+state "Power On Initialization" as PowerOn {
+    state "STM32 Init" as STM32_Init <<stm32>> {
+        [*] --> HAL_Init
+        HAL_Init --> Clock_Config
+        Clock_Config --> GPIO_Init
+        GPIO_Init --> I2C_Init
+        I2C_Init --> SPI_Init
+        SPI_Init --> UART_Init
+        UART_Init --> Sensor_Init
+        Sensor_Init --> SD_Init
+        SD_Init --> Display_Init
+        Display_Init --> [*] : <color:green><b>Ready</b></color>\n<i>~500ms</i>
+    }
+
+    state "ESP32 Init" as ESP32_Init <<esp32>> {
+        [*] --> NVS_Init
+        NVS_Init --> NetIF_Init
+        NetIF_Init --> EventLoop_Init
+        EventLoop_Init --> WiFi_Init
+        WiFi_Init --> UART_Init_ESP
+        UART_Init_ESP --> GPIO_Init_ESP
+        GPIO_Init_ESP --> Button_Init
+        Button_Init --> [*] : <color:green><b>Ready</b></color>\n<i>~1000ms</i>
+    }
+
+    STM32_Init -down-> STM32_Idle : <b>Init complete</b>
+    ESP32_Init -down-> ESP32_Connecting : <b>Init complete</b>
+}
+
+state "STM32 Operational Mode" as STM32_Idle <<stm32>> {
+    state "Waiting for Command" as WaitingCommand
+    state "Single Measurement" as SingleMeasure
+    state "Periodic Measurement" as PeriodicMeasure
+
+    [*] --> WaitingCommand
+    WaitingCommand --> SingleMeasure : <b>SINGLE</b>\ncommand
+    WaitingCommand --> PeriodicMeasure : <b>PERIODIC ON</b>\ncommand
+    SingleMeasure --> WaitingCommand : <color:green>Done</color>\n<i>~20ms</i>
+    PeriodicMeasure --> WaitingCommand : <b>PERIODIC OFF</b>\ncommand
+
+    note right of PeriodicMeasure
+      <b>Periodic Mode</b>
+      • Continuous measurement
+      • Interval: 5s-60s
+      • Auto-buffer if offline
+      • SD card fallback
+    end note
+}
+
+state "ESP32 Connection Sequence" as ESP32_Connecting <<esp32>> {
+    state "WiFi Connection" as WiFi_State <<wifi>> {
+        [*] --> WiFi_Disconnected
+        WiFi_Disconnected --> WiFi_Connecting : <b>Connect attempt</b>
+        WiFi_Connecting --> WiFi_Connected : <color:green>✓ Success</color>
+        WiFi_Connecting --> WiFi_Failed : <color:red>✗ Max 5 retries</color>\n<i>@ 2s interval</i>
+        WiFi_Failed --> WiFi_Connecting : <b>Manual retry</b>\n<i>@ 5s interval</i>
+        WiFi_Connected --> MQTT_State : <color:green><b>WiFi Stable</b></color>\n<i>4s wait</i>
+    }
+
+    state "MQTT Connection" as MQTT_State <<mqtt>> {
+        [*] --> MQTT_Disconnected
+        MQTT_Disconnected --> MQTT_Connecting : <b>Start connection</b>
+        MQTT_Connecting --> MQTT_Connected : <color:green>✓ Success</color>
+        MQTT_Connecting --> MQTT_Disconnected : <color:red>✗ Fail + backoff</color>\n<i>60s, 120s, 240s...</i>
+        MQTT_Connected --> MQTT_Disconnected : <color:red>WiFi lost</color>
+        MQTT_Connected --> [*] : <color:green><b>Fully Connected</b></color>
+    }
+
+    note right of MQTT_State
+      <b>MQTT Retry Strategy</b>
+      • Exponential backoff
+      • Min 60s, doubles each retry
+      • Infinite retry attempts
+      • Max delay capped
+    end note
+}
+
+PowerOn --> SystemOperational : <color:green><b>Both MCUs Ready</b></color>
+
+state "System Operational" as SystemOperational {
+    state "STM32 Operation" as STM32_Operation <<stm32>> {
+        [*] --> DataCollection
+        DataCollection --> DataReady : <b>Measurement\ncomplete</b>
+        DataReady --> CheckMQTT : <i>data_ready flag</i>
+        CheckMQTT --> LiveTransmit : <color:green>MQTT connected</color>
+        CheckMQTT --> BufferToSD : <color:orange>MQTT disconnected</color>
+        LiveTransmit --> DataCollection : <b>Via UART</b>
+        BufferToSD --> DataCollection : <b>Store locally</b>
+
+        note right of BufferToSD
+          <b>SD Buffering</b>
+          • Max 204,800 records
+          • ~16MB capacity
+          • Circular overwrite
+          • Power-loss safe
+        end note
+    }
+
+    state "ESP32 Operation" as ESP32_Operation <<esp32>> {
+        [*] --> MonitorState
+        MonitorState --> ProcessCommand : <b>MQTT\nmessage</b>
+        MonitorState --> ProcessData : <b>UART\ndata</b>
+        MonitorState --> ProcessButton : <b>Button\npress</b>
+        ProcessCommand --> UpdateState : <i>Parse & Execute</i>
+        ProcessData --> PublishMQTT : <i>Validate & Publish</i>
+        ProcessButton --> UpdateState : <i>Toggle or Control</i>
+        UpdateState --> MonitorState
+        PublishMQTT --> MonitorState
+
+        note right of MonitorState
+          <b>Multi-threaded</b>
+          • FreeRTOS tasks
+          • Event-driven
+          • Non-blocking I/O
+          • Priority scheduling
+        end note
+    }
+}
+
+SystemOperational --> ErrorRecovery : <color:red><b>Error detected</b></color>
+
+state "Error Recovery" as ErrorRecovery <<error>> {
+    [*] --> DiagnoseError
+    DiagnoseError --> SoftRecovery : <i>Recoverable</i>
+    DiagnoseError --> HardReset : <i>Critical</i>
+    SoftRecovery --> [*] : <color:green>Recovered</color>
+    HardReset --> [*] : <color:orange>Reset required</color>
+}
+
+ErrorRecovery --> SystemOperational : <color:green><b>Recovered</b></color>
+ErrorRecovery --> PowerOn : <color:red><b>Critical Error</b></color>\n<i>System Reset</i>
+
+note top of PowerOn
+  <b>Initialization Sequence</b>
+  • STM32: ~500ms boot time
+  • ESP32: ~1000ms boot time
+  • Parallel initialization
+  • Independent operation start
+end note
+
+@enduml

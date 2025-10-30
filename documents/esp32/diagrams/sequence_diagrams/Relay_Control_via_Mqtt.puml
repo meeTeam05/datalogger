@@ -1,0 +1,66 @@
+@startuml Relay_Control_via_Mqtt
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title Relay Control via MQTT Sequence
+
+participant "MQTT Broker" as Broker
+participant "MQTT Handler" as MQTT
+participant "on_mqtt_data_received" as Callback
+participant "Relay Control" as Relay
+participant "GPIO Hardware" as GPIO
+participant "on_relay_state_changed" as RelayCallback
+participant "State Manager" as State
+participant "STM32 UART" as STM32
+
+Broker -> MQTT: Forward message "ON" to\ndatalogger/esp32/relay/control
+
+MQTT -> Callback: on_mqtt_data_received(\n"datalogger/esp32/relay/control",\n"ON", 2)
+activate Callback
+
+Callback -> Callback: Check topic == TOPIC_RELAY_CONTROL
+Callback -> Relay: Relay_ProcessCommand(&relay_control, "ON")
+deactivate Callback
+
+activate Relay
+Relay -> Relay: Parse command = "ON"
+Relay -> Relay: Relay_SetState(&relay_control, true)
+Relay -> GPIO: gpio_set_level(GPIO_4, 1)
+activate GPIO
+GPIO -> GPIO: Set pin HIGH
+GPIO --> Relay: Complete
+deactivate GPIO
+
+Relay -> Relay: Update relay_control.state = true
+Relay -> RelayCallback: on_relay_state_changed(true)
+deactivate Relay
+
+activate RelayCallback
+RelayCallback -> RelayCallback: Log "Relay: ON"
+RelayCallback -> RelayCallback: new_periodic_state = g_periodic_active (unchanged)
+RelayCallback -> State: update_and_publish_state(true, g_periodic_active)
+activate State
+State -> State: Check states changed
+State -> State: g_device_on = true (changed)
+State -> State: Format JSON state
+State -> MQTT: Publish state to\ndatalogger/esp32/system/state
+activate MQTT
+MQTT -> Broker: Publish with retain flag
+deactivate MQTT
+deactivate State
+
+RelayCallback -> RelayCallback: Wait 500ms (STM32 boot time)
+
+RelayCallback -> MQTT: Check MQTT_Handler_IsConnected()
+MQTT --> RelayCallback: true
+
+RelayCallback -> STM32: "MQTT CONNECTED\n"
+activate STM32
+STM32 -> STM32: Update mqtt_current_state
+deactivate STM32
+
+RelayCallback -> RelayCallback: Log "TX STM32: MQTT CONNECTED\n(relay toggled)"
+deactivate RelayCallback
+
+@enduml

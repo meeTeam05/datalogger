@@ -1,0 +1,118 @@
+@startuml Data_Management_Filtering_Export
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title Data Management Filtering & Export Sequence
+
+participant "User" as User
+participant "Browser" as Browser
+participant "app.js" as AppJS
+participant "Firebase" as Firebase
+
+User -> Browser: Navigate to "Data Management" page
+activate Browser
+Browser -> AppJS: Page switch event
+deactivate Browser
+activate AppJS
+AppJS -> AppJS: bindDataManagementButtons()
+deactivate AppJS
+
+note over User,Browser: User sets filters
+User -> Browser: Select date range\nFrom: 2025-01-01\nTo: 2025-01-20
+User -> Browser: Select mode filter\n"periodic"
+User -> Browser: Select status filter\n"success"
+User -> Browser: Set temp range\nMin: 20, Max: 30
+User -> Browser: Set humidity range\nMin: 50, Max: 80
+User -> Browser: Select sort\n"time-desc"
+
+User -> Browser: Click "Apply Filters"
+activate Browser
+Browser -> AppJS: Click event
+deactivate Browser
+activate AppJS
+
+AppJS -> AppJS: Check isFirebaseConnected
+
+alt Firebase Not Connected
+    AppJS -> User: Show error\n"Firebase not connected"
+else Firebase Connected
+    AppJS -> AppJS: Read all filter inputs\ndateFrom, dateTo, mode, status,\ntempMin, tempMax, humiMin, humiMax, sortBy
+
+    AppJS -> AppJS: Generate date range\ndates = []\nfor d = dateFrom to dateTo\ndates.push(YYYY-MM-DD)
+
+    AppJS -> AppJS: addStatus("Loading filtered data...")
+
+    loop For each date in range
+        AppJS -> Firebase: firebase.ref('readings/{date}')\n.once('value')
+        activate Firebase
+        Firebase --> AppJS: Snapshot for date
+        deactivate Firebase
+        AppJS -> AppJS: Parse snapshot\nExtract records
+    end
+
+    AppJS -> AppJS: Merge all results\nallData = results.flat()
+
+    AppJS -> AppJS: Apply mode filter\nif (mode && record.mode != mode) remove
+
+    AppJS -> AppJS: Apply status filter\nif (status && record.status != status) remove
+
+    AppJS -> AppJS: Apply temp range filter\nif (temp < min || temp > max) remove
+
+    AppJS -> AppJS: Apply humidity range filter\nif (humi < min || humi > max) remove
+
+    AppJS -> AppJS: Apply sorting\nSort by time/temp/humi\nasc or desc
+
+    AppJS -> AppJS: Cache filtered data\nfilteredDataCache = filtered
+
+    AppJS -> AppJS: renderDataManagementTable(filtered)
+
+    AppJS -> Browser: Build HTML table\nFor each record:\n#, Date/Time, Temp, Humi, Mode, Status
+    activate Browser
+    deactivate Browser
+
+    AppJS -> AppJS: updateDataStatistics(filtered)
+    AppJS -> AppJS: Calculate:\n- Total records\n- Success rate\n- Avg temperature\n- Avg humidity
+
+    AppJS -> Browser: Update #statsTotal\n#statsSuccess\n#statsAvgTemp\n#statsAvgHumi
+    activate Browser
+    deactivate Browser
+
+    AppJS -> AppJS: addStatus("Loaded X records from Y total")
+
+    AppJS -> User: Display filtered data
+end
+deactivate AppJS
+
+note over User,Browser: User exports data
+User -> Browser: Click "Export Filtered Data"
+activate Browser
+Browser -> AppJS: Click event
+deactivate Browser
+activate AppJS
+
+AppJS -> AppJS: Check filteredDataCache length
+
+alt No Data
+    AppJS -> User: Show warning\n"No data to export"
+else Has Data
+    AppJS -> AppJS: Build CSV\nHeaders: #, Date, Time, Temp, Humi, Mode, Status, Sensor, Device
+
+    loop For each record in filteredDataCache
+        AppJS -> AppJS: Format row\nidx, date, time, temp, humi, mode, status, sensor, device
+    end
+
+    AppJS -> AppJS: Combine to CSV string\ncsv = headers + rows
+
+    AppJS -> Browser: Create Blob(csv, "text/csv")
+    activate Browser
+    AppJS -> Browser: Create download link
+    AppJS -> Browser: Trigger download\ndatalogger_export_{timestamp}.csv
+    deactivate Browser
+
+    AppJS -> AppJS: addStatus("Exported X records to CSV")
+    AppJS -> User: File downloaded
+end
+deactivate AppJS
+
+@enduml

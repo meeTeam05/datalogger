@@ -1,0 +1,103 @@
+@startuml Single_Measurement_Sequence
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title Single Measurement Sequence
+
+actor "User" as User
+participant "UART Interface" as UART
+participant "Ring Buffer" as RingBuf
+participant "Command Execute" as CmdExec
+participant "SINGLE_PARSER" as Parser
+participant "SHT3X Driver" as Driver
+participant "I2C Bus" as I2C
+participant "SHT3X Sensor" as Sensor
+participant "DataManager" as DM
+participant "DS3231 RTC" as RTC
+participant "MQTT State" as MQTT
+
+User -> UART: "SINGLE\n"
+activate UART
+UART -> RingBuf: Store bytes (interrupt)
+deactivate UART
+
+note over RingBuf: Accumulate until '\n'
+
+RingBuf -> CmdExec: UART_Handle() detects complete line
+activate CmdExec
+CmdExec -> CmdExec: Parse: ["SINGLE"]
+CmdExec -> CmdExec: Find in cmdTable[]
+CmdExec -> Parser: SINGLE_PARSER(argc=1, argv)
+deactivate CmdExec
+
+activate Parser
+Parser -> Parser: Set repeat = SHT3X_HIGH (default)
+Parser -> Driver: SHT3X_Single(&g_sht3x, &repeat,\n&temp, &hum)
+deactivate Parser
+
+activate Driver
+Driver -> Driver: Select I2C command: 0x2400
+Driver -> I2C: HAL_I2C_Master_Transmit(0x2400)
+activate I2C
+I2C -> Sensor: Write I2C [0x24, 0x00]
+activate Sensor
+deactivate I2C
+
+Driver -> Driver: HAL_Delay(15ms)
+note over Sensor: Measurement in progress
+
+Driver -> I2C: HAL_I2C_Master_Receive(6 bytes)
+activate I2C
+Sensor -> I2C: Send [T_MSB, T_LSB, T_CRC,\nRH_MSB, RH_LSB, RH_CRC]
+deactivate Sensor
+I2C --> Driver: Raw data buffer
+deactivate I2C
+
+Driver -> Driver: Check temperature CRC
+Driver -> Driver: Check humidity CRC
+
+alt I2C OK and CRC valid
+    Driver -> Driver: Convert raw → 25.50°C, 60.00%
+    Driver --> Parser: Return SHT3X_OK,\ntemp=25.50, hum=60.00
+else I2C error or CRC failed
+    Driver --> Parser: Return SHT3X_ERROR,\ntemp=0.0, hum=0.0
+end
+deactivate Driver
+
+activate Parser
+Parser -> DM: DataManager_UpdateSingle(temp, hum)
+deactivate Parser
+
+activate DM
+DM -> DM: mode = DATA_MANAGER_MODE_SINGLE
+DM -> DM: Store temperature, humidity
+DM -> DM: Set data_ready = true
+deactivate DM
+
+note over DM: Wait for next main loop iteration
+
+DM -> DM: DataManager_Print() called from main loop
+activate DM
+DM -> DM: Check data_ready == true
+DM -> RTC: DS3231_Get_Time(&time)
+activate RTC
+RTC --> DM: Return time structure
+deactivate RTC
+DM -> DM: Convert to Unix timestamp: 1729699200
+DM -> DM: Sanitize float (check NaN/Inf)
+
+DM -> MQTT: Check mqtt_current_state
+activate MQTT
+MQTT --> DM: MQTT_STATE_CONNECTED
+deactivate MQTT
+
+DM -> DM: Format JSON:\n{"mode":"SINGLE","timestamp":1729699200,...}
+DM -> UART: HAL_UART_Transmit(JSON string)
+activate UART
+UART -> User: {"mode":"SINGLE","timestamp":1729699200,\n"temperature":25.50,"humidity":60.00}
+deactivate UART
+DM -> DM: Clear data_ready = false
+deactivate DM
+
+@enduml

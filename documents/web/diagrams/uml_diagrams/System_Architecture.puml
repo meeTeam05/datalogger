@@ -1,0 +1,96 @@
+@startuml System_Architecture
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam component {
+    BackgroundColor<<browser>> #06B6D4
+    BorderColor<<browser>> #0891B2
+    BackgroundColor<<external>> #F97316
+    BorderColor<<external>> #EA580C
+    BackgroundColor<<hardware>> #8B5CF6
+    BorderColor<<hardware>> #7C3AED
+    BackgroundColor<<app>> #10B981
+    BorderColor<<app>> #059669
+    FontSize 11
+    FontName Arial
+}
+
+title <size:18><b>DataLogger System Architecture</b></size>\n<size:12><i>Web Application Architecture</i></size>
+
+package "Browser Environment" <<browser>> {
+    package "User Interface Layer" {
+        component [index.html\nDOM Structure\n7 Pages] as HTML
+        component [style.css\nCyan Theme\nDark/Light Mode] as CSS
+        component [Feather Icons\nSVG Icons] as Icons
+    }
+    
+    package "Application Layer" {
+        component [app.js\n3062 lines\nMain Logic] as AppJS <<app>>
+        component [Chart.js\nLine Charts\nAnimations] as ChartJS
+        component [mqtt.min.js\nWebSocket Client] as MQTTJS
+        component [Firebase SDK\nRealtime Database] as FirebaseJS
+    }
+    
+    package "State Management" {
+        component [Global Variables\nisPeriodic\nisDeviceOn\ncurrentTemp/Humi] as GlobalVars
+        component [Data Arrays\ntemperatureData\nhumidityData\nlogBuffer\nliveDataBuffer] as DataArrays
+        component [Component Health\nSHT31 Status\nDS3231 Status] as ComponentHealth
+    }
+}
+
+package "External Services" <<external>> {
+    component [MQTT Broker\nMosquitto\n127.0.0.1:8083\nWebSocket] as MQTT
+    component [Firebase\nRealtime Database\ndatalogger-8c5d5] as Firebase
+    component [Internet Time\nBrowser Time API\nUTC+7] as Internet
+}
+
+package "Hardware Layer" <<hardware>> {
+    component [ESP32\nWiFi Bridge\nMQTT Client] as ESP32
+    component [STM32\nData Logger\nSensor Controller] as STM32
+    component [Sensors\nSHT31\nDS3231 RTC] as Sensors
+}
+
+HTML --> AppJS
+CSS --> HTML
+Icons --> HTML
+
+AppJS --> ChartJS
+AppJS --> MQTTJS
+AppJS --> FirebaseJS
+
+AppJS --> GlobalVars
+AppJS --> DataArrays
+AppJS --> ComponentHealth
+
+MQTTJS --> MQTT
+FirebaseJS --> Firebase
+AppJS --> Internet
+
+MQTT --> ESP32
+ESP32 --> STM32
+STM32 --> Sensors
+
+ESP32 .down.> STM32 : UART
+
+note right of AppJS
+    <b>Main Application Logic</b>
+    • MQTT message handling
+    • Firebase operations
+    • Chart updates
+    • UI state management
+end note
+
+note right of MQTT
+    <b>Message Broker</b>
+    • WebSocket support
+    • QoS Level 1
+    • Local network only
+end note
+
+note right of ESP32
+    <b>WiFi Bridge</b>
+    • MQTT client
+    • UART ↔ WiFi
+    • Command relay
+end note
+
+@enduml

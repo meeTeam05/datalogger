@@ -1,0 +1,46 @@
+@startuml Relay_State_Change_Flow
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    StartColor #4CAF50
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>Relay State Change Flow</b></size>\n<size:12><i>Relay Control and State Synchronization</i></size>
+
+start
+:<b>Relay state changed</b>;
+
+:Log new state;
+
+if (Relay\nturned OFF?) then (yes)
+    :Force periodic = false;
+else (no)
+    :Keep periodic state;
+endif
+
+:update_and_publish_state();
+note right
+    Publishes to MQTT with retain=1
+    Topic: datalogger/esp32/system/state
+end note
+
+:Wait 500ms for STM32 boot;
+
+if (MQTT\nconnected?) then (yes)
+    :Send <b>MQTT CONNECTED</b>\nto STM32;
+else (no)
+    :Send <b>MQTT DISCONNECTED</b>\nto STM32;
+endif
+
+stop
+
+@enduml

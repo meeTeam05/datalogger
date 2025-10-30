@@ -1,0 +1,222 @@
+@startuml System_Class_Diagram
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam class {
+    BackgroundColor<<stm32>> #E3F2FD
+    BorderColor<<stm32>> #1565C0
+    BackgroundColor<<esp32>> #FFF3E0
+    BorderColor<<esp32>> #E65100
+    BackgroundColor<<sensor>> #E8F5E9
+    BorderColor<<sensor>> #2E7D32
+    BackgroundColor<<storage>> #F3E5F5
+    BorderColor<<storage>> #6A1B9A
+    BackgroundColor<<comm>> #FFF9C4
+    BorderColor<<comm>> #F57F17
+    BackgroundColor<<display>> #FCE4EC
+    BorderColor<<display>> #C2185B
+    FontSize 11
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 1.5
+}
+
+title <size:18><b>Firmware System Class Diagram</b></size>\n<size:12><i>STM32 and ESP32 Architecture Overview</i></size>
+
+package "STM32 Firmware" <<stm32>> {
+    class STM32_Main <<stm32>> {
+        +I2C_HandleTypeDef hi2c1
+        +SPI_HandleTypeDef hspi1, hspi2
+        +UART_HandleTypeDef huart1
+        +sht3x_t g_sht3x
+        +ds3231_t g_ds3231
+        +mqtt_state_t mqtt_current_state
+        +uint32_t periodic_interval_ms
+        --
+        +main() : int
+        +SystemClock_Config() : void
+    }
+
+    class STM32_UART <<comm>> {
+        -UART_HandleTypeDef* huart
+        -ring_buffer_t rx_buffer
+        --
+        +UART_Init() : void
+        +UART_Handle() : void
+        +UART_RxCallback(uint8_t) : void
+    }
+
+    class STM32_CommandParser <<comm>> {
+        +COMMAND_EXECUTE(char*) : void
+        +SINGLE_PARSER() : void
+        +PERIODIC_ON_PARSER() : void
+        +PERIODIC_OFF_PARSER() : void
+        +SET_TIME_PARSER() : void
+        +MQTT_CONNECTED_PARSER() : void
+        +MQTT_DISCONNECTED_PARSER() : void
+        +SD_CLEAR_PARSER() : void
+    }
+
+    class STM32_DataManager <<stm32>> {
+        -data_manager_state_t state
+        -data_manager_mode_t mode
+        --
+        +DataManager_Init() : void
+        +DataManager_UpdateSingle(float, float) : void
+        +DataManager_UpdatePeriodic(float, float) : void
+        +DataManager_Print() : bool
+    }
+
+    class STM32_SDCardManager <<storage>> {
+        -sd_card_state_t state
+        -uint32_t write_pointer
+        -uint32_t read_pointer
+        -uint32_t record_count
+        --
+        +SDCardManager_Init() : bool
+        +SDCardManager_WriteData(char*) : bool
+        +SDCardManager_ReadData(char*) : bool
+        +SDCardManager_RemoveRecord() : bool
+        +SDCardManager_Clear() : bool
+    }
+
+    class STM32_SHT3X <<sensor>> {
+        -I2C_HandleTypeDef* hi2c
+        -float temperature
+        -float humidity
+        -sht3x_mode_t currentState
+        --
+        +SHT3X_Init() : void
+        +SHT3X_Single() : SHT3X_StatusTypeDef
+        +SHT3X_Periodic() : SHT3X_StatusTypeDef
+        +SHT3X_FetchData() : SHT3X_StatusTypeDef
+        +SHT3X_PeriodicStop() : SHT3X_StatusTypeDef
+    }
+
+    class STM32_DS3231 <<sensor>> {
+        -I2C_HandleTypeDef* hi2c
+        --
+        +DS3231_Init() : void
+        +DS3231_Set_Time(struct tm*) : DS3231_StatusTypeDef
+        +DS3231_Get_Time(struct tm*) : DS3231_StatusTypeDef
+    }
+
+    class STM32_Display <<display>> {
+        +Display_Init() : void
+        +Display_Update() : void
+        +Display_ShowSensorData(float, float) : void
+        +Display_ShowMQTTState(bool) : void
+        +Display_ShowBufferCount(uint32_t) : void
+    }
+}
+
+package "ESP32 Firmware" <<esp32>> {
+    class ESP32_Main <<esp32>> {
+        +wifi_manager_t g_wifi_manager
+        +stm32_uart_t g_stm32_uart
+        +mqtt_handler_t g_mqtt_handler
+        +relay_control_t g_relay
+        +bool g_device_on
+        +bool g_periodic_active
+        --
+        +app_main() : void
+        +initialize_components() : void
+        +update_and_publish_state() : void
+    }
+
+    class ESP32_WiFiManager <<esp32>> {
+        -wifi_state_t current_state
+        -uint8_t retry_count
+        --
+        +WiFi_Init() : bool
+        +WiFi_Connect() : bool
+        +WiFi_GetState() : wifi_state_t
+        +WiFi_IsConnected() : bool
+    }
+
+    class ESP32_MQTT_Handler <<esp32>> {
+        -esp_mqtt_client_handle_t client
+        -bool connected
+        -int retry_count
+        --
+        +MQTT_Handler_Init() : bool
+        +MQTT_Handler_Start() : bool
+        +MQTT_Handler_Subscribe() : bool
+        +MQTT_Handler_Publish() : bool
+    }
+
+    class ESP32_UART <<comm>> {
+        -int uart_num
+        -ring_buffer_t rx_buffer
+        -stm32_data_callback_t callback
+        --
+        +STM32_UART_Init() : bool
+        +STM32_UART_SendCommand() : bool
+        +STM32_UART_ProcessData() : void
+    }
+
+    class ESP32_RelayControl <<esp32>> {
+        -int gpio_num
+        -bool state
+        -relay_state_callback_t callback
+        --
+        +Relay_Init() : bool
+        +Relay_SetState(bool) : bool
+        +Relay_Toggle() : bool
+    }
+
+    class ESP32_JSONParser <<comm>> {
+        -sensor_data_callback_t single_callback
+        -sensor_data_callback_t periodic_callback
+        --
+        +JSON_Parser_Init() : bool
+        +JSON_Parser_ProcessLine() : bool
+        +JSON_Parser_IsValid() : bool
+    }
+
+    class ESP32_ButtonHandler <<esp32>> {
+        -gpio_num_t gpio_num
+        -button_press_callback_t callback
+        --
+        +Button_Init() : bool
+        +Button_StartTask() : bool
+    }
+}
+
+STM32_Main --> STM32_UART : uses
+STM32_Main --> STM32_SHT3X : uses
+STM32_Main --> STM32_DS3231 : uses
+STM32_Main --> STM32_DataManager : uses
+STM32_Main --> STM32_SDCardManager : uses
+STM32_Main --> STM32_Display : uses
+STM32_UART --> STM32_CommandParser : triggers
+STM32_CommandParser --> STM32_SHT3X : controls
+STM32_CommandParser --> STM32_DataManager : updates
+STM32_DataManager --> STM32_SDCardManager : buffers to
+
+ESP32_Main --> ESP32_WiFiManager : uses
+ESP32_Main --> ESP32_MQTT_Handler : uses
+ESP32_Main --> ESP32_UART : uses
+ESP32_Main --> ESP32_RelayControl : uses
+ESP32_Main --> ESP32_JSONParser : uses
+ESP32_Main --> ESP32_ButtonHandler : uses
+
+ESP32_UART ..> STM32_UART : <color:red><b>UART Communication</b></color>
+ESP32_RelayControl ..> STM32_Main : <color:red><b>Power Control</b></color>
+
+note right of STM32_Main
+  <b>STM32 Main Controller</b>
+  • Manages sensors and peripherals
+  • Handles UART communication
+  • Controls data buffering
+  • Interfaces with SD card
+end note
+
+note right of ESP32_Main
+  <b>ESP32 Main Controller</b>
+  • WiFi and MQTT management
+  • UART bridge to STM32
+  • Button and relay control
+  • JSON data parsing
+end note
+
+@enduml

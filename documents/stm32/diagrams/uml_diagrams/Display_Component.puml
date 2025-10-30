@@ -1,0 +1,80 @@
+@startuml Display_Component
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam class {
+    BackgroundColor<<display>> #E0F2F1
+    BorderColor<<display>> #00695C
+    BackgroundColor<<driver>> #E1F5FF
+    BorderColor<<driver>> #01579B
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 1.5
+}
+
+title <size:18><b>Display Component</b></size>\n<size:12><i>ILI9225 TFT Display Driver and UI Layer</i></size>
+
+class ILI9225DriverAPI <<driver>> {
+    <<interface>>
+    <b>== Initialization ==</b>
+    +ILI9225_Init() : void
+    
+    <b>== Drawing Primitives ==</b>
+    +ILI9225_Clear(uint16_t color) : void
+    +ILI9225_DrawPixel(uint16_t x, uint16_t y, uint16_t color) : void
+    +ILI9225_FillRect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color) : void
+    
+    <b>== Text Rendering ==</b>
+    +ILI9225_DrawString(uint16_t x, uint16_t y, const char* str, uint16_t fg, uint16_t bg) : void
+}
+
+class ILI9225DriverPrivate <<driver>> {
+    <<private>>
+    <b>== Private Members ==</b>
+    -SPI_HandleTypeDef* hspi
+    
+    <b>== Private Methods ==</b>
+    -ILI9225_WriteCommand(uint8_t cmd) : void
+    -ILI9225_WriteData(uint16_t data) : void
+    -ILI9225_SetWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1) : void
+}
+
+class DisplayAPI <<display>> {
+    <<interface>>
+    <b>== Public Methods ==</b>
+    +display_init() : void
+    +display_update(time_t, float, float, bool, bool, int) : void
+    +display_clear() : void
+}
+
+class DisplayPrivate <<display>> {
+    <<private>>
+    <b>== Private Methods ==</b>
+    -format_time_string(time_t, char*) : void
+    -format_sensor_string(float, float, char*) : void
+    -update_status_indicators(bool mqtt, bool periodic) : void
+}
+
+DisplayAPI --> ILI9225DriverAPI : uses
+DisplayPrivate --> ILI9225DriverAPI : calls
+
+note right of ILI9225DriverAPI
+    <b>ILI9225 Driver</b>
+    • SPI communication
+    • 176x220 resolution
+    • 16-bit RGB565 color
+    • Hardware acceleration
+end note
+
+note left of DisplayAPI
+    <b>Display API</b>
+    • Shows time from RTC
+    • Shows sensor readings
+    • Status indicators:
+      - MQTT connection
+      - Periodic mode
+      - SD buffer count
+end note
+
+@enduml

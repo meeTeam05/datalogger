@@ -1,0 +1,126 @@
+@startuml MQTT_Message_Reception_Flow
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>MQTT Message Reception & Processing Flow</b></size>\n<size:12><i>Real-time Message Handling and Data Processing</i></size>
+
+start
+
+:MQTT Message Received;
+
+if (Topic Type?) then (systemState)
+    :Parse State Message
+    Try JSON first
+    Fallback to text;
+    
+    if (Valid State?) then (yes)
+        :Update isDeviceOn
+        Update isPeriodic;
+        
+        :Update Device Button
+        ON: green + Device ON
+        OFF: gray + Device OFF;
+        
+        :Update Periodic Button
+        ON: green + Periodic ON
+        OFF: gray + Periodic OFF;
+        
+        :Log Sync Status
+        State synced: Device=ON/OFF;
+        
+        stop
+    else (no)
+        :Ignore Message;
+        stop
+    endif
+    
+elseif (singleData or periodicData) then (yes)
+    :Parse JSON Payload
+    Extract temperature
+    humidity, timestamp;
+    
+    if (Topic = periodicData?) then (yes)
+        if (Device ON AND Periodic ON?) then (yes)
+            :Process Data
+            mode = periodic;
+        else (no)
+            :Ignore Periodic Message
+            Log: Ignored periodic inactive;
+            stop
+        endif
+    else (no)
+        :Process Data
+        mode = single;
+    endif
+    
+    if (Sensor Failed?\ntemp=0 humi=0) then (yes)
+        :Log ERROR
+        SHT31 sensor failed
+        Add WARNING;
+    endif
+    
+    if (RTC Failed?\ntime=0) then (yes)
+        :Log ERROR
+        DS3231 RTC failed
+        Add WARNING;
+    endif
+    
+    :Update Current Display
+    currentTemp = data.temp
+    currentHumi = data.humi
+    lastReadingTimestamp;
+    
+    :Update UI Elements
+    #currentTemp
+    #currentHumi
+    #lastUpdate;
+    
+    if (Firebase Connected?) then (yes)
+        :Save to Firebase
+        readings/date/id
+        temp, humi, mode
+        sensor, status, time;
+    else (no)
+        :Skip Firebase Save;
+    endif
+    
+    :Update Component Health
+    SHT31: !sensorFailed
+    DS3231: !rtcFailed;
+    
+    :Update Device Settings Cards
+    Show component status
+    Last update time;
+    
+    if (Mode = periodic AND Valid Data?) then (yes)
+        :Push to Chart Arrays
+        pushTemperature
+        pushHumidity
+        Update chart.js;
+        
+        :Update Chart Stats
+        Min, Max, Avg
+        Calculate from arrays;
+    endif
+    
+    :Add to Live Data Table
+    liveDataBuffer.unshift
+    Max 100 entries
+    renderLiveDataTable;
+    
+    stop
+endif
+
+stop
+
+@enduml

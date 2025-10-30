@@ -1,0 +1,78 @@
+@startuml Main_Application_Flow
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    StartColor #4CAF50
+    EndColor #F44336
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>STM32 Main Application Flow</b></size>\n<size:12><i>System Initialization and Main Loop</i></size>
+
+start
+:<b>System Startup</b>;
+:HAL_Init;
+:SystemClock_Config;
+:GPIO_Init;
+:I2C1_Init;
+:SPI1_Init - SD Card;
+:SPI2_Init - Display;
+:USART1_Init;
+:UART_Init;
+:SHT3X_Init;
+:DS3231_Init;
+:DataManager_Init;
+:SDCardManager_Init;
+
+if (SD Card Ready?) then (yes)
+    :display_init;
+else (no)
+    :Print SD Warning;
+    :display_init;
+endif
+
+:<b>Enter Main Loop</b>
+<i>(Continuous operation)</i>|#FFD700;
+
+repeat
+    :UART_Handle
+    <i>(Process commands)</i>;
+
+    :Check PERIODIC State;
+
+    if (SHT3X_IS_PERIODIC_STATE?) then (yes)
+        if (Time to Read Data?) then (yes)
+            :SHT3X_FetchData;
+            :DataManager_UpdatePeriodic;
+            :Toggle LED PC13
+            <i>(Visual indicator)</i>;
+            :Update next_fetch_ms;
+        else (no)
+        endif
+    else (no)
+    endif
+
+    :DataManager_Print
+    <i>(Output/Store data)</i>|#FF6B6B;
+
+    if (Display Update Needed?) then (yes)
+        :display_update;
+    else (no)
+    endif
+
+    :HAL_Delay 100ms;
+
+repeat while (System running?) is (yes)
+->no;
+
+stop
+
+@enduml

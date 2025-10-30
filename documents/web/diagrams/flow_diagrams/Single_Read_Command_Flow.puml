@@ -1,0 +1,61 @@
+@startuml Single_Read_Command_Flow
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>Single Read Command Flow</b></size>\n<size:12><i>On-Demand Data Reading Process</i></size>
+
+start
+
+:User Clicks Single Button;
+
+if (MQTT Connected?) then (no)
+    :Show Error
+    MQTT not connected;
+    stop
+endif
+
+if (isDeviceOn?) then (no)
+    :Show Warning
+    Device must be ON first;
+    stop
+endif
+
+:Publish to MQTT
+Topic: stm32Command
+Message: SINGLE
+QoS: 1;
+
+:Log to Console
+Single read command sent;
+
+:Wait for Response
+On Topic: singleData;
+
+if (Response Within Timeout?) then (no)
+    :Implicit Timeout
+    No explicit handling
+    User sees no update;
+else (yes)
+    :Process Single Data
+    Flow: MQTT Message
+    Reception & Processing;
+    
+    :Update Current Display
+    Update Charts
+    Save to Firebase
+    Add to Live Table;
+endif
+
+stop
+
+@enduml

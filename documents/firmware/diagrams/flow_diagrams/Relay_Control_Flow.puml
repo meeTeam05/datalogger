@@ -1,0 +1,79 @@
+@startuml Relay_Control_Flow
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    StartColor #4CAF50
+    EndColor #F44336
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>Relay Control End-to-End Flow</b></size>\n<size:12><i>Power Management with State Synchronization</i></size>
+
+start
+
+:<b>Relay Control Request</b>|#90EE90;
+
+switch (Control Source?)
+
+case (Web Interface)
+    :Web sends to
+    <b>datalogger/esp32/relay/control</b>;
+    :ESP32 MQTT callback;
+    
+    switch (Command?)
+    case (ON)
+        :Relay_SetState(true);
+        :GPIO4 = HIGH;
+        :g_device_on = true;
+    case (OFF)
+        :Relay_SetState(false);
+        :GPIO4 = LOW;
+        :g_device_on = false;
+    case (TOGGLE)
+        :Relay_Toggle();
+        :Toggle GPIO4;
+        :Toggle g_device_on;
+    endswitch
+
+case (ESP32 Button)
+    :GPIO5 button pressed;
+    :on_button_relay_pressed();
+    :Relay_Toggle();
+    :Toggle GPIO4;
+    :Toggle g_device_on;
+
+endswitch
+
+if (Relay turned OFF?) then (yes)
+    :Force g_periodic_active = false;
+    :Send <b>PERIODIC OFF</b>
+    to STM32;
+endif
+
+:Relay callback triggered;
+:update_and_publish_state()|#87CEEB;
+:Wait 500ms for
+STM32 boot;
+
+if (MQTT Connected?) then (yes)
+    :Send <b>MQTT CONNECTED</b>
+    to STM32;
+else (no)
+    :Send <b>MQTT DISCONNECTED</b>
+    to STM32;
+endif
+
+:STM32 updates WiFi state;
+:Display shows relay state;
+:<b>Web interface syncs state</b>|#87CEEB;
+
+stop
+
+@enduml

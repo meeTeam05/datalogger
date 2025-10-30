@@ -1,0 +1,118 @@
+@startuml Command_Processing_Component
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam class {
+    BackgroundColor<<command>> #FFF9C4
+    BorderColor<<command>> #F57F17
+    BackgroundColor<<handler>> #E1F5FF
+    BorderColor<<handler>> #01579B
+    BackgroundColor<<struct>> #FFF8E1
+    BorderColor<<struct>> #F57C00
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 1.5
+}
+
+title <size:18><b>Command Processing Component</b></size>\n<size:12><i>Parser and Handler Registry Pattern</i></size>
+
+class command_function_t <<struct>> {
+    +const char* cmdString
+    +void (*func)(uint8_t argc, char** argv)
+}
+
+class CommandExecutor <<command>> {
+    <<service>>
+    <b>== Public Methods ==</b>
+    +COMMAND_EXECUTE(char* commandBuffer) : void
+    
+    <b>== Private Methods ==</b>
+    -tokenize_string(char*, char**, uint8_t) : uint8_t
+    -find_command(uint8_t, char**) : command_function_t*
+}
+
+class CommandRegistry <<command>> {
+    <<static>>
+    <b>== Command Table ==</b>
+    +command_function_t cmdTable[]
+    +"CHECK UART STATUS"
+    +"SHT3X HEATER ENABLE"
+    +"SHT3X HEATER DISABLE"
+    +"SHT3X ART"
+    +"DS3231 SET TIME"
+    +"SINGLE"
+    +"PERIODIC ON"
+    +"PERIODIC OFF"
+    +"SET TIME"
+    +"SET PERIODIC INTERVAL"
+    +"MQTT CONNECTED"
+    +"MQTT DISCONNECTED"
+    +"SD CLEAR"
+    
+    <b>== Public Methods ==</b>
+    +GET_CMD_TABLE_SIZE() : uint8_t
+}
+
+interface ICommandHandler <<handler>> {
+    +handle(uint8_t argc, char** argv) : void
+}
+
+class MeasurementHandlers <<handler>> {
+    <b>== Measurement Commands ==</b>
+    +SINGLE_PARSER(uint8_t, char**) : void
+    +PERIODIC_ON_PARSER(uint8_t, char**) : void
+    +PERIODIC_OFF_PARSER(uint8_t, char**) : void
+    +SET_PERIODIC_INTERVAL_PARSER(uint8_t, char**) : void
+}
+
+class TimeHandlers <<handler>> {
+    <b>== Time Commands ==</b>
+    +SET_TIME_PARSER(uint8_t, char**) : void
+    +DS3231_Set_Time_Parser(uint8_t, char**) : void
+}
+
+class MQTTHandlers <<handler>> {
+    <b>== MQTT Commands ==</b>
+    +MQTT_CONNECTED_PARSER(uint8_t, char**) : void
+    +MQTT_DISCONNECTED_PARSER(uint8_t, char**) : void
+}
+
+class SDHandlers <<handler>> {
+    <b>== Storage Commands ==</b>
+    +SD_CLEAR_PARSER(uint8_t, char**) : void
+}
+
+class DebugHandlers <<handler>> {
+    <b>== Debug Commands ==</b>
+    +SHT3X_Heater_Parser(uint8_t, char**) : void
+    +SHT3X_ART_Parser(uint8_t, char**) : void
+    +CHECK_UART_STATUS(uint8_t, char**) : void
+}
+
+CommandExecutor --> CommandRegistry : queries
+CommandRegistry o-- command_function_t : array of
+command_function_t --> ICommandHandler : function pointer
+MeasurementHandlers ..|> ICommandHandler
+TimeHandlers ..|> ICommandHandler
+MQTTHandlers ..|> ICommandHandler
+SDHandlers ..|> ICommandHandler
+DebugHandlers ..|> ICommandHandler
+
+note right of CommandExecutor
+    <b>Command Executor</b>
+    • Tokenizes input strings
+    • Matches command patterns
+    • Dispatches to handlers
+    • Supports multi-word commands
+end note
+
+note bottom of CommandRegistry
+    <b>Command Registry</b>
+    • Static lookup table
+    • O(n) search (small n)
+    • Easily extensible
+    • Function pointer dispatch
+end note
+
+@enduml

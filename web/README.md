@@ -9,7 +9,6 @@ web/
 ├── index.html                  # Main HTML structure and dashboard layout
 ├── style.css                   # All CSS styling and responsive design
 ├── app.js                      # JavaScript application logic and MQTT handling
-├── index_original_backup.html  # Backup of previous monolithic version
 └── README.md                   # This file
 ```
 
@@ -467,8 +466,6 @@ Solutions:
 
 ## Firebase Data Structure
 
-## Firebase Data Structure
-
 When Firebase integration is enabled, sensor data is stored in the following structure:
 
 ```json
@@ -525,5 +522,5 @@ Performance optimization tips:
 
 ## License
 
-This component is part of the DATALOGGER project.
+This web dashboard is part of the DATALOGGER project.
 See the LICENSE.md file in the project root directory for licensing information.

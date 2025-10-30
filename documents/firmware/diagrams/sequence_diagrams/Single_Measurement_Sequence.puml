@@ -1,0 +1,117 @@
+@startuml Single_Measurement_Sequence
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title <size:16><b>Single Measurement End-to-End Sequence</b></size>\n<size:12><i>From Web Request to Data Display</i></size>
+
+participant "Web\nInterface" as Web
+participant "MQTT\nBroker" as MQTT
+participant "ESP32" as ESP32
+participant "UART Link\n115200 baud" as UART
+participant "STM32" as STM32
+participant "SHT3X\nSensor" as SHT3X
+participant "DS3231\nRTC" as DS3231
+participant "ILI9225\nDisplay" as Display
+
+Web -> MQTT: Publish "SINGLE" to\ndatalogger/stm32/command
+activate MQTT
+MQTT -> ESP32: Forward message
+deactivate MQTT
+
+activate ESP32
+ESP32 -> ESP32: on_mqtt_data_received callback
+ESP32 -> ESP32: Check topic: datalogger/stm32/command
+ESP32 -> UART: STM32_UART_SendCommand("SINGLE\n")
+deactivate ESP32
+
+activate UART
+UART -> STM32: UART RX Interrupt (0x53='S')
+deactivate UART
+
+activate STM32
+STM32 -> STM32: Store in ring buffer
+STM32 -> STM32: UART_Handle detects '\n'
+STM32 -> STM32: Assemble line: "SINGLE"
+STM32 -> STM32: COMMAND_EXECUTE("SINGLE")
+STM32 -> STM32: Tokenize: argc=1, argv[0]="SINGLE"
+STM32 -> STM32: Find in cmdTable
+STM32 -> STM32: Call SINGLE_PARSER
+
+STM32 -> STM32: Set repeatability = SHT3X_HIGH
+STM32 -> SHT3X: SHT3X_Single(&g_sht3x, &repeat, &temp, &hum)
+activate SHT3X
+
+STM32 -> SHT3X: I2C Write [0x24, 0x00] to 0x44
+SHT3X -> SHT3X: Start measurement
+STM32 -> STM32: HAL_Delay(15ms)
+
+STM32 -> SHT3X: I2C Read 6 bytes
+SHT3X --> STM32: [T_MSB, T_LSB, T_CRC,\nRH_MSB, RH_LSB, RH_CRC]
+deactivate SHT3X
+
+STM32 -> STM32: Validate CRC
+
+alt CRC Valid
+    STM32 -> STM32: Convert: temp=30.59°C, hum=73.97%
+else CRC Failed or I2C Error
+    STM32 -> STM32: Set: temp=0.0, hum=0.0
+    note right of STM32 #FF6B6B: Error values indicate\nsensor failure
+end
+
+STM32 -> STM32: DataManager_UpdateSingle(temp, hum)
+STM32 -> STM32: mode = SINGLE, data_ready = true
+
+note over STM32 #FFD700: Wait for next main loop iteration
+
+STM32 -> STM32: Main loop: DataManager_Print called
+STM32 -> STM32: Check data_ready == true
+STM32 -> STM32: Check mqtt_current_state
+
+alt MQTT Connected
+    STM32 -> DS3231: DS3231_Get_Time
+    activate DS3231
+    DS3231 --> STM32: struct tm time
+    deactivate DS3231
+
+    STM32 -> STM32: Convert to Unix timestamp: 1729699200
+    STM32 -> STM32: Format JSON:
+    note right of STM32: {"mode":"SINGLE","timestamp":1729699200,\n"temperature":30.59,"humidity":73.97}
+
+    STM32 -> UART: HAL_UART_Transmit(JSON)
+    activate UART
+    UART -> ESP32: UART RX data
+    deactivate UART
+
+    activate ESP32
+    ESP32 -> ESP32: STM32_UART RX task
+    ESP32 -> ESP32: Assemble line from ring buffer
+    ESP32 -> ESP32: on_stm32_data_received callback
+    ESP32 -> ESP32: JSON_Parser_ProcessLine
+    ESP32 -> ESP32: mode = SINGLE detected
+    ESP32 -> ESP32: on_single_sensor_data callback
+
+    ESP32 -> MQTT: MQTT_Handler_Publish
+    note right of ESP32: Topic: datalogger/stm32/single/data\nQoS: 0, Retain: 0
+    activate MQTT
+    MQTT -> Web: Forward sensor data
+    deactivate MQTT
+
+    Web -> Web: Update UI with sensor values
+    deactivate ESP32
+
+else MQTT Disconnected
+    STM32 -> STM32: SDCardManager_WriteData
+    activate STM32
+    STM32 -> STM32: Format: timestamp,temp,hum,SINGLE
+    STM32 -> STM32: Write to SD Card circular buffer
+    STM32 -> Display: Update buffered count
+    deactivate STM32
+    note over STM32 #FF6B6B: Data buffered for later transmission
+end
+
+STM32 -> STM32: Clear data_ready flag
+STM32 -> Display: Update display with sensor values
+deactivate STM32
+
+@enduml

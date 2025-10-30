@@ -1,0 +1,131 @@
+@startuml Live_Data_Table_Realtime_Update
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title Live Data Table Real-time Update Sequence
+
+participant "STM32" as STM32
+participant "ESP32" as ESP32
+participant "MQTT Broker" as MQTT
+participant "app.js" as AppJS
+participant "Browser" as Browser
+
+note over STM32,ESP32: Periodic measurement
+STM32 -> ESP32: Send sensor data (JSON)
+activate ESP32
+ESP32 -> MQTT: Publish(periodicData)
+deactivate ESP32
+activate MQTT
+MQTT -> AppJS: Forward message
+deactivate MQTT
+activate AppJS
+
+AppJS -> AppJS: handleMQTTMessage(topic, payload)
+AppJS -> AppJS: Parse JSON
+AppJS -> AppJS: Extract {time, temp, humi, mode, status}
+
+AppJS -> AppJS: addToLiveDataTable(data)
+AppJS -> AppJS: liveDataBuffer.unshift(entry)
+
+AppJS -> AppJS: Check buffer length
+
+alt Length > 100
+    AppJS -> AppJS: liveDataBuffer.pop()\nRemove oldest entry
+end
+
+AppJS -> AppJS: Get filter selection\nfilter = #liveDataFilter.value
+
+AppJS -> AppJS: Apply filter
+
+alt Filter = "all"
+    AppJS -> AppJS: filtered = liveDataBuffer
+else Filter = "success"
+    AppJS -> AppJS: filtered = buffer.filter\n(d => d.status == 'success')
+else Filter = "error"
+    AppJS -> AppJS: filtered = buffer.filter\n(d => d.status == 'error')
+end
+
+AppJS -> AppJS: Check filtered length
+
+alt Empty
+    AppJS -> Browser: innerHTML = "No data available"
+    activate Browser
+    deactivate Browser
+else Has Data
+    loop For each entry in filtered
+        AppJS -> AppJS: Format time\nHH:MM:SS
+        AppJS -> AppJS: Format status badge
+
+        alt Status = "success"
+            AppJS -> AppJS: Badge: connected "✓ Success"
+        else Status = "error"
+            AppJS -> AppJS: Badge: disconnected "✗ Error"
+        end
+
+        AppJS -> AppJS: Build table row\n<tr>#, time, temp, humi, mode, badge</tr>
+    end
+
+    AppJS -> Browser: Render to #liveDataTable\ntbody.innerHTML = rows
+    activate Browser
+    deactivate Browser
+end
+
+AppJS -> Browser: Update #liveDataCount\ntextContent = filtered.length
+activate Browser
+deactivate Browser
+
+AppJS -> AppJS: Refresh Feather icons\nfeather.replace()
+
+AppJS -> Browser: Table updated (real-time)
+activate Browser
+deactivate Browser
+deactivate AppJS
+
+note over AppJS,Browser: User interacts with table
+
+alt User changes filter
+    Browser -> AppJS: Change event
+    activate AppJS
+    AppJS -> AppJS: renderLiveDataTable()\nRe-filter and re-render
+    AppJS -> Browser: Updated table
+    activate Browser
+    deactivate Browser
+    deactivate AppJS
+end
+
+alt User clicks "Clear Table"
+    Browser -> AppJS: Click event
+    activate AppJS
+    AppJS -> AppJS: Confirm dialog
+
+    alt User confirms
+        AppJS -> AppJS: liveDataBuffer = []
+        AppJS -> AppJS: renderLiveDataTable()
+        AppJS -> Browser: Empty table\naddStatus("Live data cleared")
+        activate Browser
+        deactivate Browser
+    end
+    deactivate AppJS
+end
+
+alt User clicks "Export CSV"
+    Browser -> AppJS: Click event
+    activate AppJS
+
+    alt Buffer empty
+        AppJS -> Browser: Show warning\n"No data to export"
+        activate Browser
+        deactivate Browser
+    else Buffer has data
+        AppJS -> AppJS: Build CSV\nHeaders + rows
+        AppJS -> Browser: Create Blob
+        activate Browser
+        AppJS -> Browser: Trigger download\nlivedata_{timestamp}.csv
+        deactivate Browser
+        AppJS -> AppJS: addStatus("Live data exported")
+    end
+    deactivate AppJS
+end
+
+@enduml

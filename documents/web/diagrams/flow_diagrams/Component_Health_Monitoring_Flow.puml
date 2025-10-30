@@ -1,0 +1,89 @@
+@startuml Component_Health_Monitoring_Flow
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>Component Health Monitoring Flow</b></size>\n<size:12><i>Hardware Status Tracking and Reporting</i></size>
+
+start
+
+:Update Component Health;
+
+if (Component Type?) then (SHT31)
+    :componentHealth.SHT31
+    healthy = isHealthy
+    lastUpdate = Date.now;
+else (DS3231)
+    :componentHealth.DS3231
+    healthy = isHealthy
+    lastUpdate = Date.now;
+endif
+
+if (isHealthy?) then (no)
+    :errorCount++
+    Or failCount++;
+else (yes)
+    :errorCount = 0
+    Or failCount = 0;
+endif
+
+:Get Component Card
+#component-SHT31
+or #component-DS3231;
+
+:Get Status Badge
+Find .status-badge;
+
+if (Component = SHT31?) then (yes)
+    if (healthy?) then (yes)
+        :Badge: connected
+        Running;
+        
+        :Update #sht31-temp
+        Update #sht31-humi
+        Update #sht31-time;
+    else (no)
+        :Badge: disconnected
+        Error;
+        
+        :temp = Sensor Failed
+        humi = Check Wiring
+        time = Error;
+    endif
+else (no)
+    if (healthy?) then (yes)
+        :Badge: connected
+        Running;
+        
+        :Update #rtc-time
+        status = Operating normally;
+    else (no)
+        :Badge: disconnected
+        Error;
+        
+        :time = RTC Failed
+        status = Time sync failed;
+    endif
+endif
+
+:Calculate Time Ago
+seconds = now - lastUpdate / 1000
+Format: X seconds/minutes/hours ago;
+
+:Update Card UI
+Display status
+Show last update time
+Show error messages;
+
+stop
+
+@enduml

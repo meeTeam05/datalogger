@@ -1,0 +1,104 @@
+@startuml MQTT_Connection_State_Management
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    StartColor #4CAF50
+    EndColor #F44336
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>MQTT Connection State Management Flow</b></size>\n<size:12><i>WiFi & MQTT Resilience with Exponential Backoff</i></size>
+
+start
+
+:<b>System Running</b>|#90EE90;
+
+repeat
+    :ESP32 monitors WiFi state;
+    
+    switch (WiFi State?)
+    
+    case (CONNECTED)
+        if (Stable for 4s?) then (no)
+            #87CEEB:Continue monitoring;
+        else (yes)
+            if (MQTT Started?) then (no)
+                :MQTT_Handler_Start();
+                :MQTT Connecting to broker;
+                
+                if (Broker Response?) then (CONNECTED)
+                    :connected = true;
+                    :Subscribe to
+                    command topics;
+                    :Set mqtt_reconnected flag;
+                    :Send <b>MQTT CONNECTED</b>
+                    to STM32|#87CEEB;
+                else (ERROR)
+                    :Increment retry_count;
+                    :Exponential backoff:
+                    <i>min 60s, 2^retry</i>;
+                    
+                    if (Max retries?) then (yes)
+                        :Wait 60s;
+                        :Reset retry_count;
+                    endif
+                endif
+            else (yes)
+                repeat
+                    switch (MQTT State?)
+                    
+                    case (CONNECTED)
+                        :<b>Handle messages</b>|#87CEEB;
+                        
+                        if (New Message?) then (yes)
+                            :Route to handler;
+                        endif
+                    
+                    case (DISCONNECTED)
+                        if (WiFi still connected?) then (no)
+                            :Stop MQTT Handler;
+                            :mqtt_current_state =
+                            DISCONNECTED;
+                            :Send <b>MQTT DISCONNECTED</b>
+                            to STM32;
+                            :STM32 switches to
+                            SD buffering|#FF6B6B;
+                            break
+                        endif
+                    
+                    endswitch
+                    
+                repeat while (MQTT active?) is (yes)
+            endif
+        endif
+    
+    case (DISCONNECTED)
+        :Stop MQTT Handler;
+        :mqtt_current_state =
+        DISCONNECTED;
+        :Send <b>MQTT DISCONNECTED</b>
+        to STM32;
+        :STM32 switches to
+        SD buffering|#FF6B6B;
+    
+    case (FAILED)
+        :Wait 5s for retry;
+        :WiFi_Connect();
+    
+    case (CONNECTING)
+        #87CEEB:Continue monitoring;
+    
+    endswitch
+
+repeat while (System running?) is (yes)
+
+stop
+
+@enduml

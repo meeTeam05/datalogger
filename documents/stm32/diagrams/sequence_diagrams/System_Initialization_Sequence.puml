@@ -1,0 +1,136 @@
+@startuml System_Initialization_Sequence
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title System Initialization Sequence
+
+participant "Power Supply" as PWR
+participant "STM32 MCU" as MCU
+participant "HAL Library" as HAL
+participant "I2C Peripheral" as I2C
+participant "SPI Peripheral" as SPI
+participant "UART Peripheral" as UART
+participant "SHT3X Sensor" as SHT3X
+participant "DS3231 RTC" as RTC
+participant "SD Card Manager" as SD
+participant "ILI9225 Display" as Display
+participant "DataManager" as DM
+participant "Main Loop" as Main
+
+PWR -> MCU: Power ON
+activate MCU
+MCU -> MCU: Reset & Boot
+MCU -> HAL: HAL_Init()
+activate HAL
+HAL -> HAL: Configure NVIC, SysTick
+HAL --> MCU: Return
+deactivate HAL
+
+MCU -> MCU: SystemClock_Config()
+MCU -> MCU: Configure PLL: 72MHz
+
+MCU -> I2C: MX_I2C1_Init()
+activate I2C
+I2C -> I2C: Configure I2C1: 100kHz, PB6/PB7
+I2C --> MCU: Return
+deactivate I2C
+
+MCU -> SPI: MX_SPI1_Init()
+activate SPI
+SPI -> SPI: Configure SPI1: 18MHz (SD Card)
+SPI --> MCU: Return
+deactivate SPI
+
+MCU -> SPI: MX_SPI2_Init()
+activate SPI
+SPI -> SPI: Configure SPI2: 36MHz (Display)
+SPI --> MCU: Return
+deactivate SPI
+
+MCU -> UART: MX_USART1_UART_Init()
+activate UART
+UART -> UART: Configure UART1: 115200 baud,\nPA9/PA10
+UART -> UART: Enable RX interrupt
+UART --> MCU: Return
+deactivate UART
+
+MCU -> UART: UART_Init(&huart1)
+activate UART
+UART -> UART: Initialize ring buffer
+UART -> UART: Clear line buffer
+UART --> MCU: Return
+deactivate UART
+
+MCU -> SHT3X: SHT3X_Init(&g_sht3x, &hi2c1, 0x44)
+activate SHT3X
+SHT3X -> SHT3X: Store I2C handle
+SHT3X -> SHT3X: Store device address
+SHT3X -> SHT3X: currentState = SHT3X_IDLE
+SHT3X -> SHT3X: Clear temperature, humidity
+SHT3X -> I2C: Soft reset command (optional)
+I2C -> SHT3X: ACK
+SHT3X --> MCU: Return
+deactivate SHT3X
+
+MCU -> RTC: DS3231_Init(&g_ds3231, &hi2c1)
+activate RTC
+RTC -> RTC: Store I2C handle
+RTC -> I2C: Read status register
+I2C --> RTC: Return status
+RTC --> MCU: Return
+deactivate RTC
+
+MCU -> DM: DataManager_Init()
+activate DM
+DM -> DM: Clear g_datalogger_state
+DM -> DM: mode = DATA_MANAGER_MODE_IDLE
+DM -> DM: data_ready = false
+DM -> DM: temperature = 0.0
+DM -> DM: humidity = 0.0
+DM --> MCU: Return
+deactivate DM
+
+MCU -> MCU: HAL_Delay(200ms) - SD power stabilization
+
+MCU -> SD: SDCardManager_Init()
+activate SD
+SD -> SD: Initialize SPI & SD card
+SD -> SD: Read metadata from block 1
+
+alt SD card initialization successful
+    SD --> MCU: Return true
+else SD card failed
+    SD -> UART: Print "[WARN] SD Card NOT available!"
+    SD --> MCU: Return false (continue anyway)
+end
+deactivate SD
+
+MCU -> Display: ILI9225_Init()
+activate Display
+Display -> Display: Configure SPI2 pins
+Display -> Display: Send initialization commands
+Display --> MCU: Return
+deactivate Display
+
+MCU -> MCU: HAL_Delay(50ms) - Display stabilization
+
+MCU -> Display: display_init()
+activate Display
+Display -> Display: Clear screen
+Display -> Display: Set default layout
+Display --> MCU: Return
+deactivate Display
+
+MCU -> Main: Enter main loop (while(1))
+deactivate MCU
+
+activate Main
+note over Main: System ready - MQTT_STATE_DISCONNECTED by default
+Main -> Main: UART_Handle()
+Main -> Main: Check periodic state
+Main -> Main: DataManager_Print() or buffer to SD
+Main -> Main: Display_Update()
+deactivate Main
+
+@enduml

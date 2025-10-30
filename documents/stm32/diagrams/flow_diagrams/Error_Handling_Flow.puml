@@ -1,0 +1,82 @@
+@startuml Error_Handling_Flow
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    StartColor #F44336
+    EndColor #4CAF50
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>Error Handling Flow</b></size>\n<size:12><i>Graceful Degradation Strategy</i></size>
+
+start
+:<b>Error Detected</b>|#FF6B6B;
+
+switch (Error Type?)
+
+case (I2C Timeout)
+    :HAL_I2C_GetError
+    <i>(Read error register)</i>;
+    :Log Error Code
+    <i>(Debug output)</i>;
+    :Return Error Status|#FFB74D;
+    
+case (CRC Mismatch)
+    :Discard Data
+    <i>(Corrupted reading)</i>;
+    :Set temp=0.0, hum=0.0
+    <i>(Safe fallback)</i>;
+    :DataManager_Update with 0.0;
+    
+case (SD Card Error)
+    :Continue Without Buffering
+    <i>(Non-critical)</i>;
+    :Warn SD Not Available
+    <i>(Log to UART)</i>;
+    :Continue Without SD
+    <i>(Live mode only)</i>;
+    
+case (Buffer Overflow)
+    :Report Overflow
+    <i>(JSON too large)</i>;
+    :Log Buffer State
+    <i>(Size exceeded)</i>;
+    :Return Error Status|#FFB74D;
+    
+case (Invalid Command)
+    :Print Unknown
+    <i>("Command not found")</i>;
+    :Log Command String
+    <i>(Debug trace)</i>;
+    :Return Error Status|#FFB74D;
+    
+case (Invalid Parameter)
+    :Print Usage
+    <i>(Show correct syntax)</i>;
+    :Log Parameter
+    <i>(What was wrong)</i>;
+    :Return Error Status|#FFB74D;
+    
+endswitch
+
+if (Preserve\nState?) then (yes)
+    :Maintain Current Mode
+    <i>(Continue operation)</i>;
+else (no)
+    :Reset to IDLE
+    <i>(Safe state)</i>;
+endif
+
+:Continue Operation;
+
+stop
+
+@enduml

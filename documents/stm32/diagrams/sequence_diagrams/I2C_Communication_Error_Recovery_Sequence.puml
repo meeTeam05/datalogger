@@ -1,0 +1,90 @@
+@startuml I2C_Communication_Error_Recovery_Sequence
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title I2C Communication Error Recovery Sequence
+
+participant "SHT3X Driver" as Driver
+participant "HAL I2C" as HAL
+participant "I2C Hardware" as I2C
+participant "SHT3X Sensor" as Sensor
+participant "Command Parser" as Parser
+participant "DataManager" as DM
+participant "UART" as UART
+
+Driver -> HAL: HAL_I2C_Master_Transmit(&hi2c1,\naddr, data, size, 100)
+activate HAL
+HAL -> I2C: Configure and start I2C transmission
+activate I2C
+I2C -> Sensor: Send START + ADDRESS + DATA
+
+alt Normal operation
+    activate Sensor
+    Sensor -> I2C: ACK
+    deactivate Sensor
+    I2C --> HAL: Transmission complete
+    deactivate I2C
+    HAL --> Driver: Return HAL_OK
+    deactivate HAL
+    Driver -> Driver: Continue operation
+    Driver --> Parser: Return SHT3X_OK with valid data
+
+else Timeout (no response)
+    note over Sensor: Sensor not responding
+    activate I2C
+    I2C -> I2C: Wait for timeout (100ms)
+    I2C --> HAL: Return HAL_TIMEOUT
+    deactivate I2C
+    activate HAL
+    HAL --> Driver: Return HAL_TIMEOUT
+    deactivate HAL
+
+    Driver -> Driver: Check return status
+    Driver -> Driver: Log error
+    Driver --> Parser: Return SHT3X_ERROR,\ntemp=0.0, hum=0.0
+    Parser -> DM: DataManager_Update(0.0, 0.0)
+    note over DM: Store 0.0 values to indicate sensor error
+
+else Receive NACK
+    activate Sensor
+    Sensor -> I2C: NACK (busy/error)
+    deactivate Sensor
+    activate I2C
+    I2C --> HAL: Return HAL_ERROR
+    deactivate I2C
+    activate HAL
+    HAL --> Driver: Return HAL_ERROR
+    deactivate HAL
+
+    Driver -> Driver: Check return status
+    Driver -> HAL: HAL_I2C_GetError(&hi2c1)
+    activate HAL
+    HAL --> Driver: Return error code
+    deactivate HAL
+    Driver --> Parser: Return SHT3X_ERROR,\ntemp=0.0, hum=0.0
+    Parser -> DM: DataManager_Update(0.0, 0.0)
+
+else CRC mismatch
+    activate Sensor
+    Sensor -> I2C: Send data with incorrect CRC
+    deactivate Sensor
+    activate I2C
+    I2C --> HAL: Transmission complete
+    deactivate I2C
+    activate HAL
+    HAL --> Driver: Return HAL_OK
+    deactivate HAL
+
+    Driver -> Driver: Read data buffer
+    Driver -> Driver: Calculate CRC on received data
+    Driver -> Driver: Compare calculated vs received CRC
+
+    alt CRC mismatch detected
+        Driver -> Driver: Log CRC error
+        Driver --> Parser: Return SHT3X_ERROR,\ntemp=0.0, hum=0.0
+        Parser -> DM: DataManager_Update(0.0, 0.0)
+        Parser -> UART: Print "[ERROR] CRC VALIDATION FAILED"
+    end
+end
+@enduml

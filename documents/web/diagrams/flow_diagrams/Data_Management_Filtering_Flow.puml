@@ -1,0 +1,93 @@
+@startuml Data_Management_Filtering_Flow
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>Data Management & Filtering Flow</b></size>\n<size:12><i>Advanced Data Query and Analysis</i></size>
+
+start
+
+:User Clicks Apply Filters;
+
+if (Firebase Connected?) then (no)
+    :Show Error
+    Firebase not connected;
+    stop
+else (yes)
+endif
+
+:Read Filter Inputs
+dateFrom, dateTo
+mode, status
+tempMin, tempMax
+humiMin, humiMax
+sortBy;
+
+:Generate Date Range
+dates = empty array
+for d = dateFrom to dateTo
+dates.push date string;
+
+:Load Data from Firebase
+For each date
+firebase.ref readings/date
+call once value method;
+
+:Merge All Days
+allData = results.flat;
+
+if (Mode Filter Active?) then (yes)
+    :Filter by Mode
+    where record.mode equals filter;
+endif
+
+if (Status Filter Active?) then (yes)
+    :Filter by Status
+    where record.status equals filter;
+endif
+
+if (Temp Range Active?) then (yes)
+    :Filter by Temperature
+    where tempMin <= temp <= tempMax;
+endif
+
+if (Humi Range Active?) then (yes)
+    :Filter by Humidity
+    where humiMin <= humi <= humiMax;
+endif
+
+:Apply Sorting
+time ascending or descending
+temp ascending or descending
+humi ascending or descending;
+
+:Cache Filtered Data
+filteredDataCache = filtered;
+
+:Render Data Table
+Build HTML rows
+Show number, Date and Time,
+Temp, Humi, Mode, Status;
+
+:Update Statistics
+Total Records
+Success Rate
+Avg Temperature
+Avg Humidity;
+
+:Log to Console
+Loaded X records
+from Y total;
+
+stop
+
+@enduml

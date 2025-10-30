@@ -1,0 +1,93 @@
+@startuml Wifi_Disconnection_and_Reconnection
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title WiFi Disconnection and Reconnection Sequence
+
+participant "Main Loop" as Main
+participant "WiFi Manager" as WiFi
+participant "MQTT Handler" as MQTT
+participant "LED" as LED
+participant "STM32 UART" as STM32
+participant "Timer" as Timer
+
+note over WiFi: WiFi connection lost\n(router reboot, weak signal, etc.)
+
+WiFi -> Main: on_wifi_event(WIFI_STATE_DISCONNECTED)
+activate Main
+Main -> LED: Turn off WiFi LED
+Main -> Main: Log "WiFi: Disconnected"
+deactivate Main
+
+note over Main: Main loop detects WiFi state change
+
+Main -> WiFi: Check wifi_manager_is_connected()
+WiFi --> Main: false
+
+Main -> Main: Detect WiFi changed from\nconnected to disconnected
+Main -> MQTT: MQTT_Handler_Stop(&mqtt_handler)
+activate MQTT
+MQTT -> MQTT: esp_mqtt_client_stop()
+MQTT -> MQTT: Set connected = false
+MQTT --> Main: Stopped
+deactivate MQTT
+
+Main -> LED: Turn off MQTT LED
+Main -> Main: Clear g_wifi_reconnect_time_ms
+Main -> Main: Log "Stop MQTT (WiFi lost)"
+
+note over WiFi: WiFi Manager auto-retry\n(5 times, 2s interval)
+
+loop Auto-retry attempts (max 5 times)
+    WiFi -> WiFi: Try reconnection
+
+    alt Reconnection successful
+        WiFi -> Main: on_wifi_event(WIFI_STATE_CONNECTED)
+        activate Main
+        Main -> LED: Turn on WiFi LED
+        Main -> Main: Log "WiFi recovered,\nnetwork stabilizing..."
+        Main -> Timer: Mark reconnect time
+        Main -> Main: g_wifi_reconnect_time_ms = now
+        deactivate Main
+
+        note over Main: Wait 4 seconds for\nnetwork stabilization
+
+        Main -> Main: Check elapsed time >= 4000ms
+        Main -> MQTT: MQTT_Handler_Start(&mqtt_handler)
+        activate MQTT
+        MQTT -> MQTT: esp_mqtt_client_start()
+        MQTT --> Main: Started
+        deactivate MQTT
+
+        Main -> Main: Log "Start MQTT (network stable)"
+
+        note over MQTT: MQTT reconnects to broker
+
+        MQTT -> Main: on_mqtt_event(MQTT_EVENT_CONNECTED)
+        Main -> LED: Turn on MQTT LED
+
+        Main -> STM32: "MQTT CONNECTED\n"
+        activate STM32
+        STM32 -> STM32: Update state,\ncontinue normal operation
+        deactivate STM32
+
+        Main -> Main: Log "MQTT Connected"
+    end
+end
+
+alt All auto-retries failed
+    WiFi -> Main: on_wifi_event(WIFI_STATE_FAILED)
+    Main -> Main: Log "WiFi: Failed\n(auto retries exhausted)"
+
+    note over Main: Manual retry every 5 seconds
+
+    loop Every 5 seconds
+        Main -> Timer: Check if 5s passed
+        Timer --> Main: true
+        Main -> WiFi: WiFi_Manager_Connect()
+        WiFi -> WiFi: Restart connection process
+    end
+end
+
+@enduml

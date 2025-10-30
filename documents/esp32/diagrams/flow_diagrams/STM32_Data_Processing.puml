@@ -1,0 +1,51 @@
+@startuml STM32_Data_Processing
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    StartColor #4CAF50
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>STM32 Data Processing Flow</b></size>\n<size:12><i>UART Reception and Sensor Data Parsing</i></size>
+
+start
+:<b>Receive UART line from STM32</b>;
+
+:JSON_Parser_ProcessLine();
+
+if (Valid JSON?) then (no)
+    :Log parse error;
+    stop
+else (yes)
+endif
+
+switch (Mode?)
+case (SINGLE)
+    :on_single_sensor_data callback;
+    :JSON_Utils_CreateSensorData();
+    :MQTT_Handler_Publish
+    <b>datalogger/stm32/single/data</b>;
+
+case (PERIODIC)
+    :on_periodic_sensor_data callback;
+    :JSON_Utils_CreateSensorData();
+    :MQTT_Handler_Publish
+    <b>datalogger/stm32/periodic/data</b>;
+endswitch
+
+:Log sensor values
+• Temperature
+• Humidity
+• Timestamp;
+
+stop
+
+@enduml

@@ -1,0 +1,53 @@
+@startuml WiFi_MQTT_Manager_Component
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam class {
+    BackgroundColor<<mqtt>> #F3E5F5
+    BorderColor<<mqtt>> #6A1B9A
+    BackgroundColor<<enum>> #ECEFF1
+    BorderColor<<enum>> #455A64
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 1.5
+}
+
+title <size:18><b>WiFi/MQTT Manager Component</b></size>\n<size:12><i>MQTT Connection State Management</i></size>
+
+enum mqtt_state_t <<enum>> {
+    MQTT_STATE_DISCONNECTED
+    MQTT_STATE_CONNECTED
+}
+
+class WiFiManagerAPI <<mqtt>> {
+    <<interface>>
+    <b>== Public Methods ==</b>
+    +mqtt_manager_get_state() : mqtt_state_t
+}
+
+class WiFiManagerPrivate <<mqtt>> {
+    <<private>>
+    <b>== Private Members ==</b>
+    -mqtt_state_t mqtt_current_state
+}
+
+WiFiManagerAPI ..> mqtt_state_t : returns
+WiFiManagerPrivate --> mqtt_state_t : stores
+
+note right of WiFiManagerAPI
+    <b>WiFi Manager API</b>
+    • Global state accessor
+    • Set via UART commands
+    • Controls data routing
+    • Default: DISCONNECTED
+end note
+
+note left of mqtt_state_t
+    <b>MQTT State</b>
+    • CONNECTED: Send to UART
+    • DISCONNECTED: Buffer to SD
+    • State changes via ESP32
+end note
+
+@enduml

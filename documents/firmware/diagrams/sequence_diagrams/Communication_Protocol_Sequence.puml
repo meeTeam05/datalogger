@@ -1,0 +1,95 @@
+@startuml Communication_Protocol_Sequence
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title <size:16><b>Communication Protocol Sequence</b></size>\n<size:12><i>Multi-Layer Protocol Stack Overview</i></size>
+
+participant "STM32" as STM32
+participant "UART Link\n115200 baud\n8N1" as UART
+participant "ESP32" as ESP32
+participant "MQTT Protocol\nv5.0\nQoS 0/1" as MQTT
+participant "MQTT\nBroker" as Broker
+
+== Command Flow (Web → STM32) ==
+note over Broker, STM32 #E3F2FD: <b>Downstream Command Path</b>
+
+Broker -> MQTT: PUBLISH datalogger/stm32/command
+activate MQTT
+MQTT -> ESP32: MQTT message
+activate ESP32
+deactivate MQTT
+
+ESP32 -> ESP32: Route by topic
+ESP32 -> UART: Text command + '\n'
+note right of ESP32: Plain text format:\n"SINGLE\n"\n"PERIODIC ON\n"\n"PERIODIC OFF\n"
+activate UART
+deactivate ESP32
+
+UART -> STM32: UART RX interrupt
+activate STM32
+deactivate UART
+
+STM32 -> STM32: Parse and execute
+deactivate STM32
+
+== Data Flow (STM32 → Web) ==
+note over STM32, Broker #FFF9C4: <b>Upstream Data Path</b>
+
+STM32 -> STM32: Collect sensor data
+activate STM32
+STM32 -> UART: JSON + '\n'
+note right of STM32: JSON format:\n{"mode":"SINGLE",\n"timestamp":1729699200,\n"temperature":30.59,\n"humidity":73.97}
+activate UART
+deactivate STM32
+
+UART -> ESP32: UART RX interrupt
+activate ESP32
+deactivate UART
+
+ESP32 -> ESP32: JSON parse
+ESP32 -> MQTT: PUBLISH with QoS
+note right of ESP32: Topic routing:\n- datalogger/stm32/single/data\n- datalogger/stm32/periodic/data
+activate MQTT
+deactivate ESP32
+
+MQTT -> Broker: Forward message
+deactivate MQTT
+
+== State Synchronization ==
+note over ESP32, Broker #E8F5E9: <b>State Persistence</b>
+
+ESP32 -> ESP32: State change detected
+activate ESP32
+ESP32 -> MQTT: PUBLISH with retain=1
+note right of ESP32: Retained message:\n{"device":"ON",\n"periodic":"OFF",\n"timestamp":...}
+activate MQTT
+deactivate ESP32
+
+MQTT -> Broker: Store retained
+activate Broker
+deactivate MQTT
+
+Broker -> Broker: Persist state
+note right of Broker: New clients receive\nlast known state
+deactivate Broker
+
+== MQTT Status Notification ==
+note over ESP32, STM32 #FFEBEE: <b>Connection Status Sync</b>
+
+ESP32 -> ESP32: MQTT state change
+activate ESP32
+ESP32 -> UART: "MQTT CONNECTED" or\n"MQTT DISCONNECTED"
+note right of ESP32: Simple status commands\nfor STM32 mode switching
+activate UART
+deactivate ESP32
+
+UART -> STM32: Command
+activate STM32
+deactivate UART
+
+STM32 -> STM32: Switch TX mode
+note right of STM32: CONNECTED: live transmission\nDISCONNECTED: SD buffering
+deactivate STM32
+
+@enduml

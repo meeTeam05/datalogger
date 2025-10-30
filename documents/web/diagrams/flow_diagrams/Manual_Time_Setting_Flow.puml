@@ -1,0 +1,53 @@
+@startuml Manual_Time_Setting_Flow
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>Manual Time Setting Flow</b></size>\n<size:12><i>User-Defined Time Configuration</i></size>
+
+start
+
+:User Clicks
+Set Time Manually;
+
+:Read Time Picker State
+year, month, day
+hour, minute, second;
+
+:Create Date Object
+date = new Date
+(year, month, day,
+hour, minute, second);
+
+:Get Unix Timestamp
+timestamp = date.getTime() / 1000;
+
+:Add UTC+7 Offset
+timestampWithOffset
+= timestamp + 7*3600;
+
+:Build Command
+SET TIME <timestampWithOffset>;
+
+if (MQTT Connected?) then (no)
+    :Show Error
+    MQTT not connected
+    Cannot send SET TIME;
+else (yes)
+    :Publish to MQTT
+    Topic: stm32Command
+    QoS: 1;
+    
+    :Log to Console
+    Manual time set:
+    <datetime> (UTC+7);
+endif

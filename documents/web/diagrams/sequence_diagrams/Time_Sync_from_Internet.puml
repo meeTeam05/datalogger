@@ -1,0 +1,90 @@
+@startuml Time_Sync_from_Internet
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title Time Sync from Internet Sequence
+
+participant "User" as User
+participant "Browser" as Browser
+participant "app.js" as AppJS
+participant "MQTT Broker" as MQTT
+participant "ESP32" as ESP32
+participant "STM32" as STM32
+participant "DS3231" as DS3231
+
+User -> Browser: Click "Sync from Internet"
+activate Browser
+Browser -> AppJS: Click event
+deactivate Browser
+activate AppJS
+
+AppJS -> Browser: Get current browser time\nnow = new Date()
+activate Browser
+Browser --> AppJS: Timestamp (ms)
+deactivate Browser
+
+AppJS -> AppJS: Convert to Unix timestamp\ntimestamp = now.getTime() / 1000
+
+AppJS -> AppJS: Update time picker state\ntimePickerYear = now.getFullYear()\ntimePickerMonth = now.getMonth()\ntimePickerDay = now.getDate()\ntimePickerHour = now.getHours()\ntimePickerMinute = now.getMinutes()\ntimePickerSecond = now.getSeconds()
+
+AppJS -> Browser: renderCalendar()\nHighlight current date
+activate Browser
+deactivate Browser
+AppJS -> Browser: updateTimeDisplay()\nShow HH:MM:SS
+activate Browser
+deactivate Browser
+
+AppJS -> AppJS: Add UTC+7 offset\ntimestampWithOffset = timestamp + 7*3600
+
+AppJS -> AppJS: Build command\n"SET TIME {timestampWithOffset}"
+
+AppJS -> AppJS: Check isMqttConnected
+
+alt MQTT Connected
+    AppJS -> MQTT: Publish(stm32Command,\n"SET TIME X", qos=1)
+    activate MQTT
+    
+    MQTT -> ESP32: Forward command
+    activate ESP32
+    deactivate MQTT
+    ESP32 -> STM32: UART transmit\n{"cmd":"SET TIME","value":X}
+    activate STM32
+    deactivate ESP32
+    
+    STM32 -> DS3231: I2C write\nSet RTC registers\nyear, month, day,\nhour, minute, second
+    activate DS3231
+    
+    DS3231 --> STM32: Write complete
+    deactivate DS3231
+    STM32 -> STM32: Update local time variable
+    
+    STM32 -> ESP32: UART confirm\n{"status":"OK","cmd":"SET TIME"}
+    deactivate STM32
+    activate ESP32
+    ESP32 -> MQTT: Publish(systemState)
+    activate MQTT
+    deactivate ESP32
+    MQTT -> AppJS: Confirmation
+    deactivate MQTT
+    
+    AppJS -> AppJS: addStatus("Time synced from internet:\n{datetime} (UTC+7)")
+else MQTT Not Connected
+    AppJS -> AppJS: addStatus("ERROR:\nMQTT not connected")
+end
+
+AppJS -> AppJS: Update local device clock\ndeviceClockMs = timestamp * 1000\ndeviceClockSetAtMs = Date.now()
+
+AppJS -> AppJS: startDeviceClockTicker()
+
+loop Every 1 second
+    AppJS -> AppJS: Calculate display time\nelapsed = Date.now() - deviceClockSetAtMs\ndisplayTime = deviceClockMs + elapsed
+    AppJS -> Browser: Update #footerTime\nFormat: HH:MM:SS
+    activate Browser
+    deactivate Browser
+end
+
+AppJS -> User: Time synchronized
+deactivate AppJS
+
+@enduml

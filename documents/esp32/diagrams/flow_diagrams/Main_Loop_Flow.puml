@@ -1,0 +1,56 @@
+@startuml Main_Loop_Flow
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>Main Loop Flow</b></size>\n<size:12><i>Continuous System Monitoring and State Management</i></size>
+
+start
+:<b>Main Loop Entry</b>;
+
+repeat
+
+    if (WiFi State?) then (FAILED)
+        if (5s passed since\nlast retry?) then (yes)
+            :WiFi Manager Connect;
+        endif
+
+    elseif (CONNECTED) then
+        if (WiFi stable\nfor 4s?) then (yes & MQTT not started)
+            :MQTT Handler Start;
+        endif
+
+    elseif (DISCONNECTED) then
+        :MQTT Handler Stop;
+    endif
+
+    if (MQTT State\nchanged?) then (Connected)
+        :Send <b>MQTT CONNECTED</b>\nto STM32;
+        :Turn on MQTT LED;
+
+    elseif (Disconnected) then
+        :Send <b>MQTT DISCONNECTED</b>\nto STM32;
+        :Turn off MQTT LED;
+
+    else (No change)
+        :Log status every 30s;
+    endif
+
+    :Delay 100ms;
+
+repeat while (System running?) is (yes)
+->no;
+
+stop
+
+@enduml

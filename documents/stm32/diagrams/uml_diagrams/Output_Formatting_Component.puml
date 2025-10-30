@@ -1,0 +1,69 @@
+@startuml Output_Formatting_Component
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam class {
+    BackgroundColor<<output>> #FCE4EC
+    BorderColor<<output>> #C2185B
+    BackgroundColor<<hal>> #ECEFF1
+    BorderColor<<hal>> #455A64
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 1.5
+}
+
+title <size:18><b>Output and Formatting Component</b></size>\n<size:12><i>JSON Formatting and UART Transmission</i></size>
+
+class SensorJSONOutput <<output>> {
+    <<service>>
+    <b>== Public Methods ==</b>
+    +sensor_json_output_send(const char* mode, float temp, float hum) : void
+    
+    <b>== Private Methods ==</b>
+    -sanitize_float(float value, float default_value) : float
+    -get_unix_timestamp() : uint32_t
+    
+    <b>== Constants ==</b>
+    -JSON_BUFFER_SIZE : 128
+}
+
+class PrintCLI <<output>> {
+    <<service>>
+    <b>== Private Members ==</b>
+    -stringBuffer[256]
+    
+    <b>== Public Methods ==</b>
+    +PRINT_CLI(const char* fmt, ...) : void
+}
+
+class HAL_UART <<hal>> {
+    <<external>>
+    <b>== HAL Functions ==</b>
+    +HAL_UART_Transmit(UART_HandleTypeDef*, uint8_t*, uint16_t, uint32_t) : HAL_StatusTypeDef
+}
+
+SensorJSONOutput ..> PrintCLI : uses
+PrintCLI ..> HAL_UART : uses
+
+note right of SensorJSONOutput
+    <b>JSON Output</b>
+    • Formats sensor data
+    • Sanitizes NaN/Inf values
+    • Adds Unix timestamp
+    • Example output:
+    {"mode":"SINGLE",
+     "timestamp":1729699200,
+     "temperature":25.50,
+     "humidity":60.00}
+end note
+
+note left of PrintCLI
+    <b>Print CLI</b>
+    • printf-style formatting
+    • Fixed buffer (256 bytes)
+    • UART transmission
+    • Timeout: 100ms
+end note
+
+@enduml

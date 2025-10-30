@@ -1,0 +1,57 @@
+@startuml MQTT_Message_Processing
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    StartColor #4CAF50
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>MQTT Message Processing Flow</b></size>\n<size:12><i>Topic-based Message Routing and Command Handling</i></size>
+
+start
+:<b>Receive MQTT Message</b>;
+
+switch (Check Topic?)
+case (datalogger/stm32/command)
+    :Forward to STM32;
+    :STM32_UART_SendCommand;
+
+    if (Command Type?) then (PERIODIC ON)
+        :Update state\nperiodic = true;
+    elseif (PERIODIC OFF) then
+        :Update state\nperiodic = false;
+    else (Other)
+    endif
+
+case (datalogger/esp32/relay/control)
+    :Process relay control;
+
+    if (Relay Command?) then (ON)
+        :Relay_SetState(true);
+    elseif (OFF) then
+        :Relay_SetState(false);
+    else (Invalid)
+        :Log error;
+    endif
+
+case (datalogger/esp32/system/state)
+    if (Contains REQUEST\nand mqtt_reconnected?) then (yes)
+        :publish_current_state();
+        :Clear mqtt_reconnected flag;
+    endif
+
+case (Other topics)
+    :<b>Ignore</b>;
+endswitch
+
+stop
+
+@enduml

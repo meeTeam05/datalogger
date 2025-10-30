@@ -1,0 +1,19 @@
+@startuml Legend
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+
+title <size:16><b>Flow Diagram Legend</b></size>
+
+legend
+    |= Symbol |= Meaning |= Color |
+    | <#90EE90> Start/Success | Start point or successful operation | Green |
+    | <#FFD700> Process | Normal processing step | Yellow |
+    | <#FFF9C4> Decision | Decision point / condition check | Light Yellow |
+    | <#FFE082> Warning | Warning state or retry | Orange |
+    | <#FF6B6B> Error/Stop | Error state or stop point | Red |
+    | <#E3F2FD> Activity | Regular activity block | Light Blue |
+    | <#87CEEB> Active State | Active/running state | Sky Blue |
+endlegend
+
+@enduml

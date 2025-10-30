@@ -29,6 +29,10 @@ let filteredDataCache = [];
 let liveDataBuffer = [];
 const maxLiveDataEntries = 100;
 
+// Device button cooldown
+let deviceButtonLocked = false;
+let deviceButtonCooldown = 3000; // 3 seconds
+
 // Component health tracking
 const componentHealth = {
   SHT31: {
@@ -78,6 +82,10 @@ let stateSync = {
   ignoreNextPeriodicSync: false,
 };
 
+// ====================================================================
+// CONFIGURATION
+// ====================================================================
+
 // Firebase Configuration
 let FIREBASE_CONFIG = {
   apiKey: "AIzaSyAxEhTb1cNHTwmVWh4vbpA5MZSF0Vf0l0U",
@@ -93,7 +101,6 @@ const MQTT_CONFIG = {
   username: "DataLogger",
   password: "datalogger",
   clientId: "web_client_1",
-  url: "ws://127.0.0.1:8083/mqtt",
   topics: {
     stm32Command: "datalogger/stm32/command",
     relayControl: "datalogger/esp32/relay/control",
@@ -107,6 +114,68 @@ const MQTT_CONFIG = {
 let tempChart, humiChart;
 let chartInitRetryCount = 0;
 const maxChartInitRetries = 10;
+
+// ====================================================================
+// DISPLAY PREFERENCES - FORMATTING FUNCTIONS
+// ====================================================================
+
+/**
+ * Format temperature in Celsius
+ * @param {number} celsius - Temperature in Celsius
+ * @returns {string} Formatted temperature with unit
+ */
+function formatTemperature(celsius) {
+  if (celsius === null || celsius === undefined || isNaN(celsius)) {
+    return "--";
+  }
+  return `${celsius.toFixed(2)}°C`;
+}
+
+/**
+ * Format time in 24-hour format
+ * @param {Date|number} date - Date object or timestamp in ms
+ * @returns {string} Formatted time
+ */
+function formatTime(date) {
+  if (!date) return "--:--:--";
+
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return "--:--:--";
+
+  return d.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+
+/**
+ * Format date in DD/MM/YYYY format
+ * @param {Date|number} date - Date object or timestamp in ms
+ * @returns {string} Formatted date
+ */
+function formatDate(date) {
+  if (!date) return "--/--/--";
+
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return "--/--/--";
+
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+
+  return `${day}/${month}/${year}`;
+}
+
+/**
+ * Format full datetime (date + time)
+ * @param {Date|number} date - Date object or timestamp in ms
+ * @returns {string} Formatted datetime
+ */
+function formatDateTime(date) {
+  return `${formatDate(date)} ${formatTime(date)}`;
+}
 
 // ====================================================================
 // NAVIGATION
@@ -181,9 +250,8 @@ function updateConsoleDisplay(logEntry) {
   const time = new Date(logEntry.timestamp).toLocaleTimeString("en-US", {
     hour12: false,
   });
-  const line = `<div class="log-line log-${logEntry.type.toLowerCase()}">[${
-    logEntry.type
-  }] ${time}: ${logEntry.message}</div>`;
+  const line = `<div class="log-line log-${logEntry.type.toLowerCase()}">[${logEntry.type
+    }] ${time}: ${logEntry.message}</div>`;
 
   // Update preview (last 5)
   const preview = document.getElementById("consolePreview");
@@ -327,7 +395,7 @@ function initializeMQTT() {
       password: MQTT_CONFIG.password,
       clean: true,
       connectTimeout: 4000,
-      reconnectPeriod: 2000,
+      reconnectPeriod: 5000,
     });
 
     mqttClient.on("connect", function () {
@@ -496,26 +564,17 @@ function handleMQTTMessage(topic, payload) {
           time: jsonData.timestamp || 0,
           device: "ESP32_01",
         });
-      } else {
-        console.log("[DATA] Skipped Firebase save (inactive)");
       }
 
       // Update charts only when active and valid values
-      if (isPeriodicTopic && isActiveMeasurement && !sensorFailed) {
-        console.log(
-          `[CHART] Pushing data: temp=${jsonData.temperature}, humi=${
-            jsonData.humidity
-          }, time=${new Date(timestamp).toLocaleTimeString()}`
-        );
-        pushTemperature(jsonData.temperature, true, timestamp);
-        pushHumidity(jsonData.humidity, true, timestamp);
-        console.log(
-          `[CHART] Data pushed. TempData length: ${temperatureData.length}, HumiData length: ${humidityData.length}`
-        );
-      } else {
-        console.log(
-          `[CHART] Skipped: mode=${mode}, sensorFailed=${sensorFailed}`
-        );
+      if (isPeriodicTopic && isActiveMeasurement) {
+        // Check "Skip error readings" setting
+        const skipErrors = localStorage.getItem("chartSkipErrors") === "true";
+
+        if (!(skipErrors && sensorFailed)) {
+          pushTemperature(jsonData.temperature, true, timestamp);
+          pushHumidity(jsonData.humidity, true, timestamp);
+        }
       }
 
       // Update component health
@@ -582,31 +641,12 @@ function syncUIWithHardwareState(state) {
   isDeviceOn = state.device;
   isPeriodic = state.periodic;
 
-  // Update Device button - show CURRENT state
-  const deviceBtn = document.getElementById("deviceBtn");
-  const deviceBtnText = document.getElementById("deviceBtnText");
-  if (isDeviceOn) {
-    deviceBtn.className = "btn btn-success";
-    deviceBtnText.textContent = "Device ON";
-  } else {
-    deviceBtn.className = "btn btn-secondary";
-    deviceBtnText.textContent = "Device OFF";
-  }
-
-  // Update Periodic button - show CURRENT state
-  const periodicBtn = document.getElementById("periodicBtn");
-  const periodicBtnText = document.getElementById("periodicBtnText");
-  if (isPeriodic) {
-    periodicBtn.className = "btn btn-success";
-    periodicBtnText.textContent = "Periodic ON";
-  } else {
-    periodicBtn.className = "btn btn-secondary";
-    periodicBtnText.textContent = "Periodic OFF";
-  }
+  // USE HELPER FUNCTIONS
+  updateDeviceButtonUI();
+  updatePeriodicButtonUI();
 
   addStatus(
-    `State synced: Device=${state.device ? "ON" : "OFF"}, Periodic=${
-      state.periodic ? "ON" : "OFF"
+    `State synced: Device=${state.device ? "ON" : "OFF"}, Periodic=${state.periodic ? "ON" : "OFF"
     }`,
     "SYNC"
   );
@@ -616,18 +656,19 @@ function syncUIWithHardwareState(state) {
 // CURRENT DISPLAY
 // ====================================================================
 function updateCurrentDisplay() {
-  document.getElementById("currentTemp").textContent =
-    currentTemp !== null ? currentTemp.toFixed(1) : "--";
-  document.getElementById("currentHumi").textContent =
-    currentHumi !== null ? currentHumi.toFixed(1) : "--";
+  // Use formatting function for temperature
+  const tempDisplay = currentTemp !== null ? formatTemperature(currentTemp) : "--";
+  document.getElementById("currentTemp").textContent = tempDisplay;
 
-  // Prefer the device-provided timestamp if available
-  const timeStr = lastReadingTimestamp
-    ? new Date(lastReadingTimestamp).toLocaleTimeString("en-US", {
-        hour12: false,
-      })
-    : "--:--:--";
-  document.getElementById("lastUpdate").textContent = `Updated at ${timeStr}`;
+  // Humidity stays as percentage
+  document.getElementById("currentHumi").textContent =
+    currentHumi !== null ? currentHumi.toFixed(1) + "%" : "--";
+
+  // Use formatting function for full datetime (date + time)
+  const dateTimeStr = lastReadingTimestamp
+    ? formatDateTime(new Date(lastReadingTimestamp))
+    : "--/--/---- --:--:--";
+  document.getElementById("lastUpdate").textContent = dateTimeStr;
 }
 
 // ====================================================================
@@ -653,8 +694,8 @@ function saveToFirebaseSimple(data) {
       data.temp === 0 && data.humi === 0
         ? "sensor_fail"
         : data.time === 0
-        ? "rtc_fail"
-        : null,
+          ? "rtc_fail"
+          : null,
     time: data.time ? data.time - 7 * 3600 : Math.floor(Date.now() / 1000),
     device: data.device ?? "ESP32_01",
     created_at: Date.now(),
@@ -692,25 +733,16 @@ function ensureChartsInitialized() {
 
 function initializeCharts() {
   console.log(
-    `[CHART] Attempting to initialize charts (attempt ${
-      chartInitRetryCount + 1
+    `[CHART] Attempting to initialize charts (attempt ${chartInitRetryCount + 1
     }/${maxChartInitRetries})...`
   );
 
   const tempCanvas = document.getElementById("tempChart");
   const humiCanvas = document.getElementById("humiChart");
 
-  console.log("[CHART] Canvas elements:", {
-    tempCanvas: !!tempCanvas,
-    humiCanvas: !!humiCanvas,
-  });
-
   if (!tempCanvas || !humiCanvas) {
     chartInitRetryCount++;
     if (chartInitRetryCount < maxChartInitRetries) {
-      console.warn(
-        `[CHART] Canvas elements not found! Retrying in 500ms... (${chartInitRetryCount}/${maxChartInitRetries})`
-      );
       setTimeout(initializeCharts, 500);
     } else {
       console.error(
@@ -724,17 +756,9 @@ function initializeCharts() {
   const tempCtx = tempCanvas.getContext("2d");
   const humiCtx = humiCanvas.getContext("2d");
 
-  console.log("[CHART] Canvas contexts:", {
-    tempCtx: !!tempCtx,
-    humiCtx: !!humiCtx,
-  });
-
   if (!tempCtx || !humiCtx) {
     chartInitRetryCount++;
     if (chartInitRetryCount < maxChartInitRetries) {
-      console.warn(
-        `[CHART] Cannot get 2D context! Retrying in 500ms... (${chartInitRetryCount}/${maxChartInitRetries})`
-      );
       setTimeout(initializeCharts, 500);
     } else {
       console.error(
@@ -761,7 +785,7 @@ function initializeCharts() {
         labels: [],
         datasets: [
           {
-            label: "Temperature (C)",
+            label: "Temperature (°C)",
             data: [],
             borderColor: "#06B6D4",
             backgroundColor: "rgba(6, 182, 212, 0.1)",
@@ -795,7 +819,7 @@ function initializeCharts() {
             displayColors: false,
             callbacks: {
               label: function (context) {
-                return `Temperature: ${context.parsed.y.toFixed(1)}C`;
+                return `Temperature: ${context.parsed.y.toFixed(1)}°C`;
               },
             },
           },
@@ -810,7 +834,7 @@ function initializeCharts() {
             },
             ticks: {
               callback: function (value) {
-                return value.toFixed(1) + "C";
+                return value.toFixed(1) + "°C";
               },
             },
           },
@@ -949,25 +973,12 @@ function pushTemperature(value, update = true, timestamp = null) {
     temperatureData.shift();
   }
 
-  console.log(
-    `[pushTemperature] Value: ${value}, Update: ${update}, TempChart exists: ${!!tempChart}, Array length: ${
-      temperatureData.length
-    }`
-  );
-
   if (update) {
     if (tempChart) {
       tempChart.data.labels = temperatureData.map((d) => d.time);
       tempChart.data.datasets[0].data = temperatureData.map((d) => d.value);
       tempChart.update("active");
       updateChartStats("temp");
-      console.log(
-        `[pushTemperature] Chart updated with ${temperatureData.length} points`
-      );
-    } else {
-      console.warn(
-        "[pushTemperature] TempChart not initialized yet - data saved, will render when ready"
-      );
     }
   }
 }
@@ -985,25 +996,12 @@ function pushHumidity(value, update = true, timestamp = null) {
     humidityData.shift();
   }
 
-  console.log(
-    `[pushHumidity] Value: ${value}, Update: ${update}, HumiChart exists: ${!!humiChart}, Array length: ${
-      humidityData.length
-    }`
-  );
-
   if (update) {
     if (humiChart) {
       humiChart.data.labels = humidityData.map((d) => d.time);
       humiChart.data.datasets[0].data = humidityData.map((d) => d.value);
       humiChart.update("active");
       updateChartStats("humi");
-      console.log(
-        `[pushHumidity] Chart updated with ${humidityData.length} points`
-      );
-    } else {
-      console.warn(
-        "[pushHumidity] HumiChart not initialized yet - data saved, will render when ready"
-      );
     }
   }
 }
@@ -1049,12 +1047,53 @@ function clearChartData() {
 }
 
 // ====================================================================
+// APPLY CHART SETTINGS DYNAMICALLY
+// ====================================================================
+function applyChartSettings() {
+  // Trim temperature data if exceeds new limit
+  if (temperatureData.length > maxDataPoints) {
+    const removeCount = temperatureData.length - maxDataPoints;
+    temperatureData.splice(0, removeCount);
+  }
+
+  // Trim humidity data if exceeds new limit
+  if (humidityData.length > maxDataPoints) {
+    const removeCount = humidityData.length - maxDataPoints;
+    humidityData.splice(0, removeCount);
+  }
+
+  // Update temperature chart
+  if (tempChart) {
+    tempChart.data.labels = temperatureData.map((d) => d.time);
+    tempChart.data.datasets[0].data = temperatureData.map((d) => d.value);
+    tempChart.update("none"); // 'none' = no animation for instant update
+    updateChartStats("temp");
+  }
+
+  // Update humidity chart
+  if (humiChart) {
+    humiChart.data.labels = humidityData.map((d) => d.time);
+    humiChart.data.datasets[0].data = humidityData.map((d) => d.value);
+    humiChart.update("none");
+    updateChartStats("humi");
+  }
+
+  addStatus(`Charts refreshed with ${maxDataPoints} max points`, "INFO");
+}
+
+// ====================================================================
 // BUTTON HANDLERS
 // ====================================================================
 // ====================================================================
 // BUTTON EVENT LISTENERS
 // ====================================================================
 document.getElementById("deviceBtn").addEventListener("click", function () {
+  // CHECK IF BUTTON IS LOCKED
+  if (deviceButtonLocked) {
+    addStatus("Please wait... Device button is cooling down", "WARNING");
+    return;
+  }
+
   if (!isMqttConnected) {
     addStatus("MQTT not connected", "ERROR");
     return;
@@ -1064,6 +1103,9 @@ document.getElementById("deviceBtn").addEventListener("click", function () {
   const command = isDeviceOn ? "RELAY OFF" : "RELAY ON";
   const willBeDeviceOn = !isDeviceOn;
 
+  // LOCK BUTTON IMMEDIATELY
+  lockDeviceButton();
+
   // Publish MQTT command
   mqttClient.publish(MQTT_CONFIG.topics.relayControl, command, { qos: 1 });
 
@@ -1071,23 +1113,12 @@ document.getElementById("deviceBtn").addEventListener("click", function () {
   isDeviceOn = willBeDeviceOn;
 
   // Update UI - show CURRENT state
-  const deviceBtn = document.getElementById("deviceBtn");
-  const deviceBtnText = document.getElementById("deviceBtnText");
-  if (isDeviceOn) {
-    deviceBtn.className = "btn btn-success";
-    deviceBtnText.textContent = "Device ON";
-  } else {
-    deviceBtn.className = "btn btn-secondary";
-    deviceBtnText.textContent = "Device OFF";
-  }
+  updateDeviceButtonUI();
 
   // If turning OFF, stop periodic mode immediately
   if (!isDeviceOn && isPeriodic) {
     isPeriodic = false;
-    const periodicBtn = document.getElementById("periodicBtn");
-    const periodicBtnText = document.getElementById("periodicBtnText");
-    if (periodicBtn) periodicBtn.className = "btn btn-secondary";
-    if (periodicBtnText) periodicBtnText.textContent = "Periodic OFF";
+    updatePeriodicButtonUI();
 
     mqttClient.publish(MQTT_CONFIG.topics.stm32Command, "PERIODIC OFF", {
       qos: 1,
@@ -1101,11 +1132,151 @@ document.getElementById("deviceBtn").addEventListener("click", function () {
     currentHumi = null;
     document.getElementById("currentTemp").textContent = "--";
     document.getElementById("currentHumi").textContent = "--";
-    document.getElementById("lastUpdate").textContent = "Updated at --:--:--";
+    document.getElementById("lastUpdate").textContent = "--:--:--";
   }
 
   addStatus(`Device ${command} sent`, "MQTT");
+
+  // UNLOCK AFTER COOLDOWN
+  setTimeout(() => {
+    unlockDeviceButton();
+  }, deviceButtonCooldown);
 });
+
+// ====================================================================
+// DEVICE BUTTON LOCK/UNLOCK HELPERS
+// ====================================================================
+
+/**
+ * Lock Device button and show visual feedback
+ */
+function lockDeviceButton() {
+  deviceButtonLocked = true;
+
+  const deviceBtn = document.getElementById("deviceBtn");
+  const deviceBtnText = document.getElementById("deviceBtnText");
+
+  if (deviceBtn) {
+    // Add disabled visual state
+    deviceBtn.style.opacity = "0.5";
+    deviceBtn.style.cursor = "not-allowed";
+    deviceBtn.style.pointerEvents = "none"; // Prevent clicks
+
+    deviceBtn.style.position = "relative";
+    deviceBtn.style.overflow = "hidden";
+
+    // Add spinning icon
+    const icon = deviceBtn.querySelector('i[data-feather]');
+    if (icon) {
+      icon.style.animation = "spin 1s linear infinite";
+    }
+
+    const progressBar = document.createElement('div');
+    progressBar.id = 'device-cooldown-progress';
+    progressBar.style.cssText = `
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      height: 4px;
+      width: 100%;
+      background: linear-gradient(90deg, #10B981 0%, #06B6D4 100%);
+      animation: shrink ${deviceButtonCooldown}ms linear;
+      box-shadow: 0 0 10px rgba(6, 182, 212, 0.5);
+      z-index: 10;
+    `;
+
+    // Thêm progress bar vào button
+    deviceBtn.appendChild(progressBar);
+  }
+
+  // Start countdown display
+  let countdown = Math.ceil(deviceButtonCooldown / 1000);
+  const originalText = deviceBtnText.textContent;
+
+  const countdownInterval = setInterval(() => {
+    if (countdown > 0 && deviceButtonLocked) {
+      deviceBtnText.textContent = `Wait ${countdown}s...`;
+      countdown--;
+    } else {
+      clearInterval(countdownInterval);
+      if (!deviceButtonLocked) {
+        deviceBtnText.textContent = originalText;
+      }
+    }
+  }, 1000);
+
+  addStatus(`Device button locked for ${deviceButtonCooldown / 1000}s`, "INFO");
+}
+
+/**
+ * Unlock Device button and restore normal state
+ */
+function unlockDeviceButton() {
+  deviceButtonLocked = false;
+
+  const deviceBtn = document.getElementById("deviceBtn");
+  const icon = deviceBtn?.querySelector('i[data-feather]');
+
+  if (deviceBtn) {
+    deviceBtn.style.opacity = "1";
+    deviceBtn.style.cursor = "pointer";
+    deviceBtn.style.pointerEvents = "auto";
+
+    // Remove spinning animation
+    if (icon) {
+      icon.style.animation = "";
+    }
+
+    const progressBar = document.getElementById('device-cooldown-progress');
+    if (progressBar) {
+      progressBar.remove();
+    }
+
+    deviceBtn.style.position = "";
+    deviceBtn.style.overflow = "";
+  }
+
+  // Restore correct button text
+  updateDeviceButtonUI();
+
+  addStatus("Device button unlocked", "INFO");
+}
+
+/**
+ * Update Device button UI based on current state
+ */
+function updateDeviceButtonUI() {
+  const deviceBtn = document.getElementById("deviceBtn");
+  const deviceBtnText = document.getElementById("deviceBtnText");
+
+  if (!deviceBtn || !deviceBtnText) return;
+
+  if (isDeviceOn) {
+    deviceBtn.className = "btn btn-success";
+    deviceBtnText.textContent = "Device ON";
+  } else {
+    deviceBtn.className = "btn btn-secondary";
+    deviceBtnText.textContent = "Device OFF";
+  }
+}
+
+/**
+ * Update Periodic button UI based on current state
+ */
+function updatePeriodicButtonUI() {
+  const periodicBtn = document.getElementById("periodicBtn");
+  const periodicBtnText = document.getElementById("periodicBtnText");
+
+  if (!periodicBtn || !periodicBtnText) return;
+
+  if (isPeriodic) {
+    periodicBtn.className = "btn btn-success";
+    periodicBtnText.textContent = "Periodic ON";
+  } else {
+    periodicBtn.className = "btn btn-secondary";
+    periodicBtnText.textContent = "Periodic OFF";
+  }
+}
 
 document.getElementById("periodicBtn").addEventListener("click", function () {
   if (!isMqttConnected) {
@@ -1227,10 +1398,17 @@ function loadHistoryFromFirebase() {
       }
 
       // Sort by timestamp (newest first)
-      allData.sort((a, b) => b.timestamp - a.timestamp);
+      allData.sort((a, b) => {
+        const timeA = a.time || a.created_at / 1000;
+        const timeB = b.time || b.created_at / 1000;
+        return timeB - timeA;
+      });
 
-      // Take last 50 points for charts
-      const recentData = allData.slice(0, 50).reverse();
+      // USE CURRENT maxDataPoints SETTING (not hardcoded 50)
+      const pointsToLoad = Math.min(allData.length, maxDataPoints);
+      const recentData = allData.slice(0, pointsToLoad).reverse();
+
+      addStatus(`Loading ${pointsToLoad} most recent points (out of ${totalRecords} total)`, "INFO");
 
       // Clear existing chart data
       temperatureData = [];
@@ -1239,8 +1417,18 @@ function loadHistoryFromFirebase() {
       // Populate charts
       recentData.forEach((record) => {
         if (record.temp !== undefined && record.humi !== undefined) {
-          pushTemperature(record.temp, false, record.timestamp * 1000);
-          pushHumidity(record.humi, false, record.timestamp * 1000);
+          // Skip errors if setting enabled
+          const skipErrors = localStorage.getItem('chartSkipErrors') === 'true';
+          const isError = record.temp === 0 && record.humi === 0;
+
+          if (skipErrors && isError) {
+            console.log('[HISTORY] Skipped error record:', record);
+            return; // Skip this record
+          }
+
+          const timestamp = record.time ? record.time * 1000 : record.created_at;
+          pushTemperature(record.temp, false, timestamp);
+          pushHumidity(record.humi, false, timestamp);
         }
       });
 
@@ -1260,7 +1448,7 @@ function loadHistoryFromFirebase() {
       }
 
       addStatus(
-        `Loaded ${totalRecords} records (last 24h), showing ${recentData.length} on charts`,
+        `Loaded ${totalRecords} records (last 24h), showing ${pointsToLoad} on charts (max: ${maxDataPoints})`,
         "INFO"
       );
     })
@@ -1308,9 +1496,8 @@ function renderLiveDataTable() {
 
   tbody.innerHTML = filtered
     .map((data, idx) => {
-      const time = new Date(data.time).toLocaleTimeString("en-US", {
-        hour12: false,
-      });
+      const time = formatTime(new Date(data.time));
+      const tempDisplay = formatTemperature(data.temp);
       const statusClass =
         data.status === "success" ? "connected" : "disconnected";
       const statusText = data.status === "success" ? " Success" : " Error";
@@ -1319,15 +1506,12 @@ function renderLiveDataTable() {
                     <tr style="border-bottom: 1px solid var(--border-color);">
                         <td style="padding: 0.75rem;">${idx + 1}</td>
                         <td style="padding: 0.75rem;">${time}</td>
-                        <td style="padding: 0.75rem;">${data.temp.toFixed(
-                          1
-                        )}</td>
+                        <td style="padding: 0.75rem;">${tempDisplay}</td>
                         <td style="padding: 0.75rem;">${data.humi.toFixed(
-                          1
-                        )}</td>
-                        <td style="padding: 0.75rem; text-transform: capitalize;">${
-                          data.mode
-                        }</td>
+        1
+      )}%</td>
+                        <td style="padding: 0.75rem; text-transform: capitalize;">${data.mode
+        }</td>
                         <td style="padding: 0.75rem;">
                             <span class="status-badge ${statusClass}" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">
                                 ${statusText}
@@ -1379,14 +1563,13 @@ function bindLiveDataButtons() {
       }
 
       const csv = [
-        ["#", "Time", "Temperature (C)", "Humidity (%)", "Mode", "Status"].join(
+        ["#", "DateTime", "Temperature", "Humidity (%)", "Mode", "Status"].join(
           ","
         ),
         ...liveDataBuffer.map((d, idx) => {
-          const time = new Date(d.time).toLocaleTimeString("en-US", {
-            hour12: false,
-          });
-          return [idx + 1, time, d.temp, d.humi, d.mode, d.status].join(",");
+          const dateTime = formatDateTime(new Date(d.time));
+          const tempDisplay = formatTemperature(d.temp);
+          return [idx + 1, dateTime, tempDisplay, d.humi.toFixed(2), d.mode, d.status].join(",");
         }),
       ].join("\n");
 
@@ -1635,7 +1818,6 @@ function bindCalendarButtons() {
 
 // Global handler for inline onclick buttons in index.html
 function adjustTime(unit, delta) {
-  console.log("[TIME] adjustTime called:", { unit, delta });
   if (unit === "hour") {
     timePickerHour += delta;
     if (timePickerHour < 0) timePickerHour = 23;
@@ -1649,12 +1831,6 @@ function adjustTime(unit, delta) {
     if (timePickerSecond < 0) timePickerSecond = 59;
     if (timePickerSecond > 59) timePickerSecond = 0;
   }
-
-  console.log("[TIME] Updated values:", {
-    hour: timePickerHour,
-    min: timePickerMinute,
-    sec: timePickerSecond,
-  });
   updateTimeDisplay();
 }
 // Also expose on window for completeness
@@ -1842,8 +2018,10 @@ function applyDataFilters() {
     mode: document.getElementById("filterMode").value,
     status: document.getElementById("filterStatus").value,
     tempMin:
+      //TODO: Get min temperature filter value follow the local setting (C/F/K)
       parseFloat(document.getElementById("filterTempMin").value) || -Infinity,
     tempMax:
+      //TODO: Get min temperature filter value follow the local setting (C/F/K)
       parseFloat(document.getElementById("filterTempMax").value) || Infinity,
     humiMin:
       parseFloat(document.getElementById("filterHumiMin").value) || -Infinity,
@@ -1944,8 +2122,9 @@ function renderDataManagementTable(data) {
       // Use device timestamp (time field) instead of created_at
       const timestamp = record.time ? record.time * 1000 : record.created_at;
       const date = new Date(timestamp);
-      const dateStr = date.toLocaleDateString();
-      const timeStr = date.toLocaleTimeString("en-US", { hour12: false });
+      const dateStr = formatDate(date);
+      const timeStr = formatTime(date);
+      const tempDisplay = formatTemperature(record.temp);
       const statusClass =
         record.status === "success" ? "connected" : "disconnected";
       const statusText = record.status === "success" ? " Success" : " Error";
@@ -1954,15 +2133,11 @@ function renderDataManagementTable(data) {
                     <tr style="border-bottom: 1px solid var(--border-color);">
                         <td style="padding: 0.75rem;">${idx + 1}</td>
                         <td style="padding: 0.75rem;">${dateStr} ${timeStr}</td>
-                        <td style="padding: 0.75rem;">${
-                          record.temp?.toFixed(1) || "--"
-                        }</td>
-                        <td style="padding: 0.75rem;">${
-                          record.humi?.toFixed(1) || "--"
-                        }</td>
-                        <td style="padding: 0.75rem; text-transform: capitalize;">${
-                          record.mode || "--"
-                        }</td>
+                        <td style="padding: 0.75rem;">${tempDisplay}</td>
+                        <td style="padding: 0.75rem;">${record.humi?.toFixed(1) || "--"
+        }%</td>
+                        <td style="padding: 0.75rem; text-transform: capitalize;">${record.mode || "--"
+        }</td>
                         <td style="padding: 0.75rem;">
                             <span class="status-badge ${statusClass}" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">
                                 ${statusText}
@@ -2008,8 +2183,14 @@ function updateDataStatistics(data) {
 
   document.getElementById("statsTotal").textContent = data.length;
   document.getElementById("statsSuccess").textContent = successRate + "%";
-  document.getElementById("statsAvgTemp").textContent =
-    avgTemp + (avgTemp !== "--" ? "C" : "");
+
+  // Format temperature in Celsius
+  if (avgTemp !== "--") {
+    document.getElementById("statsAvgTemp").textContent = avgTemp + "°C";
+  } else {
+    document.getElementById("statsAvgTemp").textContent = "--";
+  }
+
   document.getElementById("statsAvgHumi").textContent =
     avgHumi + (avgHumi !== "--" ? "%" : "");
 }
@@ -2024,7 +2205,7 @@ function exportFilteredData() {
     "#",
     "Date",
     "Time",
-    "Temperature (C)",
+    "Temperature (°C)",
     "Humidity (%)",
     "Mode",
     "Status",
@@ -2033,11 +2214,12 @@ function exportFilteredData() {
   ];
   const rows = filteredDataCache.map((record, idx) => {
     const date = new Date(record.created_at);
+    const tempDisplay = formatTemperature(record.temp);
     return [
       idx + 1,
-      date.toLocaleDateString(),
-      date.toLocaleTimeString("en-US", { hour12: false }),
-      record.temp,
+      formatDate(date),
+      formatTime(date),
+      tempDisplay,
       record.humi,
       record.mode,
       record.status,
@@ -2084,8 +2266,6 @@ function resetDataFilters() {
 
 // Function to bind Data Management buttons
 function bindDataManagementButtons() {
-  console.log("[DATA] Binding Data Management buttons...");
-
   // Define setQuickFilter locally
   function setQuickFilter(type) {
     const today = new Date();
@@ -2294,9 +2474,8 @@ function renderFullConsole() {
       const color = colors[log.type] || "#10B981";
 
       return `<div class="log-line log-${log.type.toLowerCase()}" style="color: ${color};">
-                    <strong>[${time}]</strong> <strong style="display: inline-block; min-width: 80px;">[${
-        log.type
-      }]</strong> ${log.message}
+                    <strong>[${time}]</strong> <strong style="display: inline-block; min-width: 80px;">[${log.type
+        }]</strong> ${log.message}
                 </div>`;
     })
     .join("");
@@ -2309,7 +2488,6 @@ function renderFullConsole() {
  * Filter logs by type
  */
 function filterLogs(type) {
-  console.log("[LOGS] Filtering by type:", type);
   logFilterType = type;
 
   // Update button styles
@@ -2335,8 +2513,6 @@ function clearLogs() {
   ) {
     return;
   }
-
-  console.log("[LOGS] Clearing all logs...");
 
   // Clear main buffer
   logBuffer = [];
@@ -2473,21 +2649,19 @@ function loadSettingsPage() {
     FIREBASE_CONFIG.projectId;
   document.getElementById("firebaseDbUrl").value = FIREBASE_CONFIG.databaseURL;
 
-  // Load display preferences (from localStorage or defaults)
-  document.getElementById("tempUnit").value =
-    localStorage.getItem("tempUnit") || "C";
-  document.getElementById("timeFormat").value =
-    localStorage.getItem("timeFormat") || "24h";
-  document.getElementById("dateFormat").value =
-    localStorage.getItem("dateFormat") || "DD/MM/YYYY";
-
   // Load chart settings
   document.getElementById("chartMaxPoints").value =
-    localStorage.getItem("chartMaxPoints") || "50";
+    localStorage.getItem("chartMaxPoints") || maxDataPoints.toString();
   document.getElementById("chartUpdateInterval").value =
     localStorage.getItem("chartUpdateInterval") || "1";
   document.getElementById("chartSkipErrors").checked =
     localStorage.getItem("chartSkipErrors") === "true";
+
+  console.log("[SETTINGS] Loaded chart settings:", {
+    maxPoints: document.getElementById("chartMaxPoints").value,
+    updateInterval: document.getElementById("chartUpdateInterval").value,
+    skipErrors: document.getElementById("chartSkipErrors").checked,
+  });
 
   // Load data settings
   document.getElementById("dataDefaultInterval").value =
@@ -2501,7 +2675,7 @@ function loadSettingsPage() {
 function saveSettings() {
   addStatus("Saving settings...", "INFO");
 
-  // Validate inputs
+  // === VALIDATE MQTT ===
   const host = document.getElementById("mqttHost").value.trim();
   const port = parseInt(document.getElementById("mqttPort").value);
   const clientId = document.getElementById("mqttClientId").value.trim();
@@ -2511,82 +2685,114 @@ function saveSettings() {
   const password =
     document.getElementById("mqttPass").value.trim() || "datalogger";
 
-  // Validate MQTT settings
   if (!host) {
-    alert(" Error: MQTT Host cannot be empty!");
+    alert("Error: MQTT Host cannot be empty!");
     addStatus("Settings validation failed: Empty MQTT host", "ERROR");
     return;
   }
   if (!port || port < 1 || port > 65535) {
-    alert(" Error: MQTT Port must be between 1-65535!");
+    alert("Error: MQTT Port must be between 1-65535!");
     addStatus("Settings validation failed: Invalid MQTT port", "ERROR");
     return;
   }
   if (!clientId) {
-    alert(" Error: Client ID cannot be empty!");
+    alert("Error: Client ID cannot be empty!");
     addStatus("Settings validation failed: Empty client ID", "ERROR");
     return;
   }
 
-  // Validate Firebase settings
+  // === VALIDATE CHART SETTINGS ===
+  const maxPoints = parseInt(document.getElementById("chartMaxPoints").value);
+  const updateInterval = parseInt(
+    document.getElementById("chartUpdateInterval").value
+  );
+
+  if (maxPoints < 10 || maxPoints > 200) {
+    alert("Error: Max Data Points must be between 10-200!");
+    addStatus("Settings validation failed: Invalid max points", "ERROR");
+    return;
+  }
+  if (updateInterval < 1 || updateInterval > 60) {
+    alert("Error: Update Interval must be between 1-60 seconds!");
+    addStatus("Settings validation failed: Invalid update interval", "ERROR");
+    return;
+  }
+
+  // === VALIDATE FIREBASE ===
   const apiKey = document.getElementById("firebaseApiKey").value.trim();
   const projectId = document.getElementById("firebaseProjectId").value.trim();
   const databaseURL = document.getElementById("firebaseDbUrl").value.trim();
 
   if (!apiKey || !projectId || !databaseURL) {
-    alert(
-      " Warning: Firebase settings are incomplete. Firebase features will be disabled."
+    addStatus(
+      "Warning: Firebase settings incomplete - Firebase will be disabled",
+      "WARNING"
     );
-    addStatus("Settings saved with incomplete Firebase config", "WARNING");
   }
 
-  // Update MQTT config object
-  MQTT_CONFIG.host = host;
-  MQTT_CONFIG.port = port;
-  MQTT_CONFIG.path = path;
-  MQTT_CONFIG.username = username;
-  MQTT_CONFIG.password = password;
-  MQTT_CONFIG.clientId = clientId;
-  MQTT_CONFIG.url = `ws://${host}:${port}${path}`;
+  // === CHECK IF MQTT CONFIG CHANGED ===
+  const mqttChanged =
+    MQTT_CONFIG.host !== host ||
+    MQTT_CONFIG.port !== port ||
+    MQTT_CONFIG.clientId !== clientId ||
+    MQTT_CONFIG.path !== path ||
+    MQTT_CONFIG.username !== username ||
+    MQTT_CONFIG.password !== password;
 
-  // Update Firebase config object
-  FIREBASE_CONFIG.apiKey = apiKey;
-  FIREBASE_CONFIG.projectId = projectId;
-  FIREBASE_CONFIG.databaseURL = databaseURL;
+  if (mqttChanged) {
+    MQTT_CONFIG.host = host;
+    MQTT_CONFIG.port = port;
+    MQTT_CONFIG.path = path;
+    MQTT_CONFIG.username = username;
+    MQTT_CONFIG.password = password;
+    MQTT_CONFIG.clientId = clientId;
+    MQTT_CONFIG.url = `ws://${host}:${port}${path}`;
 
-  // Save config objects to localStorage
-  localStorage.setItem("datalogger_mqtt_config", JSON.stringify(MQTT_CONFIG));
-  localStorage.setItem(
-    "datalogger_firebase_config",
-    JSON.stringify(FIREBASE_CONFIG)
-  );
+    localStorage.setItem("datalogger_mqtt_config", JSON.stringify(MQTT_CONFIG));
+    addStatus("MQTT config saved", "INFO");
+  }
 
-  // Save display preferences
-  localStorage.setItem("tempUnit", document.getElementById("tempUnit").value);
-  localStorage.setItem(
-    "timeFormat",
-    document.getElementById("timeFormat").value
-  );
-  localStorage.setItem(
-    "dateFormat",
-    document.getElementById("dateFormat").value
-  );
+  // === CHECK IF FIREBASE CONFIG CHANGED ===
+  const firebaseChanged =
+    FIREBASE_CONFIG.apiKey !== apiKey ||
+    FIREBASE_CONFIG.projectId !== projectId ||
+    FIREBASE_CONFIG.databaseURL !== databaseURL;
 
-  // Save chart settings
-  localStorage.setItem(
-    "chartMaxPoints",
-    document.getElementById("chartMaxPoints").value
-  );
-  localStorage.setItem(
-    "chartUpdateInterval",
-    document.getElementById("chartUpdateInterval").value
-  );
+  if (firebaseChanged) {
+    FIREBASE_CONFIG.apiKey = apiKey;
+    FIREBASE_CONFIG.projectId = projectId;
+    FIREBASE_CONFIG.databaseURL = databaseURL;
+
+    localStorage.setItem(
+      "datalogger_firebase_config",
+      JSON.stringify(FIREBASE_CONFIG)
+    );
+    addStatus("Firebase config saved", "INFO");
+  }
+
+  // === SAVE CHART SETTINGS (NO RECONNECT NEEDED) ===
+  const oldMaxPoints = maxDataPoints;
+  maxDataPoints = maxPoints;
+
+  localStorage.setItem("chartMaxPoints", maxPoints);
+  localStorage.setItem("chartUpdateInterval", updateInterval);
   localStorage.setItem(
     "chartSkipErrors",
     document.getElementById("chartSkipErrors").checked
   );
 
-  // Save data settings
+  addStatus(
+    `Chart settings: ${maxPoints} points, ${updateInterval}s interval`,
+    "INFO"
+  );
+
+  // Apply chart settings immediately
+  if (oldMaxPoints !== maxPoints) {
+    applyChartSettings();
+    addStatus(`Chart data trimmed to ${maxPoints} points`, "INFO");
+  }
+
+  // === SAVE DATA SETTINGS ===
   localStorage.setItem(
     "dataDefaultInterval",
     document.getElementById("dataDefaultInterval").value
@@ -2600,35 +2806,92 @@ function saveSettings() {
     document.getElementById("dataAutoSave").checked
   );
 
-  addStatus(" Settings saved to localStorage", "SUCCESS");
+  addStatus("All settings saved to localStorage", "SUCCESS");
 
-  // Reconnect MQTT with diagnostic
-  addStatus(" Reconnecting MQTT broker...", "INFO");
-  if (mqttClient && mqttClient.connected) {
-    addStatus("Disconnecting existing MQTT connection...", "INFO");
-    mqttClient.end(true);
+  // === RECONNECT ONLY IF CONFIGS CHANGED ===
+  let needsReconnect = false;
+
+  if (mqttChanged) {
+    addStatus("MQTT config changed - Reconnecting...", "MQTT");
+    if (mqttClient && mqttClient.connected) {
+      mqttClient.end(true);
+    }
+    setTimeout(() => initializeMQTT(), 500);
+    needsReconnect = true;
   }
 
-  // Small delay to ensure clean disconnect
-  setTimeout(() => {
-    addStatus(
-      `Connecting to ws://${host}:${port}${path} as ${clientId}...`,
-      "INFO"
+  if (firebaseChanged && apiKey && projectId && databaseURL) {
+    addStatus("Firebase config changed - Reconnecting...", "FIREBASE");
+    setTimeout(() => reconnectFirebase(), 1000);
+    needsReconnect = true;
+  }
+
+  // === SHOW RESULT ===
+  if (needsReconnect) {
+    alert(
+      "Settings saved!\n\nReconnecting changed services...\n\nCheck System Console for connection status."
     );
-    initializeMQTT();
-  }, 500);
-
-  // Reconnect Firebase with diagnostic
-  if (apiKey && projectId && databaseURL) {
-    addStatus(" Reconnecting Firebase...", "INFO");
-    setTimeout(() => {
-      initializeFirebase();
-    }, 1000);
+  } else {
+    alert(
+      "Settings saved successfully!\n\nNo reconnection needed (configs unchanged)."
+    );
   }
+}
 
-  alert(
-    " Settings saved!\n\n Reconnecting to MQTT and Firebase...\nCheck the System Console for connection status."
-  );
+// ====================================================================
+// FIREBASE RECONNECTION (NEW)
+// ====================================================================
+async function reconnectFirebase() {
+  try {
+    // Step 1: Disconnect existing app
+    if (firebase.apps.length > 0) {
+      addStatus("Disconnecting existing Firebase app...", "FIREBASE");
+      await firebase.app().delete();
+      addStatus("Firebase app removed", "FIREBASE");
+    }
+
+    // Step 2: Wait for cleanup
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // Step 3: Initialize new connection
+    addStatus("Initializing new Firebase connection...", "FIREBASE");
+    firebase.initializeApp(FIREBASE_CONFIG);
+    firebaseDb = firebase.database();
+
+    // Step 4: Setup connection listener
+    firebaseDb.ref(".info/connected").on("value", function (snapshot) {
+      if (snapshot.val() === true) {
+        addStatus("Firebase reconnected successfully!", "FIREBASE");
+
+        // Test write permission
+        firebaseDb
+          .ref("test/connection")
+          .set({
+            timestamp: Date.now(),
+            message: "Reconnection test",
+          })
+          .then(() => {
+            updateFirebaseStatus(true);
+            addStatus("Firebase write permissions verified", "FIREBASE");
+            firebaseDb.ref("test").remove();
+          })
+          .catch((error) => {
+            updateFirebaseStatus(false);
+            addStatus(
+              `Firebase permission error: ${error.message}`,
+              "ERROR"
+            );
+          });
+      } else {
+        updateFirebaseStatus(false);
+        addStatus("Firebase connection lost", "WARNING");
+      }
+    });
+  } catch (error) {
+    addStatus(`Firebase reconnection failed: ${error.message}`, "ERROR");
+    console.error("[FIREBASE] Reconnect error:", error);
+    updateFirebaseStatus(false);
+  }
 }
 
 function exportSettings() {
@@ -2642,11 +2905,6 @@ function exportSettings() {
       apiKey: FIREBASE_CONFIG.apiKey,
       projectId: FIREBASE_CONFIG.projectId,
       databaseURL: FIREBASE_CONFIG.databaseURL,
-    },
-    display: {
-      tempUnit: localStorage.getItem("tempUnit") || "C",
-      timeFormat: localStorage.getItem("timeFormat") || "24h",
-      dateFormat: localStorage.getItem("dateFormat") || "DD/MM/YYYY",
     },
     chart: {
       maxPoints: localStorage.getItem("chartMaxPoints") || "50",
@@ -2701,15 +2959,6 @@ function importSettings() {
             settings.firebase.projectId;
           document.getElementById("firebaseDbUrl").value =
             settings.firebase.databaseURL;
-        }
-
-        // Apply display preferences
-        if (settings.display) {
-          document.getElementById("tempUnit").value = settings.display.tempUnit;
-          document.getElementById("timeFormat").value =
-            settings.display.timeFormat;
-          document.getElementById("dateFormat").value =
-            settings.display.dateFormat;
         }
 
         // Apply chart settings
@@ -2768,10 +3017,6 @@ function restoreDefaults() {
   document.getElementById("firebaseProjectId").value = "";
   document.getElementById("firebaseDbUrl").value = "";
 
-  document.getElementById("tempUnit").value = "C";
-  document.getElementById("timeFormat").value = "24h";
-  document.getElementById("dateFormat").value = "DD/MM/YYYY";
-
   document.getElementById("chartMaxPoints").value = "50";
   document.getElementById("chartUpdateInterval").value = "1";
   document.getElementById("chartSkipErrors").checked = false;
@@ -2789,10 +3034,6 @@ function restoreDefaults() {
 // ====================================================================
 
 function openIntervalModal() {
-  console.log("[INTERVAL] Opening modal with:", {
-    selectedMinute,
-    selectedSecond,
-  });
   document.getElementById("intervalModal").classList.add("active");
   updateIntervalDisplay();
 
@@ -2801,7 +3042,6 @@ function openIntervalModal() {
 }
 
 function closeIntervalModal() {
-  console.log("[INTERVAL] Closing modal");
   document.getElementById("intervalModal").classList.remove("active");
 }
 
@@ -2953,33 +3193,20 @@ function bindIntervalButtons() {
 // ====================================================================
 // FOOTER CLOCK
 function updateFooterClock() {
-  let display;
+  let dateTimeDisplay;
   if (deviceClockMs !== null && deviceClockSetAtMs !== null) {
     const elapsed = Date.now() - deviceClockSetAtMs;
     const currentDeviceTime = deviceClockMs + elapsed;
-    display = new Date(currentDeviceTime).toLocaleTimeString("en-US", {
-      hour12: false,
-    });
+    const currentDeviceDate = new Date(currentDeviceTime);
 
-    // Debug: log every 10 seconds to verify it's updating
-    if (
-      Math.floor(elapsed / 1000) % 10 === 0 &&
-      elapsed > 0 &&
-      elapsed < 1000
-    ) {
-      console.log("[CLOCK] Device time updating:", {
-        deviceClockMs,
-        deviceClockSetAtMs,
-        elapsed,
-        currentDeviceTime,
-        display,
-      });
-    }
+    // Format full datetime using our formatting function
+    dateTimeDisplay = formatDateTime(currentDeviceDate);
   } else {
-    display = "--:--:--";
+    dateTimeDisplay = "--/--/---- --:--:--";
   }
-  const el = document.getElementById("footerTime");
-  if (el) el.textContent = display;
+
+  const dateTimeEl = document.getElementById("footerDateTime");
+  if (dateTimeEl) dateTimeEl.textContent = dateTimeDisplay;
 }
 
 function startDeviceClockTicker() {
@@ -3000,6 +3227,26 @@ function runInitialization() {
   const savedMQTT = localStorage.getItem("datalogger_mqtt_config");
   const savedFirebase = localStorage.getItem("datalogger_firebase_config");
 
+  // === LOAD CHART SETTINGS FROM LOCALSTORAGE ===
+  const savedMaxPoints = localStorage.getItem("chartMaxPoints");
+  const savedUpdateInterval = localStorage.getItem("chartUpdateInterval");
+  const savedSkipErrors = localStorage.getItem("chartSkipErrors");
+
+  if (savedMaxPoints) {
+    maxDataPoints = parseInt(savedMaxPoints);
+    addStatus(`Loaded chart settings: ${maxDataPoints} max points`, "INFO");
+  }
+  if (savedUpdateInterval) {
+    const interval = parseInt(savedUpdateInterval);
+    addStatus(`Chart update interval: ${interval}s`, "INFO");
+  }
+  if (savedSkipErrors !== null) {
+    addStatus(
+      `Skip errors: ${savedSkipErrors === "true" ? "ON" : "OFF"}`,
+      "INFO"
+    );
+  }
+
   if (savedMQTT) {
     const config = JSON.parse(savedMQTT);
     MQTT_CONFIG.host = config.host || MQTT_CONFIG.host;
@@ -3008,7 +3255,6 @@ function runInitialization() {
     MQTT_CONFIG.username = config.username || MQTT_CONFIG.username;
     MQTT_CONFIG.password = config.password || MQTT_CONFIG.password;
     MQTT_CONFIG.clientId = config.clientId || MQTT_CONFIG.clientId;
-    MQTT_CONFIG.url = `ws://${MQTT_CONFIG.host}:${MQTT_CONFIG.port}${MQTT_CONFIG.path}`;
 
     // Update form fields
     document.getElementById("mqttIp").value = MQTT_CONFIG.host;
@@ -3034,9 +3280,12 @@ function runInitialization() {
   }
 
   // Initialize charts FIRST - CRITICAL for rendering
-  console.log("[INIT] Calling initializeCharts()");
   initializeCharts();
   addStatus("Charts initialized", "INFO");
+
+  // ====================================================================
+  // INITIALIZE SYSTEM COMPONENTS
+  // ====================================================================
 
   // Initialize Firebase
   initializeFirebase();
@@ -3056,6 +3305,5 @@ if (document.readyState === "loading") {
   window.addEventListener("DOMContentLoaded", runInitialization);
 } else {
   // DOM is already loaded (script loaded after DOM)
-  console.log("[INIT] DOM already loaded, running initialization immediately");
   runInitialization();
 }

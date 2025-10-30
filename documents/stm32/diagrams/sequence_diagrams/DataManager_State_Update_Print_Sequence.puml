@@ -1,0 +1,91 @@
+@startuml DataManager_State_Update_Print_Sequence
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title DataManager State Update and Print Sequence
+
+participant "Command Parser" as Parser
+participant "DataManager" as DM
+participant "Internal State" as State
+participant "Main Loop" as MainLoop
+participant "DS3231 RTC" as RTC
+participant "MQTT State" as MQTT
+participant "SD Card Manager" as SD
+participant "UART TX" as UART
+actor "User" as User
+
+Parser -> DM: DataManager_UpdateSingle(temp, hum)
+activate DM
+DM -> State: g_datalogger_state.mode = SINGLE
+DM -> State: g_datalogger_state.sht3x.temperature = temp
+DM -> State: g_datalogger_state.sht3x.humidity = hum
+DM -> State: g_datalogger_state.data_ready = true
+DM --> Parser: Return
+deactivate DM
+
+note over MainLoop: Main loop continues
+
+MainLoop -> DM: DataManager_Print() called
+activate DM
+DM -> State: Check g_datalogger_state.data_ready
+
+alt data_ready == false
+    DM --> MainLoop: Return false
+else data_ready == true
+    DM -> RTC: DS3231_Get_Time(&g_ds3231, &current_time)
+    activate RTC
+    RTC -> RTC: Read I2C time registers
+    RTC --> DM: Return tm structure
+    deactivate RTC
+
+    DM -> DM: Convert tm to Unix timestamp
+    DM -> DM: timestamp = mktime(&current_time)
+
+    DM -> State: Read temperature value
+    State --> DM: Return temperature
+    DM -> State: Read humidity value
+    State --> DM: Return humidity
+
+    DM -> DM: Sanitize temperature (check NaN/Inf)
+    DM -> DM: Sanitize humidity (check NaN/Inf)
+
+    DM -> MQTT: Check mqtt_current_state
+    activate MQTT
+    MQTT --> DM: Return current state
+    deactivate MQTT
+
+    alt MQTT_STATE_CONNECTED
+        note over DM: MQTT Connected - Send Live Data
+
+        DM -> DM: Format JSON:\n{"mode":"SINGLE","timestamp":...,"temperature":...}
+
+        DM -> DM: Check buffer overflow
+
+        alt Buffer OK
+            DM -> UART: HAL_UART_Transmit(&huart1,\nJSON, len, timeout)
+            activate UART
+            UART -> User: Transmit JSON string
+            deactivate UART
+        else Buffer overflow
+            DM -> UART: Print "JSON BUFFER OVERFLOW"
+        end
+
+    else MQTT_STATE_DISCONNECTED
+        note over DM: MQTT Disconnected - Buffer to SD
+
+        DM -> SD: SDCardManager_WriteData(timestamp,\ntemp, hum, mode)
+        activate SD
+        SD -> SD: Write to circular buffer on SD card
+        SD --> DM: Return success/failure
+        deactivate SD
+
+        note over DM: Data buffered to SD card for later transmission
+    end
+
+    DM -> State: g_datalogger_state.data_ready = false
+    DM --> MainLoop: Return true
+end
+deactivate DM
+
+@enduml

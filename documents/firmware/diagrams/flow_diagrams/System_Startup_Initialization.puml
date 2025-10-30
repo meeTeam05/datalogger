@@ -1,0 +1,64 @@
+@startuml System_Startup_Initialization
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    StartColor #4CAF50
+    EndColor #F44336
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>System Startup and Initialization Flow</b></size>\n<size:12><i>STM32 Data Logger & ESP32 IoT Bridge</i></size>
+
+start
+
+fork
+    :<b>STM32 Power Up</b>|#90EE90;
+    :STM32 System Init;
+    :Initialize UART1
+    <i>115200 baud</i>;
+    :Initialize I2C1
+    <i>100kHz</i>;
+    :Initialize SPI1 & SPI2;
+    :Initialize SHT3X Sensor
+    <i>Address: 0x44</i>;
+    :Initialize DS3231 RTC
+    <i>Address: 0x68</i>;
+    :Initialize SD Card Manager;
+    :Initialize ILI9225 Display;
+    :<b>STM32 Main Loop Ready</b>|#87CEEB;
+
+fork again
+    :<b>ESP32 Power Up</b>|#90EE90;
+    :Initialize NVS Flash;
+    :Initialize Network Interface;
+    :Initialize WiFi Manager;
+    :Initialize UART1
+    <i>115200 baud</i>;
+    :Initialize MQTT, Relay,
+    Parser, Buttons;
+    :WiFi Connect
+    <i>15s timeout</i>;
+    
+    if (WiFi Connected?) then (yes)
+        :Wait 4s for
+        network stability;
+        :Start MQTT Client;
+    else (no)
+    endif
+    
+    :<b>ESP32 Main Loop Ready</b>|#87CEEB;
+
+end fork
+
+:<b>System Fully Operational</b>|#FFD700;
+
+stop
+
+@enduml

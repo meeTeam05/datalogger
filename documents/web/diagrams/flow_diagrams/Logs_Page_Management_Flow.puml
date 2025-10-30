@@ -1,0 +1,103 @@
+@startuml Logs_Page_Management_Flow
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>Logs Page Management Flow</b></size>\n<size:12><i>System Logging and Console Display</i></size>
+
+start
+
+:Add Log Entry;
+
+:Create Log Object
+type, message,
+timestamp, date_iso;
+
+:Unshift to logBuffer
+logBuffer.unshift entry;
+
+if (Buffer Length > maxLogsInMemory?) then (yes)
+    :Remove Oldest
+    logBuffer.pop;
+else (no)
+endif
+
+:Update Console Preview
+Get #consolePreview;
+
+:Format Log Line
+[TYPE] HH:MM:SS: message
+Add CSS class: log-type;
+
+:Prepend to Preview
+innerHTML = line + innerHTML;
+
+if (Preview Lines > 5?) then (yes)
+    :Remove Last Line
+    lines[-1].remove;
+else (no)
+endif
+
+if (On Logs Page?) then (yes)
+    :Render Full Console
+    Get #consoleFull;
+    
+    :Get Active Filters
+    logFilterType
+    searchTerm;
+    
+    if (Type Filter?) then (ALL)
+        if (Search Term?) then (yes)
+            :Filter by Search
+            message.includes term;
+        else (no)
+        endif
+    else (Specific)
+        :Filter by Type
+        log.type == filter;
+        
+        if (Search Term?) then (yes)
+            :Filter by Search
+            message.includes term;
+        else (no)
+        endif
+    endif
+    
+    :Map Type to Color
+    INFO: blue
+    ERROR: red
+    MQTT: purple
+    etc.;
+    
+    :Build HTML Lines
+    For each log:
+    [time] [TYPE] message
+    style color: X;
+    
+    :Render to #consoleFull
+    innerHTML = lines.join;
+    
+    :Update Log Count
+    #logCount.textContent
+    = filtered.length;
+    
+    :Auto-scroll to Bottom
+    scrollTop = scrollHeight;
+else (no)
+endif
+
+:console.log
+[TYPE] message;
+
+stop
+
+@enduml

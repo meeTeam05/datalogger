@@ -1,0 +1,92 @@
+@startuml Sensor_Data_Reception_and_Publishing
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title Sensor Data Reception and Publishing Sequence
+
+participant "STM32" as STM32
+participant "STM32 UART" as UART
+participant "Ring Buffer" as RingBuf
+participant "UART RX Task" as Task
+participant "JSON Parser" as Parser
+participant "Sensor Callback" as Callback
+participant "JSON Utils" as JSON
+participant "MQTT Handler" as MQTT
+participant "MQTT Broker" as Broker
+
+STM32 -> UART: Send JSON:\n{"mode":"PERIODIC","timestamp":1729699200,\n"temperature":25.50,"humidity":60.00}\n
+activate UART
+UART -> UART: UART ISR receives bytes
+UART -> RingBuf: Write bytes to ring buffer
+deactivate UART
+
+note over RingBuf: Accumulate until '\n'
+
+Task -> RingBuf: Check for complete line
+activate Task
+RingBuf --> Task: Complete line available
+Task -> Task: Extract line from buffer
+Task -> Callback: on_stm32_data_received(line)
+deactivate Task
+
+activate Callback
+Callback -> Parser: JSON_Parser_ProcessLine(&json_parser, line)
+deactivate Callback
+
+activate Parser
+Parser -> Parser: Parse JSON with cJSON
+Parser -> Parser: Validate required fields
+Parser -> Parser: Extract: mode, timestamp,\ntemperature, humidity
+
+alt Valid JSON
+    Parser -> Parser: Check mode field
+
+    alt mode == "PERIODIC"
+        Parser -> Callback: on_periodic_sensor_data(&sensor_data)
+        activate Callback
+
+        Callback -> JSON: JSON_Utils_CreateSensorData(buffer,\n"PERIODIC", timestamp, temp, hum)
+        activate JSON
+        JSON -> JSON: Format JSON string
+        JSON --> Callback: Return JSON string
+        deactivate JSON
+
+        Callback -> MQTT: MQTT_Handler_Publish(&mqtt_handler,\n"datalogger/stm32/periodic/data",\njson, qos=0, retain=0)
+        activate MQTT
+
+        alt MQTT connected
+            MQTT -> Broker: Publish message
+            Broker -> Broker: Distribute to subscribers
+        else MQTT disconnected
+            MQTT -> MQTT: Log "Not connected, message lost"
+        end
+        deactivate MQTT
+
+        Callback -> Callback: Log sensor values
+        deactivate Callback
+
+    else mode == "SINGLE"
+        Parser -> Callback: on_single_sensor_data(&sensor_data)
+        activate Callback
+
+        Callback -> JSON: JSON_Utils_CreateSensorData(buffer,\n"SINGLE", timestamp, temp, hum)
+        activate JSON
+        JSON --> Callback: Return JSON string
+        deactivate JSON
+
+        Callback -> MQTT: MQTT_Handler_Publish(&mqtt_handler,\n"datalogger/stm32/single/data",\njson, qos=0, retain=0)
+        activate MQTT
+        MQTT -> Broker: Publish message
+        deactivate MQTT
+
+        Callback -> Callback: Log sensor values
+        deactivate Callback
+    end
+
+else Invalid JSON
+    Parser -> Parser: Log parse error
+end
+deactivate Parser
+
+@enduml

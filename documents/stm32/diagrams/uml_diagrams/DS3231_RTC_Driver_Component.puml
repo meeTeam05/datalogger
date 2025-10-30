@@ -1,0 +1,88 @@
+@startuml DS3231_RTC_Driver_Component
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam class {
+    BackgroundColor<<driver>> #E1F5FF
+    BorderColor<<driver>> #01579B
+    BackgroundColor<<enum>> #ECEFF1
+    BorderColor<<enum>> #455A64
+    BackgroundColor<<struct>> #FFF8E1
+    BorderColor<<struct>> #F57C00
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 1.5
+}
+
+title <size:18><b>DS3231 RTC Driver Component</b></size>\n<size:12><i>Real-Time Clock with I2C Interface</i></size>
+
+class ds3231_t <<struct>> {
+    +I2C_HandleTypeDef* hi2c
+    +uint8_t device_address
+}
+
+enum DS3231_StatusTypeDef <<enum>> {
+    DS3231_OK
+    DS3231_ERROR
+}
+
+class tm <<struct>> {
+    <<standard>>
+    +int tm_sec
+    +int tm_min
+    +int tm_hour
+    +int tm_mday
+    +int tm_mon
+    +int tm_year
+    +int tm_wday
+}
+
+class DS3231DriverAPI <<driver>> {
+    <<interface>>
+    <b>== Initialization ==</b>
+    +DS3231_Init(ds3231_t*, I2C_HandleTypeDef*) : void
+    
+    <b>== Time Operations ==</b>
+    +DS3231_Set_Time(ds3231_t*, struct tm*) : DS3231_StatusTypeDef
+    +DS3231_Get_Time(ds3231_t*, struct tm*) : DS3231_StatusTypeDef
+}
+
+class DS3231DriverPrivate <<driver>> {
+    <<private>>
+    <b>== Private Methods ==</b>
+    -bcd_to_decimal(uint8_t) : uint8_t
+    -decimal_to_bcd(uint8_t) : uint8_t
+    -read_registers(uint8_t, uint8_t*, uint8_t) : DS3231_StatusTypeDef
+    -write_registers(uint8_t, uint8_t*, uint8_t) : DS3231_StatusTypeDef
+}
+
+DS3231DriverAPI ..> ds3231_t : operates on
+DS3231DriverAPI ..> DS3231_StatusTypeDef : returns
+DS3231DriverAPI ..> tm : uses
+DS3231DriverPrivate ..> ds3231_t : supports
+
+note right of ds3231_t
+    <b>DS3231 Context</b>
+    • I2C handle
+    • Device address (0x68)
+    • Battery-backed RTC
+    • High accuracy (±2ppm)
+end note
+
+note left of DS3231DriverAPI
+    <b>RTC Driver API</b>
+    • Set/Get time
+    • BCD conversion
+    • Unix timestamp support
+    • Standard tm struct
+end note
+
+note bottom of tm
+    <b>Time Structure</b>
+    • Standard C time.h
+    • Used with mktime()
+    • Converts to Unix timestamp
+end note
+
+@enduml

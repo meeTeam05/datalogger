@@ -1,0 +1,113 @@
+@startuml Relay_Control_Web_Interface
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title <size:16><b>Relay Control from Web Interface</b></size>\n<size:12><i>Power Management with State Synchronization</i></size>
+
+participant "Web\nInterface" as Web
+participant "MQTT\nBroker" as MQTT
+participant "ESP32" as ESP32
+participant "Relay\nGPIO4" as Relay
+participant "UART Link" as UART
+participant "STM32" as STM32
+participant "ILI9225\nDisplay" as Display
+
+Web -> Web: User clicks "Turn ON" button
+Web -> MQTT: Publish "ON" to\ndatalogger/esp32/relay/control
+
+activate MQTT
+MQTT -> ESP32: Message received
+deactivate MQTT
+
+activate ESP32
+ESP32 -> ESP32: on_mqtt_data_received callback
+ESP32 -> ESP32: Topic: datalogger/esp32/relay/control
+ESP32 -> ESP32: Data: "ON"
+ESP32 -> ESP32: Relay_ProcessCommand(&g_relay, "ON")
+
+ESP32 -> Relay: Relay_SetState(true)
+activate Relay
+Relay -> Relay: GPIO4 = HIGH
+Relay -> Relay: state = true
+Relay -> ESP32: Relay callback:\non_relay_state_changed(true)
+deactivate Relay
+
+ESP32 -> ESP32: g_device_on = true
+ESP32 -> ESP32: Log: Relay turned ON
+ESP32 -> ESP32: update_and_publish_state
+
+ESP32 -> MQTT: Publish state
+activate MQTT
+note right of ESP32: Topic: datalogger/esp32/system/state\nPayload: {"device":"ON","periodic":"OFF",...}\nRetain: 1
+MQTT -> Web: Forward state update
+deactivate MQTT
+
+Web -> Web: Update UI: Device ON badge
+
+ESP32 -> ESP32: Wait 500ms for STM32 boot
+note over ESP32 #FFD700: STM32 needs time to initialize\nafter relay ON
+
+ESP32 -> ESP32: Check MQTT state
+
+alt MQTT Connected
+    ESP32 -> UART: Send "MQTT CONNECTED\n"
+    activate UART
+    UART -> STM32: UART RX
+    deactivate UART
+
+    activate STM32
+    STM32 -> STM32: Parse: MQTT CONNECTED
+    STM32 -> STM32: mqtt_current_state = CONNECTED
+    STM32 -> Display: Update MQTT icon
+    deactivate STM32
+
+else MQTT Disconnected
+    ESP32 -> UART: Send "MQTT DISCONNECTED\n"
+    activate UART
+    UART -> STM32: UART RX
+    deactivate UART
+
+    activate STM32
+    STM32 -> STM32: Parse: MQTT DISCONNECTED
+    STM32 -> STM32: mqtt_current_state = DISCONNECTED
+    STM32 -> Display: Update MQTT icon
+    deactivate STM32
+end
+
+deactivate ESP32
+
+note over Web, STM32 #87CEEB: Later, user turns OFF relay
+
+Web -> MQTT: Publish "OFF" to\ndatalogger/esp32/relay/control
+activate MQTT
+MQTT -> ESP32: Message received
+deactivate MQTT
+
+activate ESP32
+ESP32 -> Relay: Relay_SetState(false)
+activate Relay
+Relay -> Relay: GPIO4 = LOW
+Relay -> ESP32: Callback:\non_relay_state_changed(false)
+deactivate Relay
+
+ESP32 -> ESP32: g_device_on = false
+ESP32 -> ESP32: Force: g_periodic_active = false
+ESP32 -> UART: Send "PERIODIC OFF\n"
+
+activate UART
+UART -> STM32: UART RX
+deactivate UART
+
+activate STM32
+STM32 -> STM32: Stop periodic measurements if active
+deactivate STM32
+
+ESP32 -> ESP32: update_and_publish_state
+ESP32 -> MQTT: Publish state (device OFF, periodic OFF)
+activate MQTT
+MQTT -> Web: Update UI
+deactivate MQTT
+deactivate ESP32
+
+@enduml

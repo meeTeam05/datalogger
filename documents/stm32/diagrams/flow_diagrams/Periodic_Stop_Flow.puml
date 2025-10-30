@@ -1,0 +1,47 @@
+@startuml Periodic_Stop_Flow
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    StartColor #4CAF50
+    EndColor #F44336
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>Periodic Measurement Stop Flow</b></size>\n<size:12><i>Terminate Continuous Data Acquisition</i></size>
+
+start
+:<b>PERIODIC_OFF_PARSER</b>;
+
+if (argc == 2?) then (yes)
+    :Send Stop Command
+    <b>0x3093</b>
+    <i>(Break command)</i>;
+
+    if (I2C Success?) then (yes)
+        :currentState = SHT3X_IDLE
+        <i>(Reset to idle mode)</i>;
+
+        :Print Stop Success
+        <i>("Periodic mode stopped")</i>;
+
+    else (no)
+        :Print Error
+        <i>("Failed to stop periodic")</i>|#FFB74D;
+    endif
+
+else (no)
+    :<b>Invalid arguments</b>
+    <i>(Expected 2 args)</i>|#FFB74D;
+endif
+
+stop
+
+@enduml

@@ -1,0 +1,131 @@
+@startuml State_Management_Architecture
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+
+title <size:18><b>State Management Architecture</b></size>\n<size:12><i>Application State Flow</i></size>
+
+[*] --> Initializing
+
+state Initializing {
+    [*] --> LoadingFirebase
+    LoadingFirebase --> FirebaseReady : Init Success
+    LoadingFirebase --> FirebaseError : Init Failed
+    
+    FirebaseReady --> ConnectingMQTT
+    FirebaseError --> ConnectingMQTT
+    
+    ConnectingMQTT --> MQTTReady : Connected
+    ConnectingMQTT --> MQTTError : Connection Failed
+    
+    MQTTReady --> InitializingCharts
+    MQTTError --> InitializingCharts
+    
+    InitializingCharts --> ChartsReady : Canvas Found
+    InitializingCharts --> ChartsRetry : Canvas Not Found
+    
+    ChartsRetry --> InitializingCharts : Retry < 10
+    ChartsRetry --> ChartsFailed : Retry >= 10
+    
+    ChartsReady --> [*]
+    ChartsFailed --> [*]
+}
+
+Initializing --> Ready : All Components Loaded
+
+state Ready {
+    [*] --> Idle
+    
+    Idle --> DeviceControl : User Clicks Device Button
+    DeviceControl --> DeviceON : Toggle ON
+    DeviceControl --> DeviceOFF : Toggle OFF
+    
+    state DeviceON {
+        [*] --> Running
+        Running --> PeriodicControl : User Clicks Periodic
+        PeriodicControl --> PeriodicON : Enable
+        PeriodicControl --> Running : Disable
+        
+        state PeriodicON {
+            [*] --> Measuring
+            Measuring --> DataReceived : MQTT Message
+            DataReceived --> ProcessingData
+            ProcessingData --> SavingFirebase
+            SavingFirebase --> UpdatingCharts
+            UpdatingCharts --> Measuring
+        }
+    }
+    
+    state DeviceOFF {
+        [*] --> Stopped
+        Stopped --> Idle : No Activity
+    }
+    
+    DeviceON --> DeviceOFF : Toggle OFF
+    DeviceOFF --> DeviceON : Toggle ON
+    
+    Idle --> SingleRead : User Clicks Single
+    SingleRead --> WaitingData : Command Sent
+    WaitingData --> ProcessingData : Data Received
+    ProcessingData --> Idle : Complete
+    
+    Idle --> TimeSettings : User Opens Time Page
+    TimeSettings --> SyncingTime : Internet Sync / Manual Set
+    SyncingTime --> Idle : Time Synced
+    
+    Idle --> DataManagement : User Opens Data Page
+    DataManagement --> FilteringData : Apply Filters
+    FilteringData --> LoadingFirebase : Query Database
+    LoadingFirebase --> RenderingTable : Data Loaded
+    RenderingTable --> Idle : Complete
+}
+
+Ready --> Error : Critical Failure
+Error --> Ready : Reconnect / Retry
+
+state Error {
+    [*] --> MQTTDisconnected
+    [*] --> FirebaseDisconnected
+    [*] --> SensorFailed
+    [*] --> RTCFailed
+    
+    MQTTDisconnected --> Reconnecting : Auto-retry 2s
+    FirebaseDisconnected --> Reconnecting : Auto-retry
+    SensorFailed --> [*] : Continue with Errors
+    RTCFailed --> [*] : Use Local Time
+    
+    Reconnecting --> [*] : Success
+}
+
+note right of Initializing
+    <b>Initialization Phase</b>
+    • Firebase init
+    • MQTT connection
+    • Chart setup
+    • Retry mechanisms
+end note
+
+note right of DeviceON
+    <b>Device Active</b>
+    • Relay ON
+    • Can enable periodic
+    • Single reads available
+    • Full functionality
+end note
+
+note right of PeriodicON
+    <b>Periodic Mode</b>
+    • Auto measurements
+    • Timer-based
+    • Continuous data flow
+    • Real-time updates
+end note
+
+note right of Error
+    <b>Error Handling</b>
+    • Auto-reconnect
+    • Graceful degradation
+    • Continue on sensor fail
+    • Fallback mechanisms
+end note
+
+@enduml

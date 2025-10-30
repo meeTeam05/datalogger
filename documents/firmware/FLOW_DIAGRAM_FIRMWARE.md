@@ -1,593 +1,58 @@
-# Complete Firmware System - Flow Diagram
+# Firmware System - Flow Diagram
 
 This document describes the integrated control flow of the complete firmware system including STM32 data logger and ESP32 IoT bridge.
 
 ## System Startup and Initialization Flow
 
-```mermaid
-flowchart TD
-    Start([Power ON Both Devices]) --> PowerSTM32[STM32 Power Up]
-    Start --> PowerESP32[ESP32 Power Up]
-    
-    PowerSTM32 --> InitSTM32[STM32 System Init]
-    InitSTM32 --> InitSTM32UART[Initialize UART1 115200]
-    InitSTM32UART --> InitI2C[Initialize I2C1 100kHz]
-    InitI2C --> InitSPI[Initialize SPI1 & SPI2]
-    InitSPI --> InitSHT3X[Initialize SHT3X Sensor 0x44]
-    InitSHT3X --> InitDS3231[Initialize DS3231 RTC 0x68]
-    InitDS3231 --> InitSDCard[Initialize SD Card Manager]
-    InitSDCard --> InitDisplay[Initialize ILI9225 Display]
-    InitDisplay --> STM32Ready[STM32 Main Loop Ready]
-    
-    PowerESP32 --> InitNVS[Initialize NVS Flash]
-    InitNVS --> InitNetif[Initialize Network Interface]
-    InitNetif --> InitWiFi[Initialize WiFi Manager]
-    InitWiFi --> InitESP32UART[Initialize UART1 115200]
-    InitESP32UART --> InitComponents[Initialize MQTT, Relay, Parser, Buttons]
-    InitComponents --> ConnectWiFi[WiFi Connect with 15s timeout]
-    
-    ConnectWiFi --> CheckWiFi{WiFi Connected?}
-    CheckWiFi -->|Yes| WaitStable[Wait 4s for network stability]
-    CheckWiFi -->|No| ESP32Ready
-    WaitStable --> StartMQTT[Start MQTT Client]
-    StartMQTT --> ESP32Ready[ESP32 Main Loop Ready]
-    
-    STM32Ready --> BothReady{Both Systems Ready?}
-    ESP32Ready --> BothReady
-    BothReady -->|Yes| SystemRunning[System Fully Operational]
-    
-    style Start fill:#90EE90
-    style BothReady fill:#FFD700
-    style SystemRunning fill:#87CEEB
-```
+![System Startup and Initialization Flow](https://kroki.io/plantuml/svg/eNqVVG1v2jAQ_p5fcVOlqZUqNa-lvIgVQqwilY416bYPkypDDFgEO7JNKd323-c4KaEtrbREAuXuubvH99z5Uios1HqVQbyViqzuY_Od3w8ZVRRn9Akrypn1SS3IisADnQjMlCWXlOVY4BVM8HQ5F3zN0pBnXMARiop3DyEXOOUbyuYww5kkex48VfSBqi38tkA__depIg-5aFD6uEiJqOxOcB6EtrEbupXZD3soKM1RTcf3Pe_cGAcUrzhL35RBCDVD_wVkvxoKGshpGDfiTMX0iYDj7r5vsO5LT-heGVNPCL55JuQWb21OFnS6ZERKcK2_lqWoygh0pE7Yci66nUm31AAqDQCzFF7qACjjm87ZpNs5K8K6v1gV7nY7tBsnI8-FAVYYrvl8TgR8higea9uQJ9AXNJ2Tzhl9DrYsI75lzbhYGpatgoNJMuYbHX6XF7X-HDXtKGra7RJTAiqqBb3KvmNK4K53mzjGqlk5TuDath6UdVoUf4seumENtu3l1dNhXDweOvpE-s894LxKvJ8QEya5eE7WS1Ohu90C-9H3D-ccxJ7rOXCbhAeCzi_eITKAEIsURphh3eUDJ7oeNl030OMk8wxv26-aO8KUaYV4DrcEp9uyxxeNMIr67VINwHON2YWVIn6gyV7tm--xnhIsFwdcRG2K5EOmiJjhKXkL-UERff9c_6fr6FuSnOoj6g6cGucYC0nEKfTXSnEmqwhTMuSMkana5Q4kKLoifK3q3OaHzuB4P4KkX05AX04MjrdEnhhMmRZTBb6EWTUPxcOqBui5n9BM3zztGm-WznCGMKOEVWNN9JUFx4yXmQlL6awmU2vzsaQ6DMySWa16y9E6y7bwNSfCrDbOyiCEBg1b66qXk-eWdalj9fX8D7qfrSk=)
 
 ## Single Measurement End-to-End Flow
 
-```mermaid
-flowchart TD
-    Start([User/Button Request Single]) --> Source{Request Source?}
-    
-    Source -->|Web Interface| WebMQTT[Web sends to MQTT broker]
-    Source -->|ESP32 Button| ButtonPress[ESP32 button pressed GPIO16]
-    
-    WebMQTT --> ESP32MQTT[ESP32 receives on datalogger/stm32/command]
-    ButtonPress --> CheckDevice{Device ON?}
-    CheckDevice -->|No| IgnoreButton[Log: Ignored - device OFF]
-    CheckDevice -->|Yes| SendSingle
-    
-    ESP32MQTT --> ForwardUART[ESP32 forwards via UART]
-    ButtonPress --> SendSingle[ESP32 sends SINGLE command]
-    
-    ForwardUART --> STM32RX[STM32 UART RX Interrupt]
-    SendSingle --> STM32RX
-    
-    STM32RX --> RingBuffer[Store in Ring Buffer]
-    RingBuffer --> UARTHandle[UART_Handle detects newline]
-    UARTHandle --> ParseCmd[Parse: SINGLE]
-    ParseCmd --> CallSHT3X[SHT3X_Single HIGH repeatability]
-    
-    CallSHT3X --> I2CCmd[I2C Write 0x2400]
-    I2CCmd --> WaitMeasure[Delay 15ms for measurement]
-    WaitMeasure --> I2CRead[I2C Read 6 bytes]
-    I2CRead --> CheckI2C{I2C OK?}
-    
-    CheckI2C -->|No| SetError[temp=0.0, hum=0.0]
-    CheckI2C -->|Yes| ValidateCRC{CRC Valid?}
-    ValidateCRC -->|No| SetError
-    ValidateCRC -->|Yes| ParseData[Parse temperature & humidity]
-    
-    SetError --> UpdateDM[DataManager_UpdateSingle]
-    ParseData --> UpdateDM
-    UpdateDM --> SetFlag[Set data_ready flag]
-    SetFlag --> NextLoop[Wait for next main loop]
-    
-    NextLoop --> CheckMQTT{MQTT Connected?}
-    CheckMQTT -->|Yes| GetTime[DS3231_Get_Time]
-    CheckMQTT -->|No| BufferSD[SDCardManager_WriteData]
-    
-    GetTime --> FormatJSON[Format JSON with timestamp]
-    FormatJSON --> TransmitUART[HAL_UART_Transmit to ESP32]
-    TransmitUART --> ESP32Parse[ESP32 JSON Parser]
-    
-    ESP32Parse --> ValidJSON{JSON Valid?}
-    ValidJSON -->|No| LogError[Log parse error]
-    ValidJSON -->|Yes| MQTTPublish[MQTT Publish to datalogger/stm32/single/data]
-    
-    MQTTPublish --> WebReceive[Web Interface receives data]
-    BufferSD --> WaitMQTT[Wait for MQTT reconnection]
-    
-    IgnoreButton --> Done([Done])
-    LogError --> Done
-    WebReceive --> Done
-    WaitMQTT --> Done
-    
-    style Start fill:#90EE90
-    style CheckDevice fill:#FFD700
-    style CheckI2C fill:#FFD700
-    style CheckMQTT fill:#FFD700
-    style MQTTPublish fill:#87CEEB
-    style BufferSD fill:#FF6B6B
-```
+![Single Measurement End-to-End Flow](https://kroki.io/plantuml/svg/eNqVVduOIjcQfe-vqGilCKRMgOYyOw1hlwF6IDu3AJPZh0jI0AVY0213bANLdvPvKbub2-xFCkhAl8unqs6pKt5rw5RZJzGMuVjGOL1DptcKExRmGsZy6_1kVvQEGz5TTBhPv3CRMsUSmLH5y1LJtYi6MpYK3oR9-z7x0CsWyS3hwoLFGk9O2NzwDTc7-OwBva5fQ_WroR_2sjOpIlS5vVJv1LtlZx_bxHNzrdsJ65m5f0ynVqtWG87Y4yyRIvoqTBiGV93amctptLB-GVYu3XEohRnzfxAq_uH5nhEvHcVZ7EwdpeR2n5Bv30fzZMXnLwK1Bt_71_MMNzFCSxNgUHnbbs3aGftwwr6t5MLIC_oCK0SrNGu3SvZK-y-RX_XbLd4OlUzgSaOCEf69Rm3ASHjGGQyFQbVgc6TidBqzXavE9xCe54T3vICC28ul67UxUhwwsoRs0C9vrsr9_lW5SXe23MxXUDg4ybWa47ui582ZRiicRS268gNr0ygiTWk5y90fkwnMlHxB1cxc-uPHqg8K58g3qEEKZ6bEImZYLJdLSk-bpOqX5jJJmIhsWmd3F1JtmaIYG87gqTOaNPcpZedZcXlGeaWpIj0wymLx9s3j8KHSsBRlyO6DL6DQww0nDh_u3xWBZkFAQcgMyaHdymUAw6WQCiO4gCj3DsMv1F6N68Z18-CrjUzdA8Y2tR3qE5wsUcfUwWgbY3h_c9u3BUNefIZHfnzhedbdiUJKjid3hGCrh9HHTAe1Tk2TTgxlB5zUtcN4vV4sLPeBdZ0OCJI6L0KDc6NB4DbmAun0kSmNwXkOFmswqX6cZu3hEW-D4c2AtEuRtJrxmIY64zAY-l14VtyghSh_8mvlcg7RQ2pGqNQTbYWD5Nj0-bURsggaMNsZ1KSkVcGaHz58JUFgMEl_K_9a_gVW68T-ONL-imWL0h114U8W8-jbWv4A7HuyOZbAXkTFDJVxOPrZgvCICDlVLNct6BFdd0ww6u3pU0qNjhmlhaLlGA3Y3p8qImIHi5gtyfrMuHGECfxkIGGkZyxlmhPkxqorhSAZ8VjfIdugN6761cr0Bs10whMXyNlDqRJm4Pfxw70zUDutwJAHbYgkzZ0Gndupa5cJ_QvohBtnpkXj2vZsFi0QOFrUq0lyJz-gn0YJUscnda5U_3OAHAGP61nM9Wq_a763R7TjumTt2Yp7e9nt908i2bV4vkMP62l_6Vtp5UPpsju06LjXpd20F9uNhFW_UDwv8KivrcSZKGYmKJcic3Kh8jDv6Zv-uf8DfY5MYA==)
 
 ## Periodic Measurement Flow
 
-```mermaid
-flowchart TD
-    Start([PERIODIC ON Command]) --> ESP32Receive[ESP32 receives command]
-    ESP32Receive --> UpdateState[ESP32: g_periodic_active = true]
-    UpdateState --> ForwardSTM32[ESP32 forwards PERIODIC ON to STM32]
-    ForwardSTM32 --> PublishState[ESP32 publishes state to MQTT]
-    
-    PublishState --> STM32Parse[STM32 parses PERIODIC ON]
-    STM32Parse --> CallPeriodic[SHT3X_Periodic 1MPS HIGH]
-    CallPeriodic --> I2CStart[I2C Write 0x2032]
-    I2CStart --> CheckI2C{I2C OK?}
-    
-    CheckI2C -->|No| SetError[temp=0.0, hum=0.0]
-    CheckI2C -->|Yes| UpdateMode[currentState = PERIODIC_1MPS]
-    UpdateMode --> InitTiming[Initialize next_fetch_ms]
-    InitTiming --> FirstFetch[Fetch first data]
-    
-    SetError --> UpdateDM[DataManager_UpdatePeriodic]
-    FirstFetch --> UpdateDM
-    UpdateDM --> MainLoop[STM32 Main Loop]
-    
-    MainLoop --> CheckTime{Time to fetch?}
-    CheckTime -->|No| CheckMQTTLoop
-    CheckTime -->|Yes| FetchNow[SHT3X_FetchData]
-    FetchNow --> CheckFetch{Fetch OK?}
-    
-    CheckFetch -->|No| UseError[Use 0.0 values]
-    CheckFetch -->|Yes| UseData[Use fetched data]
-    UseError --> DataReady
-    UseData --> DataReady[DataManager_UpdatePeriodic]
-    
-    DataReady --> CheckMQTTLoop{MQTT Connected?}
-    CheckMQTTLoop -->|Yes| SendLive[Send JSON to ESP32]
-    CheckMQTTLoop -->|No| BufferSD[Buffer to SD Card]
-    
-    SendLive --> ESP32Process[ESP32 publishes to MQTT]
-    BufferSD --> CheckFull{SD Buffer Full?}
-    CheckFull -->|Yes| Overwrite[Circular buffer overwrites oldest]
-    CheckFull -->|No| StoreOK[Store successfully]
-    Overwrite --> MainLoop
-    StoreOK --> MainLoop
-    
-    ESP32Process --> WebUpdate[Web receives periodic data]
-    WebUpdate --> MainLoop
-    
-    MainLoop --> CheckStop{PERIODIC OFF<br/>command?}
-    CheckStop -->|No| CheckTime
-    CheckStop -->|Yes| StopPeriodic[SHT3X_PeriodicStop]
-    StopPeriodic --> ResetState[currentState = IDLE]
-    ResetState --> Done([Done])
-    
-    style Start fill:#90EE90
-    style CheckI2C fill:#FFD700
-    style CheckMQTTLoop fill:#FFD700
-    style CheckFull fill:#FFD700
-    style BufferSD fill:#FF6B6B
-```
+![Periodic Measurement Flow](https://kroki.io/plantuml/svg/eNqFVVtz4jYUftevOJ28kJlOAyaXDRC6wdgbussmLexsH3aGEbYMmtgSI8mw2ab_vUfyjUvawgxj69y-853viPfaUGXyLIUnpriMebSYMqpzxTImzCJM5Y78ZNb4Blu-VFQYop-52FBFM1jS6HmlZC5iX6ZSwVkY2O-eh17TWO64WEFCU832LDQyfMvNC_xFAD-j41RBN_TCcWGTKmaqPO9cXV_5bXc-s9DL40v_PrwqjoMGzuVlt3vtDsecZlLEJ2XCMLz1Lw9c9quFVzdh58aZQynMjP9g0PHq988UeblXnKbu6F4puasAefbbHM_XPHoWTGvwyN-EGG5SBgONCXudd8PBcljxD3v8g-V_cLEcDi6s5_CbKCO84YAPfUTARS5zDWNqKGDllCGtUsCOmzXMxjDKkwTzitXggldJCHEzJ6RnqwZ_TB7HEx8eP2N8llER23qvZ7ftILht90kvmD11PVAsYnzLNESFU2XowWqxqZTjZsrgDozKWR2aSLWjKtbksJwtA0bCbD7terXzJl-mXK-xEII0zDpMf5_P0e78AMWj0biXx5oe5t0_FxWBBKnpTJ9m8DD58GD7Ro-J58NXxTEhgmh_99pdz9bvE8ITaFnr48dfzwGFLqAl5LmbW8-wbHPX_qX9M6zzzD68ol6uR9ejPmGoZmi9MF26RrlSOLCZA31X41tYIP3CZSK4QaVYCQn23SwSZqL1ItOlObSvkHClDcQ4TqwhYp7gmOxwp1TQFVOLLxu0sarV1jl2oNiGUVMkwe4KnqaUC_gk5aZo0xrdj213zjNHrANQd1334hIVlDpMtrwtVNnqB5urQP0GeXWmL0gUUgdbmuZMNwxWDkdMHsQ5hCwu-agjHC8ncP6HpzfhW22h7oXAvWHx21wUfGBR-G2GW4LEOan2Dx2O5VsK9_Xs3Y0fBKMjb5zTV7ZstqpaIddpM7KGnxNai812CzQGH_frlNmDbquO60sBwjxN_71jV8TnKspTqmDpQk4c5JapnV0rDTKNmTaHxd-GXvBppGKg8yjCKzFBJC9HoQczbt6ap1rOB9dKGFr2vonymvpPdVfqQCybfYUcL_Nk_ClorBq996CU6we7NccLvVXeyayZaCZjhjC4LkGQ9xiIf7j_AMx6H5U=)
 
 ## MQTT Connection State Management Flow
 
-```mermaid
-flowchart TD
-    Start([System Running]) --> MonitorWiFi[ESP32 monitors WiFi state]
-    
-    MonitorWiFi --> CheckWiFi{WiFi State?}
-    
-    CheckWiFi -->|CONNECTED| CheckStable{Stable for 4s?}
-    CheckWiFi -->|DISCONNECTED| StopMQTT[Stop MQTT Handler]
-    CheckWiFi -->|FAILED| WaitRetry[Wait 5s for retry]
-    CheckWiFi -->|CONNECTING| MonitorWiFi
-    
-    WaitRetry --> RetryWiFi[WiFi_Connect]
-    RetryWiFi --> MonitorWiFi
-    
-    CheckStable -->|Yes| CheckMQTTStart{MQTT Started?}
-    CheckStable -->|No| MonitorWiFi
-    
-    CheckMQTTStart -->|No| StartMQTT[MQTT_Handler_Start]
-    CheckMQTTStart -->|Yes| CheckMQTTConn
-    
-    StartMQTT --> Connecting[MQTT Connecting to broker]
-    Connecting --> BrokerResponse{Broker Response?}
-    
-    BrokerResponse -->|CONNECTED| SetConnected[connected = true]
-    BrokerResponse -->|ERROR| IncRetry[Increment retry_count]
-    
-    SetConnected --> Subscribe[Subscribe to command topics]
-    Subscribe --> SetReconnFlag[Set mqtt_reconnected flag]
-    SetReconnFlag --> NotifySTM32Conn[Send MQTT CONNECTED to STM32]
-    NotifySTM32Conn --> CheckMQTTConn
-    
-    IncRetry --> BackoffDelay[Exponential backoff: min 60s, 2^retry]
-    BackoffDelay --> CheckMaxRetry{Max retries?}
-    CheckMaxRetry -->|No| StartMQTT
-    CheckMaxRetry -->|Yes| WaitReset[Wait 60s]
-    WaitReset --> ResetRetry[Reset retry_count]
-    ResetRetry --> StartMQTT
-    
-    CheckMQTTConn{MQTT State?}
-    CheckMQTTConn -->|CONNECTED| Active[Handle messages]
-    CheckMQTTConn -->|DISCONNECTED| CheckWiFiState
-    
-    Active --> CheckMsg{New Message?}
-    CheckMsg -->|Yes| RouteMsg[Route to handler]
-    CheckMsg -->|No| CheckWiFiState
-    
-    RouteMsg --> Active
-    
-    CheckWiFiState{WiFi still connected?}
-    CheckWiFiState -->|Yes| CheckMQTTConn
-    CheckWiFiState -->|No| StopMQTT
-    
-    StopMQTT --> UpdateMQTTState[mqtt_current_state = DISCONNECTED]
-    UpdateMQTTState --> NotifySTM32Disc[Send MQTT DISCONNECTED to STM32]
-    NotifySTM32Disc --> STM32Response[STM32 switches to SD buffering]
-    STM32Response --> MonitorWiFi
-    
-    style Start fill:#90EE90
-    style CheckWiFi fill:#FFD700
-    style BrokerResponse fill:#FFD700
-    style CheckMQTTConn fill:#FFD700
-    style Active fill:#87CEEB
-```
+![MQTT Connection State Management Flow](https://kroki.io/plantuml/svg/eNqtVm1v2kgQ_u5fMadIJyKdlIS3NEBpA9jXSBfaA6R-ORWtzRJW2Lt0d12aa_rfO7vG2A428KGLFIXZ2Xl75hnmvdJE6jgK4fHf2Ww-FJzTQDPB51NNNJ0_Ek6eaES5dv7QK_wHvjFfEvyq1oxviCQR-CRYP0kR88VQhELCheeaT05DrchCbBl_giUJFc3dEHT2jeln-OEAnsFrU27Dq3uj5E7IBZU7-U2r3RpeW_nUZLATN4f3XisRu1k4zWaj0bbCESOR4IsDN57n3Q2bBZW8N691693c2mtPcD1l_1O4qe-_jwnW5V4yElrRvZRimwZUN59MPFuxYM2pUlB3fjqOZjqk0FNosHPzpt_z-wYGyGAACwNkMIAXim3vyu_3rsyr_n9897re77H-Z-Yx-NNiCROqWMgoDyhsmV6B-30jOFrAMG2dxXLZu2KpHcexneA4HQxi-qw0jWASc46gGW8vF3fXrnt33XUcSTeUaJtSx51-atQB68W0kAqse2Ui7tp7-0eh92AFNXtp03l3md0GRFGoDT-Ox-5w5o6SG3PYEmqo7WN9lljJpnp3CdiBHGpcZFrmXLy5HbruoINV04zHNI0HQ-_uFWlo_DxTVXxrvNhq2S6ii0onNl3LkQ-EL0Iq5_ZF7bJbrrbHEJteC_ClWFN5qHsgMAENrLIBEBFTdB9TSZUKfoPEJV3AW9Aypt1ytWnsq0Ayn2JgpRqBiCJMEq83LFBVVqiG6KvWc0kzv8uQPFXqo8V9g6eZmN4q1ceaTWePjfrLDt1Dqwmi7mTycVJRjwceyIQ0kmr5PA-Q8boivDw7_IQdnVJNZFnEOLSv1V9Q_2INGxqVmy0V2p4j321QjGZ9fdCchQA_E6aN1261CjYMPSNXBIItndPSCsqYk5sBr09K95RVe7qfVZvKcXCQLLZSwkSIcJzidFTJnKpql6NuU1jGdAuPibnzYEnqLmJtyASrZDRUOy8v_YlqjB6mZxTEhL-bvywMYc_JoxOtyFDke_LT8eFUHlbfsj-IpUTazO3Uh7dHX-QTOWG7MC3y7yoHxuvBccqB0dk1K1VVkzA90xH48XJJzW_KC24L7UF7cNyBLylZ_64-QPUk0vOeJOyE7YohOxIi2j3L9DRTJR1dDCf75pxqwmM9c7w_ynvhTNwPMT6CZzV2ufS8-4d_ConZcdtSdvewEzXny9AsXZXTBeBwmXkY_53ZO7mjOEWcnSKGu4VMJgtZHkZc28TGcd7jU9zifwERVN9W)
 
 ## Relay Control End-to-End Flow
 
-```mermaid
-flowchart TD
-    Start([Relay Control Request]) --> Source{Control Source?}
-    
-    Source -->|Web Interface| WebCmd[Web sends to datalogger/esp32/relay/control]
-    Source -->|ESP32 Button| ButtonCmd[GPIO5 button pressed]
-    
-    WebCmd --> ESP32MQTT[ESP32 MQTT callback]
-    ButtonCmd --> ProcessButton[on_button_relay_pressed]
-    
-    ESP32MQTT --> ParseCmd{Command?}
-    ParseCmd -->|ON| SetOn[Relay_SetState true]
-    ParseCmd -->|OFF| SetOff[Relay_SetState false]
-    ParseCmd -->|TOGGLE| ToggleRelay[Relay_Toggle]
-    
-    ProcessButton --> ToggleRelay
-    
-    SetOn --> UpdateGPIO[GPIO4 = HIGH]
-    SetOff --> UpdateGPIO2[GPIO4 = LOW]
-    ToggleRelay --> UpdateGPIO3[Toggle GPIO4]
-    
-    UpdateGPIO --> UpdateState[g_device_on = true]
-    UpdateGPIO2 --> UpdateState2[g_device_on = false]
-    UpdateGPIO3 --> UpdateState3[Toggle g_device_on]
-    
-    UpdateState --> CheckOff
-    UpdateState2 --> CheckOff{Relay turned OFF?}
-    UpdateState3 --> CheckOff
-    
-    CheckOff -->|Yes| ForcePeriodic[Force g_periodic_active = false]
-    CheckOff -->|No| StateCallback
-    
-    ForcePeriodic --> SendPOff[Send PERIODIC OFF to STM32]
-    SendPOff --> StateCallback[Relay callback triggered]
-    
-    StateCallback --> PublishState[update_and_publish_state]
-    PublishState --> Delay500[Wait 500ms for STM32 boot]
-    Delay500 --> CheckMQTT{MQTT Connected?}
-    
-    CheckMQTT -->|Yes| SendConn[Send MQTT CONNECTED to STM32]
-    CheckMQTT -->|No| SendDisc[Send MQTT DISCONNECTED to STM32]
-    
-    SendConn --> STM32Process[STM32 updates WiFi state]
-    SendDisc --> STM32Process
-    
-    STM32Process --> UpdateDisplay[Display shows relay state]
-    UpdateDisplay --> WebSync[Web interface syncs state]
-    WebSync --> Done([Done])
-    
-    style Start fill:#90EE90
-    style Source fill:#FFD700
-    style CheckOff fill:#FFD700
-    style CheckMQTT fill:#FFD700
-    style PublishState fill:#87CEEB
-```
+![Relay Control End-to-End Flow](https://kroki.io/plantuml/svg/eNp9Vdtu4jAQfc9XzKov8FBBufQCLL1AQpHa0m2QeFkpMskAVoPN2k4R3e6_ry9Jmy50iQTKGXvOmTNjcyUVESpbp_CEKdlFA86U4GkUpHzrfVMrXCO80LkgTHnymbINEWQNcxI_LwXPWDLgKRdwFPjmKa2QK5LwLWVLWJBUYilCYkVfqNrBbw_05-bfVH4zaARDF-MiQZHjJ-3T9qBu8dBozuHW4DpoO9j_kNNqNZunFhxSsuYs2aMJguBi0Pq0pMwWtM-CkzMbDrQlIX1FOGm8vz8Q7cu1oCS10LUQfFsIapjnA56uaPzMUEpoeH88T1GVIvSkTtg5Oe_35n1rPOTGmyKOFT_WP2B60KvN-72aWd3_yfJdjX6P9h_5FgXcE0aWukdMwZaqlXFGIYQ7Fq8EZ_SVKMpZr0aLHJ5n--15nT3iJ_yVoVSG8O3oou77F_WuXq7TxiuoFKtCnokYL6ueFxOJUJnhHMZMoViQGKu26o7BJLJEguIW0VwJUSTlyyWKGspNs1EThrwWu7SGtOs2--FjswH3P6ZTiEmamklzEfv1IWe9Jiy5dIxOyuTBvdk0bppDVNaRihIZVrsf4dHjeNKC73A7Ht2W4GWU4AuNMeJMB82mbpkgCL5msGN-iOJuMvuSwW4qU0wno9Gdv8cy1c6lWCmndxBYln24ROOCph3Wu6JxzuebTCnO8r6ZXG2YWwg2Qo8sJnlXOIscHtm-RXm0UHRQ5gGJB-V5JW10ARU3lioTDBPQnl9WQd9DDCo7lLnSgOsh1Fk2KChPaBzZSwU_O9oJdWIze4_-03gyHA9MMjNpNqo4hNP7ZqNr6OlCnwjHWwyd7j4142os6GQbPb8Y6YmLNtk8pXIVSdv16tvR-dnA92_0ohmhCtr1-lrCggvPZoc556rr6rIzrc8Rw1hhcqCqQq9bOHl48AdTf3hIcWo6yPihfcNx-N-tebFOnatLwowGFGxFuo4hlRvjhFzxrQTb7_eYZjGnmxYnHqS-aqQLu5ujsENfNHzjeVeaUP-7_AXe_e7q)
 
 ## Button Control Flow (ESP32 Buttons)
 
-```mermaid
-flowchart TD
-    Start([Button Event]) --> Debounce[Software debounce 200ms]
-    Debounce --> Identify{Which Button?}
-    
-    Identify -->|GPIO5| RelayBtn[Relay Toggle Button]
-    Identify -->|GPIO16| SingleBtn[Single Measurement Button]
-    Identify -->|GPIO17| PeriodicBtn[Periodic Toggle Button]
-    Identify -->|GPIO4| IntervalBtn[Interval Adjustment Button]
-    
-    RelayBtn --> RelayAction[on_button_relay_pressed]
-    RelayAction --> ToggleRelay[Toggle relay state]
-    ToggleRelay --> RelayFlow[See Relay Control Flow]
-    RelayFlow --> Done([Done])
-    
-    SingleBtn --> CheckDev1{Device ON?}
-    CheckDev1 -->|No| LogIgnore1[Log: Ignored - device OFF]
-    CheckDev1 -->|Yes| SendSingle[Send SINGLE to STM32]
-    LogIgnore1 --> Done
-    SendSingle --> STM32Single[STM32 performs single measurement]
-    STM32Single --> Done
-    
-    PeriodicBtn --> CheckDev2{Device ON?}
-    CheckDev2 -->|No| LogIgnore2[Log: Ignored - device OFF]
-    CheckDev2 -->|Yes| TogglePeriodic[Toggle g_periodic_active]
-    LogIgnore2 --> Done
-    
-    TogglePeriodic --> CheckState{New State?}
-    CheckState -->|ON| SendPOn[Send PERIODIC ON to STM32]
-    CheckState -->|OFF| SendPOff[Send PERIODIC OFF to STM32]
-    
-    SendPOn --> UpdatePublish[update_and_publish_state]
-    SendPOff --> UpdatePublish
-    UpdatePublish --> STM32Process[STM32 starts/stops periodic]
-    STM32Process --> Done
-    
-    IntervalBtn --> CheckDev3{Device ON?}
-    CheckDev3 -->|No| LogIgnore3[Log: Ignored - device OFF]
-    CheckDev3 -->|Yes| CycleInterval[Cycle interval: 5s → 10s → 15s → 30s → 60s → 5s]
-    LogIgnore3 --> Done
-    
-    CycleInterval --> BuildCmd[Build SET PERIODIC INTERVAL command]
-    BuildCmd --> SendCmd[Send to STM32]
-    SendCmd --> STM32Update[STM32 updates periodic_interval_ms]
-    STM32Update --> Done
-    
-    style Start fill:#90EE90
-    style Identify fill:#FFD700
-    style CheckDev1 fill:#FFD700
-    style CheckDev2 fill:#FFD700
-    style CheckDev3 fill:#FFD700
-```
+![Button Control Flow (ESP32 Buttons)](https://kroki.io/plantuml/svg/eNrNVV1v2jAUfc-vuFNf4GHiG1pAtHwkE1ILqEHby6TIJAa8JjayDYite90P2E_cL5kdmwTKqvVpGkgk9r0-99xzbHMnJOJym8Qw2ErJaDBkVHIWB17M9s47ucYJhh1ZcESlI54I3SCOElig8GnF2ZZGQxYzDleeq78nGWKNIrYndAVLFAt8EkGhJDsiD_DNAfUZvIRya17VG5kY4xHmdr7SaDaG5XTe16TtdH3Y9xpm2s3p1Ou1WjOdHBGUMBpdlPE872ZYP0s5reY1Wl6llYY9JYlPvmKoVLPxBCld-pygOJ3qc872R0JV_c2n52sSPlEsBFSd744jiYwxdIUCbFeue91FzygPVnnQykPB9We1qjVFFLulRa9b0mt6n6ldW-11SW-2PggSoqN9MKYS8yUKMeyJXMMIL1TLobKhWyJHBMdJTXecdl7c3WEqdZXnq5uy696UO07bZ0u5RxxDZFCwowpWy-VEaLCOglE1wjUUPqkO15bBbdFxQiQwFD7MxtNGMdVBF3rEMTrAnK1Wqn2Tq-t1TILaeQuzAbnOCzZcCYajQtHG7bo0CIq-xDbgYwwG-lQ_ExSSbU7ZVJo5HV9pogAfMBJbrjY5lRek0h-yhMII74hSdDq5LYI6ERQKlBmkFO2erdowXlHGcQTvlVom2_Oe1SZrDpqDTpabMtIvONakDlic4PiYRqCpjScf7l3NAyQDf_5Qq3ZOsvQYNsplxhORI5t-kryfP1WlEVmeKdLKFZlhTlhEwtc8-tdyWBqrYGOJBenNgfPl2YtmNcF7fS9InLGaTnK0M4Fn7uN4OhoPVQu6vbOkS8UNN8X_r2ie9xa41IOLFtrbTaTIB4hGwWa7iIlYB-k-LxSfr65bQ9cdXGyC9BiLklZRwFGlt9hez11PL4ydukD60ZetkP_FQRgeQmU8sczaWUBdPw0Bv378hErZPu24ZsdN-2zYKyqDHGxJbA6XO4fMsfFk7j5-7N-f2RayJFEudF4czFePojEuP4nZdj02ECTidVPUw1yjjnOn3tU_8W9vtSg9)
 
 ## SD Card Buffering and Transmission Flow
 
-```mermaid
-flowchart TD
-    Start([Data Ready to Send]) --> CheckMQTT{MQTT Connected?}
-    
-    CheckMQTT -->|No| BufferDecision[STM32 decides to buffer]
-    CheckMQTT -->|Yes| SendLive[STM32 sends live to ESP32]
-    
-    BufferDecision --> FormatJSON[Format JSON with timestamp]
-    FormatJSON --> WriteSD[SDCardManager_WriteData]
-    WriteSD --> CheckSpace{Buffer Space?}
-    
-    CheckSpace -->|Full| CircularOverwrite[Overwrite oldest record]
-    CheckSpace -->|Available| WriteNew[Write new record]
-    
-    CircularOverwrite --> UpdatePointers[Update read/write pointers]
-    WriteNew --> UpdatePointers
-    UpdatePointers --> DisplayCount[Display: Buffered count]
-    DisplayCount --> WaitReconnect[Wait for MQTT reconnection]
-    
-    WaitReconnect --> MQTTRestored{MQTT Reconnected?}
-    MQTTRestored -->|No| WaitReconnect
-    MQTTRestored -->|Yes| NotifySTM32[ESP32 sends MQTT CONNECTED]
-    
-    NotifySTM32 --> STM32Checks{Has buffered data?}
-    STM32Checks -->|No| NormalOp[Resume normal operation]
-    STM32Checks -->|Yes| ReadSD[SDCardManager_ReadData]
-    
-    ReadSD --> ValidRecord{Valid record?}
-    ValidRecord -->|No| RemoveCorrupt[Remove corrupted record]
-    ValidRecord -->|Yes| TransmitBuffer[Transmit buffered JSON]
-    
-    RemoveCorrupt --> CheckMore
-    TransmitBuffer --> ESP32Forward[ESP32 forwards to MQTT]
-    ESP32Forward --> RemoveRecord[SDCardManager_RemoveRecord]
-    RemoveRecord --> CheckMore{More records?}
-    
-    CheckMore -->|Yes| RateLimit[Delay 100ms rate limiting]
-    CheckMore -->|No| ClearBuffer[All buffered data sent]
-    
-    RateLimit --> ReadSD
-    ClearBuffer --> UpdateDisplay[Display: Buffer empty]
-    UpdateDisplay --> NormalOp
-    
-    SendLive --> ESP32Parse[ESP32 parses JSON]
-    ESP32Parse --> PublishMQTT[Publish to MQTT broker]
-    PublishMQTT --> WebReceive[Web receives real-time data]
-    WebReceive --> NormalOp
-    
-    NormalOp --> Done([Done])
-    
-    style Start fill:#90EE90
-    style CheckMQTT fill:#FFD700
-    style CheckSpace fill:#FFD700
-    style MQTTRestored fill:#FFD700
-    style BufferDecision fill:#FF6B6B
-    style WriteSD fill:#FF6B6B
-```
+![SD Card Buffering and Transmission Flow](https://kroki.io/plantuml/svg/eNqlVttu4zYQfddXTJGX5KGIL7lsHMNdR5ZQFEh213K7LwUC2hrHRChSIGkbbtN_3yEl6xI7QRaVAFseDufMnDlD-bOxTNt1JiCZPIZMp4936-USNZdPjzPNpMm4MVzJ4Be7wgxhw-dktYF55jJnmmUwZ4vnJ63WMg2VUBpO4sjdDQ-zYqnaUkRYMmGwscIWlm-43cG_AdB19zpU1I978aRYUzpFXdq7l1eXYcfbE5d_ab4Ix_FlYY7qdC4u-v0rb5xwlimZHsDEcXwTXrRcmmjx5XXcvfbLsZI24f8gdHvV7wdGvIw1Z8Kbxlqr7T6hnrtr82zFF88SjYFe8F8QWG4FwtBQwEH302g4HyUTcE2AqgnAZArNRkAs1HZ4Ph8Nz92-0d-y3N8bDfloioYLjtLChFlG5CjNnhC23K4g5HqxFkyXwYfnfB8jCLwKgmBAKfiNU2TpDqyCBGXq0F5ObjpRdNO5DQK-hNP7b7MZhEpKXFhMfzsDUoeE0x2aM1_tIJnd93tgaLcBwTfoYkXJ137vtlj3z0AqMGjgj-TLQ2n_up4LblbO3WPMtXpG_XLy6TqMorvSibL8jnPQuEAKbeiBiV8tpzaklLxLt3A0VuVBgKQ5OJWqlVmKC57SVsKZezpeSAVXd1d7iFjpjFmfWcGeC08sZXnpkExco-6ZJH7143fNLTrmTs-Kdf_hmCrIhiRnC6x4itdCFOn4WFVnilSqBapTbVBvXXADSlDC1lVN4qyLLMobbxgXbC6wEdYnBRK35Z7SX6Z8Wec4-DMn0tBxmJ57JMgVlxa1KSudcJMLthuUusEUFjQ7tlGnxhyZbQAzbmFJA-Bb6MC9UEi9t5VT9VDJabr3OyaoKnYhHC-s1gJxVYjyy8NDFM6iSc3QAeQe9ndmSsqpKCedCnevlhY0QdB8rUlm0qlDgMpRM1fWIVYlv6ahaNVBTUcobOG2peZGs6m019dRo6v2LyZ4Wkrh3UIr4ClmpD9qt9brnNrS0tHr653iqoDlQWZr1uvRP7qh6DZJaUsMmP2p0D4OPsSZK2Tqs3-Lt3ouPszovdJYcmI-xihJaCxEW3ROzPa4gqp9r2YQMMvt7vZdnJ-S6puS_ZnuTpBShG6nk5k3negdpd1xIzjJgN5v7i30v_tRDA9sV5xep0VXymnm5kjS7cjtX8FhPHea-T8vdKDVJ1kzeBEi-Ezf9E_qB6yqevI=)
 
 ## Error Handling and Recovery Flow
 
-```mermaid
-flowchart TD
-    Start([Error Detected]) --> ErrorType{Error Type?}
-    
-    ErrorType -->|I2C Sensor Error| SensorError[SHT3X I2C timeout/NACK]
-    ErrorType -->|RTC Error| RTCError[DS3231 I2C timeout/NACK]
-    ErrorType -->|SD Card Error| SDError[SD Card mount/write failure]
-    ErrorType -->|WiFi Error| WiFiError[WiFi connection failed]
-    ErrorType -->|MQTT Error| MQTTError[MQTT broker connection failed]
-    
-    SensorError --> SetZero[Set temp=0.0, hum=0.0]
-    SetZero --> ContinueOp1[Continue operation with error values]
-    ContinueOp1 --> LogSensor[Log sensor failure to display]
-    LogSensor --> RetryNext1[Retry on next measurement cycle]
-    RetryNext1 --> Monitor1[Monitor for recovery]
-    Monitor1 --> Done([System Continues])
-    
-    RTCError --> UseZero[Use timestamp=0]
-    UseZero --> ContinueOp2[Continue operation with zero timestamp]
-    ContinueOp2 --> LogRTC[Log RTC failure to display]
-    LogRTC --> RetryNext2[Retry on next time query]
-    RetryNext2 --> Monitor2[Monitor for recovery]
-    Monitor2 --> Done
-    
-    SDError --> CheckInit{Initialization error?}
-    CheckInit -->|Yes| DisableSD[Disable SD buffering]
-    CheckInit -->|No| RetryWrite[Retry write operation]
-    
-    DisableSD --> LogSD[Log SD disabled to display]
-    LogSD --> MQTTOnly[Rely on MQTT only]
-    MQTTOnly --> Done
-    
-    RetryWrite --> CheckSuccess{Write successful?}
-    CheckSuccess -->|Yes| RecoverSD[SD recovered]
-    CheckSuccess -->|No| DisableSD
-    RecoverSD --> Done
-    
-    WiFiError --> CheckRetry{Retry count?}
-    CheckRetry -->|< 5| WaitWiFi[Wait 2s]
-    CheckRetry -->|>= 5| ManualRetry[Wait 5s for manual retry]
-    
-    WaitWiFi --> RetryConnect[WiFi_Connect]
-    ManualRetry --> RetryConnect
-    RetryConnect --> CheckWiFiOK{Connected?}
-    
-    CheckWiFiOK -->|Yes| WiFiRecovered[WiFi recovered]
-    CheckWiFiOK -->|No| CheckRetry
-    
-    WiFiRecovered --> WaitStable[Wait 4s stability]
-    WaitStable --> StartMQTT[Start MQTT]
-    StartMQTT --> Done
-    
-    MQTTError --> IncRetry[Increment retry_count]
-    IncRetry --> CalcBackoff[Calculate backoff: min 60s, 2^retry]
-    CalcBackoff --> WaitBackoff[Wait backoff delay]
-    WaitBackoff --> RetryMQTT[MQTT_Handler_Start]
-    RetryMQTT --> CheckMQTTOK{Connected?}
-    
-    CheckMQTTOK -->|Yes| MQTTRecovered[MQTT recovered]
-    CheckMQTTOK -->|No| CheckMaxRetry{Max retries?}
-    
-    CheckMaxRetry -->|No| IncRetry
-    CheckMaxRetry -->|Yes| ResetCount[Reset retry_count]
-    ResetCount --> Wait60[Wait 60s]
-    Wait60 --> RetryMQTT
-    
-    MQTTRecovered --> NotifySTM32[Send MQTT CONNECTED to STM32]
-    NotifySTM32 --> TransmitBuffer[Transmit buffered SD data]
-    TransmitBuffer --> Done
-    
-    style Start fill:#90EE90
-    style ErrorType fill:#FFD700
-    style CheckRetry fill:#FFD700
-    style SetZero fill:#FF6B6B
-    style DisableSD fill:#FF6B6B
-```
+![Error Handling and Recovery Flow](https://kroki.io/plantuml/svg/eNqlVl1zGjcUfd9foU5fYCZTzGJwCoTEXthJJrU7NXTch04ZsXsxGmslImkhOOl_75VWLLvEdskEBhD3Q7rnnCtp32lDlckzTiZKSTV_T0XKmbif30IiN6B2wU9mBRmQDVsoKkygH5hYU0UzsqDJw72SuUgjyaUiP8cT-65E6BVN5RZnI0vKNVQ8NDFsw8yOfAkIvq6Op5p04jAeFz6pUlDe3u72utGZs09t4d58Hl3G3cI8OZRzft7p9JxxzGgmRfrNMnEc_xqd10Kqq8Xdi7h94dyxFGbKHoG0w_L_DUVeLhWj3JkukcDtvqDQvg_m2YolDwK0JmHwbxAYZjiQocYJ--3Xo-Fi5Ngne_YJ_pK9AiTmcjtsLUbDlk0Y_S18YjgaslEks7WCFQjNNkBimnNDZpIDipUAkqSogfvdsMX26UHgJA-CfrnsGAwkBlK7yFckpXfVuxpg3JaZZEUaRdBst4a3zSBIqAbS-BBGZIqLosO5mw5rf_p-1vmLoNP9NSwDmZvWzWX0ceADwBAD2frN2S9nr8gqz-zA-yLklIkciFxj-YZJ4exYxYqAq2FDeQ7ah_8m74kuSlhSxnMFxaKSpEyvOd35uFswSKIURMBn40wZUI3hGQhDkl3CwUdeS8GMnQ4_yrNfuLSR6z3021lUwzyedsJO-yXQf2KaNSPxFvkJcB9ByUNKBbBd_DvR2mnIp7zEciLM6ZhEVKV1eb0twz1kWlvFTFGFr6iYxH2xJfYILoObgz06cIWEb5sEzxNBGjvQxaQFh0zTBW4JXGCRL5egcBMMDm6LHF1pEZWWjmP0ngHuCLj-YzbDX17xOXx2ANxCFLJZTbPEOUwHRQ6p5cAiu3NROk8S3NLLnD-Nak-Z5xjSQc1VFvN0QSfw8iI3z_Hzfxx9W5pI2TI4jHx_3LGY1ZrDGRIpBJ4lVm_bFHvM7kvBGqipEVmQnth2Kjkcku4RC3eUGRLqwRFbozdPR3a1be2aI6MipxwrMKoC9YCsprBDMo8KJI3mMz3g_ZC-ID6esI6VsgOKE_b1RTSZXA2eKP1cI_d0wTjejUd-d985wU7S6oh1sl2hGqTxEWBd0ICdhJUz7ev2qrqGqKrqDAslH0BVxC13_UsC9z-IxJ-ybsW507myUyPKk5zjBeWeJeRy2S99eLNlTJDemX5Fwn9cur3DKsmOL59HUqifAbbq4lkG1Nwx96M6Oh5O0RFvxZTsE6Lfb24m0WwytgnHW3M6u-6ER9kzvLd1ZpG57X60n-0-p4Z-9zlicV7Tz04GBvp5pP5w0PCMZHX2UZ26q95-P9CMmFo8fQTBOxzj8-l_U8P0YQ==)
 
 ## System State Synchronization Flow
 
-```mermaid
-flowchart TD
-    Start([State Change Event]) --> StateType{State Type?}
-    
-    StateType -->|Device State| DeviceChange[g_device_on changed]
-    StateType -->|Periodic State| PeriodicChange[g_periodic_active changed]
-    StateType -->|MQTT State| MQTTChange[mqtt_current_state changed]
-    
-    DeviceChange --> CheckDevice{New Value?}
-    CheckDevice -->|ON| DeviceOn[Device turned ON]
-    CheckDevice -->|OFF| DeviceOff[Device turned OFF]
-    
-    DeviceOn --> UpdateESP32_1[ESP32 updates state]
-    DeviceOff --> ForcePeriodic[Force periodic OFF]
-    ForcePeriodic --> SendPOff[Send PERIODIC OFF to STM32]
-    SendPOff --> UpdateESP32_2[ESP32 updates state]
-    
-    UpdateESP32_1 --> PublishDevice
-    UpdateESP32_2 --> PublishDevice[Create state JSON]
-    
-    PeriodicChange --> CheckPeriodic{New Value?}
-    CheckPeriodic -->|ON| PeriodicOn[Periodic mode started]
-    CheckPeriodic -->|OFF| PeriodicOff[Periodic mode stopped]
-    
-    PeriodicOn --> SendPOn[Send PERIODIC ON to STM32]
-    PeriodicOff --> SendPOffCmd[Send PERIODIC OFF to STM32]
-    
-    SendPOn --> UpdateESP32_3[ESP32 updates state]
-    SendPOffCmd --> UpdateESP32_4[ESP32 updates state]
-    
-    UpdateESP32_3 --> PublishPeriodic
-    UpdateESP32_4 --> PublishPeriodic[Create state JSON]
-    
-    PublishDevice --> CheckMQTT
-    PublishPeriodic --> CheckMQTT{MQTT Connected?}
-    
-    CheckMQTT -->|Yes| FormatJSON[JSON_Utils_CreateSystemState]
-    CheckMQTT -->|No| LogOnly[Log state change only]
-    
-    FormatJSON --> PublishRetain[MQTT Publish with retain=1<br/>datalogger/esp32/system/state]
-    PublishRetain --> BrokerStore[Broker stores retained message]
-    BrokerStore --> WebUpdate[Web receives state update]
-    WebUpdate --> UpdateUI[Web UI updates display]
-    UpdateUI --> SyncComplete
-    
-    LogOnly --> SyncComplete[State logged locally]
-    
-    MQTTChange --> CheckMQTTState{New State?}
-    CheckMQTTState -->|CONNECTED| MQTTConnected[MQTT connection established]
-    CheckMQTTState -->|DISCONNECTED| MQTTDisconnected[MQTT connection lost]
-    
-    MQTTConnected --> NotifyConn[Send MQTT CONNECTED to STM32]
-    MQTTDisconnected --> NotifyDisc[Send MQTT DISCONNECTED to STM32]
-    
-    NotifyConn --> STM32Switch1[STM32 switches to live transmission]
-    NotifyDisc --> STM32Switch2[STM32 switches to SD buffering]
-    
-    STM32Switch1 --> CheckBuffer{Has buffered data?}
-    CheckBuffer -->|Yes| TransmitBuffer[Transmit SD buffer]
-    CheckBuffer -->|No| SyncComplete
-    
-    TransmitBuffer --> SyncComplete
-    STM32Switch2 --> SyncComplete
-    
-    SyncComplete --> Done([Done])
-    
-    style Start fill:#90EE90
-    style StateType fill:#FFD700
-    style CheckMQTT fill:#FFD700
-    style PublishRetain fill:#87CEEB
-```
+![System State Synchronization Flow](https://kroki.io/plantuml/svg/eNrtVk1z2kgQvetXdMoXfEhhwB-xzbIxQqo4FYM3IruXrVIN0gBTlmaUmREUifPf0zODhEywk8ppD4uqKNEfr7tfP6R5qzSRuswziDZK0zyONNE0jjY8WUrB2ReimeDeK72kOYUVm0nCtaceGC-IJDnMSPKwkKLkqS8yIeEoDMzViFBLkoo14wuYk0zRhockmq2Y3sBXD_Az3IcKemE3HDmfkCmVW3vn7PzMP7H2yHS_NZ_6N-GZMwe7dk5Pe71zaxwxkgue_lAmDMNL__RJSLNaeHYRdi6sOxRcR-wLhU63_j0myMuNZCSzphspxbpqqGuunXm6ZMkDp0pB1_vmeZrpjEJfIeBV582gPxu4FYBdAeytAMJMrPvt2aDfNhmDf_k2szvos8FdmWn2ekRXLKHb_DvCyQKXxjWsmV7C3V_TKXykmjDeb7MKxvOsADzvytS3if6S8AWFYIWppuDj0eVJEFyeXGMsIiVLaLnA6aagfx57XkIUhVaz-LEd-moRp9YYY_uJRU2vrcd-sTm0xnQNf5OsRBxAiXFoTcYu2QJsMXUpOU1hMr7euYLovteFskixnAJlqjovzUw3kzB8HicMG0ChkOgqqGQiZcmeM6I8BWTmPvh4Oxnd-sZtOKkjtIBoetfr_lJnPGXz3fxXvqSGRhsB76NqvJocuzFfcE4TTdOaoQ1VjdFMXvxJs0zFDs-JyK6hddxoy6Ldl7OMqaVTBM4lrR7-6DyZCfWEvZNMLBZUtqkqet22sqht26uRz-PRmws_CIaNAkMpHqjEcYTEuR0ysp2j4FGIjUCs-w-dYURC2aqiaEuYaaQRauI-3dZkpkwVGdk0F81Fg4wPYrFFc3IDwbPNQfKxy6JS7n21-6farSQR2-cU_T0F19i5SO2qpa4gnhHY-AV9HdL2fgVRFD-p8KKE90X6rJr_l-9_RL6WmaZ0889ax0kpJT7A4ybeIe3axHo5_mQ8DvxpMDreYz5xezQvIoqQdg0HZea2XsH87Flpf4N7rSBBWtSuzPzlNJ42VM6Uwro_rqy-MbO8Iwpm5XxOJS7N7P-w4GzVqYPVEI22OTvQHdF1Cbep0W30K-xkQunnaGlC_D4zddN4pnrE08v58Hz4gkjQ6FA87y3e41HvO7Ns2SM=)
 
 ## Legend
 
-```mermaid
-flowchart LR
-    Start([Start/End Point])
-    Decision{Decision Point}
-    Process[Process/Action]
-    Critical[Critical State]
-    External[External System]
-    
-    style Start fill:#90EE90
-    style Decision fill:#FFD700
-    style Critical fill:#FF6B6B
-    style External fill:#87CEEB
-```
-
----
+![Legend](https://kroki.io/plantuml/svg/eNptUttuwjAMfe9XeOIDytjEZeoiBrR7YReNh2mPaWtKRJpUTgpi4uOXEGCdtESKfDk-PpYzNZaTbWsJS6xQldGN3WCNsBM5cWUjsxWq4cRryHmxrUi3qpxrqQl6WepvB2E2vNR7oSpYc2kwiqywEiEx4hsfbocsyVkm9R4WglceHzomcc6S2GNYFMkgAtw5PsLqUOdaeusFufLEzgzdjwEDSW_ST9NJn8HKDxKv2qJAY1zm5EOjhbLgCkxIrFsJukHiVmjlUM-EqDpsWbYY9R3bO-kzz6ummktoQsCLMBYbl_hC6afp1maT-T2DBRbCBPqrGXTEUGhVilPvYoPF1kGWotrY_8jS_njA4JNTmPxquY1Z9CMRWjq4xJvbVIV_aoez4YxBSqQpXlnt5Z6c32Ljo0HVET6w7JSnd9kgWzB4KqzYCXs4AapWcgJ-CeVSd9TPZNvtPx7N03R2JkC_CdfzeHZjalVnDreo7eFC4HZ__gHR1L3uW_4ACa3crQ==)
 
 ## Key System Features
 
 ### Communication Protocol
+
 - **UART**: 115200 baud, 8N1, line-based JSON protocol
 - **I2C**: 100kHz for sensors (SHT3X 0x44, DS3231 0x68)
 - **SPI**: 18MHz for SD Card, 36MHz for Display
 - **MQTT**: v5.0, QoS 0/1, retained state messages
 
 ### Timing Requirements
+
 - **WiFi Stabilization**: 4-second delay before MQTT start
 - **STM32 Boot Delay**: 500ms after relay toggle
 - **Button Debounce**: 200ms software filter
@@ -595,12 +60,14 @@ flowchart LR
 - **SD Transmission Rate**: 100ms between records
 
 ### State Management
+
 - **Device State**: g_device_on (relay control)
 - **Periodic State**: g_periodic_active (measurement mode)
 - **MQTT State**: mqtt_current_state (connection status)
 - **State Sync**: MQTT retained messages for web synchronization
 
 ### Error Recovery
+
 - **WiFi**: 5 auto-retries @ 2s, then manual retry @ 5s
 - **MQTT**: Exponential backoff min(60s, 2^retry)
 - **Sensor**: Return 0.0 values, continue operation
@@ -608,6 +75,7 @@ flowchart LR
 - **SD Card**: Circular buffer, 204,800 records capacity
 
 ### Data Flow Priority
+
 1. **Real-time**: When MQTT connected, direct transmission
 2. **Buffered**: When MQTT disconnected, SD card storage
 3. **Catch-up**: When MQTT reconnects, transmit buffered data first

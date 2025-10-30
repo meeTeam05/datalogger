@@ -1,0 +1,145 @@
+@startuml UI_Component_Hierarchy
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam component {
+    BackgroundColor<<sidebar>> #06B6D4
+    BorderColor<<sidebar>> #0891B2
+    BackgroundColor<<content>> #ECFEFF
+    BorderColor<<content>> #0891B2
+    BackgroundColor<<page>> #BAE6FD
+    BorderColor<<page>> #0284C7
+    BackgroundColor<<modal>> #22D3EE
+    BorderColor<<modal>> #06B6D4
+    FontSize 10
+    FontName Arial
+}
+
+title <size:18><b>UI Component Hierarchy</b></size>\n<size:12><i>Web Application Interface Structure</i></size>
+
+package "<body>" {
+    package "Sidebar Navigation" <<sidebar>> {
+        component [Sidebar Header\nDataLogger Logo] as SidebarHeader
+        component [Menu Items\n- Dashboard\n- Live Data\n- Device Settings\n- Time Settings\n- Data Management\n- Logs\n- Config] as Menu
+    }
+    
+    package "Content Area" <<content>> {
+        component [Header\nMQTT Status Badge\nFirebase Status Badge] as Header
+        
+        package "Main Content" {
+            component [Dashboard Page\n- Quick Actions\n- Current Reading\n- Console Preview\n- Temperature Chart\n- Humidity Chart] as Dashboard <<page>>
+            
+            component [Live Data Page\n- Filter Controls\n- Data Table\n- Export Button] as LiveData <<page>>
+            
+            component [Device Settings Page\n- SHT31 Component Card\n- DS3231 Component Card\n- Reserved Slots] as DeviceSettings <<page>>
+            
+            component [Time Settings Page\n- Calendar Widget\n- Time Picker\n- Sync/Set Buttons] as TimeSettings <<page>>
+            
+            component [Data Management Page\n- Statistics Summary\n- Advanced Filters\n- Data Table\n- Export Button] as DataMgmt <<page>>
+            
+            component [Logs Page\n- Search Input\n- Filter Buttons\n- Console Display\n- Export/Clear Buttons] as Logs <<page>>
+            
+            component [Config Page\n- MQTT Settings\n- Firebase Settings\n- Display Preferences\n- Chart Settings\n- Data Settings] as Config <<page>>
+        }
+        
+        component [Footer\nSystem Time Display] as Footer
+    }
+    
+    package "Modal Dialogs" <<modal>> {
+        component [Interval Modal\n- Minute Picker\n- Second Picker\n- Set/Cancel Buttons] as IntervalModal
+    }
+}
+
+SidebarHeader -[hidden]down- Menu
+Menu -[hidden]down- Header
+
+Header -[hidden]down- Dashboard
+Dashboard -[hidden]down- LiveData
+LiveData -[hidden]down- DeviceSettings
+DeviceSettings -[hidden]down- TimeSettings
+TimeSettings -[hidden]down- DataMgmt
+DataMgmt -[hidden]down- Logs
+Logs -[hidden]down- Config
+
+Footer -[hidden]down- IntervalModal
+
+note right of SidebarHeader
+    <b>Sidebar (260px fixed)</b>
+    • Logo and branding
+    • Navigation menu
+    • Always visible
+    • Page switching
+end note
+
+note right of Header
+    <b>Status Bar</b>
+    • Connection badges
+    • Green: connected
+    • Red: disconnected
+    • Real-time updates
+end note
+
+note right of Dashboard
+    <b>Main Dashboard</b>
+    • Quick control buttons
+    • Live sensor values
+    • Real-time charts
+    • Console preview
+end note
+
+note right of LiveData
+    <b>Live Data Table</b>
+    • Last 100 readings
+    • Filter by status
+    • Real-time updates
+    • CSV export
+end note
+
+note right of DeviceSettings
+    <b>Component Health</b>
+    • SHT31 sensor status
+    • DS3231 RTC status
+    • Health indicators
+    • Error counts
+end note
+
+note right of TimeSettings
+    <b>Time Management</b>
+    • Calendar UI
+    • Manual time set
+    • Internet sync
+    • Device clock display
+end note
+
+note right of DataMgmt
+    <b>Data Analysis</b>
+    • Date range filter
+    • Multi-criteria search
+    • Statistics display
+    • Bulk export
+end note
+
+note right of Logs
+    <b>System Logs</b>
+    • Full console
+    • Filter by level
+    • Search functionality
+    • Export/clear logs
+end note
+
+note right of Config
+    <b>Configuration</b>
+    • MQTT broker settings
+    • Firebase config
+    • Display preferences
+    • Chart/data settings
+end note
+
+note right of IntervalModal
+    <b>Interval Dialog</b>
+    • Set periodic interval
+    • Minutes + seconds
+    • Min: 1 second
+    • Default: 5 seconds
+end note
+
+@enduml

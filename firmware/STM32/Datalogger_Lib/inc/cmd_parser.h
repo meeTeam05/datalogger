@@ -28,7 +28,7 @@ extern uint32_t periodic_interval_ms;
 /* PUBLIC API ----------------------------------------------------------------*/
 
 /**
- * @brief Command parser for SD CLEAR command
+ * @brief Command parser for checking UART status
  *
  * @param argc Argument count
  * @param argv Argument vector

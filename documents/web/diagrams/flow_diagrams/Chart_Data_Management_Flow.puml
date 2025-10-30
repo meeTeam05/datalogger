@@ -1,0 +1,90 @@
+@startuml Chart_Data_Management_Flow
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>Chart Data Management Flow</b></size>\n<size:12><i>Real-time Chart Update and Visualization</i></size>
+
+start
+
+:Push Data to Chart;
+
+:Get Display Time
+Use device timestamp
+or current time
+Format: HH:MM:SS;
+
+:Create Data Entry
+value, time;
+
+if (Array Type?) then (Temperature)
+    :temperatureData.push
+    value, time;
+else (Humidity)
+    :humidityData.push
+    value, time;
+endif
+
+if (Length > maxDataPoints?) then (yes)
+    :Remove Oldest
+    array.shift;
+else (no)
+endif
+
+if (Update Flag?) then (no)
+    :Skip Chart Update
+    Data buffered only;
+    stop
+else (yes)
+endif
+
+if (Chart Exists?) then (no)
+    :Lazy Initialize Charts
+    ensureChartsInitialized
+    Retry init if needed;
+    
+    if (Init Success?) then (no)
+        :Log Warning
+        Chart not ready
+        data saved;
+        stop
+    else (yes)
+    endif
+else (yes)
+endif
+
+:Update Chart Data
+chart.data.labels = times
+chart.data.datasets[0].data
+= values;
+
+:chart.update active
+Animate transitions;
+
+:Calculate Statistics
+min = Math.min values
+max = Math.max values
+avg = sum / count;
+
+:Update Stats UI
+#tempMin, #tempMax
+#tempAvg
+#humiMin, #humiMax
+#humiAvg;
+
+:Log Push
+Chart updated with
+X points;
+
+stop
+
+@enduml

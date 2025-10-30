@@ -1,0 +1,91 @@
+@startuml User_Toggles_Periodic_Mode
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title User Toggles Periodic Mode Sequence
+
+participant "User" as User
+participant "Browser" as Browser
+participant "app.js" as AppJS
+participant "MQTT Broker" as MQTT
+participant "ESP32" as ESP32
+participant "STM32" as STM32
+
+User -> Browser: Click "Periodic" button
+activate Browser
+Browser -> AppJS: Click event
+deactivate Browser
+activate AppJS
+
+AppJS -> AppJS: Check isMqttConnected
+
+alt MQTT Not Connected
+    AppJS -> User: Show error\n"MQTT not connected"
+else MQTT Connected
+    AppJS -> AppJS: Check isDeviceOn
+    
+    alt Device OFF
+        AppJS -> User: Show warning\n"Device must be ON first"
+    else Device ON
+        AppJS -> AppJS: Toggle isPeriodic\nisPeriodic = !isPeriodic
+        
+        alt Enabling Periodic
+            AppJS -> MQTT: Publish(stm32Command,\n"PERIODIC ON", qos=1)
+            activate MQTT
+            AppJS -> Browser: Update button\nclassName = "btn-success"\ntext = "Periodic ON"
+            activate Browser
+            deactivate Browser
+            
+            MQTT -> ESP32: Forward "PERIODIC ON"
+            activate ESP32
+            ESP32 -> STM32: UART transmit\n{"cmd":"PERIODIC ON"}
+            deactivate MQTT
+            activate STM32
+            
+            note over STM32: Start periodic timer
+            STM32 -> STM32: Enable interrupt\nStart measurements
+            deactivate STM32
+            
+            loop Every Interval (default 5s)
+                STM32 -> SHT31: I2C read
+                activate SHT31
+                SHT31 --> STM32: Data
+                deactivate SHT31
+                STM32 -> ESP32: UART send JSON
+                ESP32 -> MQTT: Publish(periodicData)
+                activate MQTT
+                MQTT -> AppJS: Forward data
+                deactivate MQTT
+                AppJS -> Browser: Update charts
+                activate Browser
+                deactivate Browser
+            end
+            deactivate ESP32
+            
+        else Disabling Periodic
+            AppJS -> MQTT: Publish(stm32Command,\n"PERIODIC OFF", qos=1)
+            activate MQTT
+            AppJS -> Browser: Update button\nclassName = "btn-secondary"\ntext = "Periodic OFF"
+            activate Browser
+            deactivate Browser
+            
+            MQTT -> ESP32: Forward "PERIODIC OFF"
+            activate ESP32
+            ESP32 -> STM32: UART transmit\n{"cmd":"PERIODIC OFF"}
+            deactivate MQTT
+            activate STM32
+            
+            note over STM32: Stop periodic timer
+            STM32 -> STM32: Disable interrupt\nStop measurements
+            deactivate STM32
+            deactivate ESP32
+        end
+        
+        AppJS -> AppJS: addStatus("Periodic X command sent")
+        AppJS -> User: Visual feedback
+    end
+end
+deactivate AppJS
+
+@enduml
