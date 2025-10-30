@@ -1,0 +1,87 @@
+@startuml MQTT_State_Change_Notification_Sequence
+!theme cerulean-outline
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title MQTT State Change Notification Sequence
+
+participant "ESP32" as ESP32
+participant "UART Interface" as UART
+participant "Command Execute" as CmdExec
+participant "MQTT Parser" as Parser
+participant "mqtt_current_state" as MQTTState
+participant "Main Loop" as MainLoop
+participant "DataManager" as DM
+participant "SD Card Manager" as SD
+
+note over ESP32: ESP32 detects MQTT connection
+
+ESP32 -> UART: "MQTT CONNECTED\n"
+activate UART
+UART -> CmdExec: Receive complete command
+deactivate UART
+
+activate CmdExec
+CmdExec -> Parser: MQTT_CONNECTED_PARSER(argc, argv)
+deactivate CmdExec
+
+activate Parser
+Parser -> MQTTState: mqtt_current_state = MQTT_STATE_CONNECTED
+Parser -> UART: Print "[MQTT] CONNECTED"
+deactivate Parser
+
+note over MainLoop: Main loop detects MQTT connected
+
+loop While buffered data exists
+    MainLoop -> SD: SDCardManager_GetBufferedCount()
+    activate SD
+    SD --> MainLoop: Return count > 0
+    deactivate SD
+
+    MainLoop -> MainLoop: Wait 100ms between records
+
+    MainLoop -> SD: SDCardManager_ReadData(&record)
+    activate SD
+    SD -> SD: Read from circular buffer
+    SD --> MainLoop: Return buffered record
+    deactivate SD
+
+    MainLoop -> DM: sensor_json_format(buffer, record data)
+    activate DM
+    DM --> MainLoop: Return formatted JSON
+    deactivate DM
+
+    MainLoop -> UART: Transmit buffered JSON
+    activate UART
+    UART -> ESP32: {"mode":"PERIODIC","timestamp":...,\n"temperature":...}
+    deactivate UART
+
+    MainLoop -> SD: SDCardManager_RemoveRecord()
+    activate SD
+    SD -> SD: Increment read_index, decrement count
+    SD --> MainLoop: Return success
+    deactivate SD
+end
+
+note over MainLoop: All buffered data sent
+
+note over ESP32: ESP32 loses MQTT connection
+
+ESP32 -> UART: "MQTT DISCONNECTED\n"
+activate UART
+UART -> CmdExec: Receive complete command
+deactivate UART
+
+activate CmdExec
+CmdExec -> Parser: MQTT_DISCONNECTED_PARSER(argc, argv)
+deactivate CmdExec
+
+activate Parser
+Parser -> MQTTState: mqtt_current_state = MQTT_STATE_DISCONNECTED
+Parser -> UART: Print "[MQTT] DISCONNECTED"
+deactivate Parser
+
+note over MainLoop: Future data will be buffered to SD
+
+@enduml

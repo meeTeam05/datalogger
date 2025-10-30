@@ -1,0 +1,60 @@
+@startuml Periodic_Measurement_Stop_Sequence
+!theme cerulean-outline
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title Periodic Measurement Stop Sequence
+
+actor "User" as User
+participant "UART Interface" as UART
+participant "Command Execute" as CmdExec
+participant "PERIODIC_OFF_PARSER" as Parser
+participant "SHT3X Driver" as Driver
+participant "I2C Bus" as I2C
+participant "SHT3X Sensor" as Sensor
+participant "Main Loop" as MainLoop
+
+note over Sensor: Currently in periodic mode @ 1Hz
+
+User -> UART: "PERIODIC OFF\n"
+activate UART
+UART -> CmdExec: Receive complete command
+deactivate UART
+
+activate CmdExec
+CmdExec -> CmdExec: Parse: ["PERIODIC", "OFF"]
+CmdExec -> Parser: PERIODIC_OFF_PARSER(argc=2, argv)
+deactivate CmdExec
+
+activate Parser
+Parser -> Driver: SHT3X_PeriodicStop(&g_sht3x)
+deactivate Parser
+
+activate Driver
+Driver -> Driver: Build stop command: 0x3093
+Driver -> I2C: HAL_I2C_Master_Transmit(0x3093)
+activate I2C
+I2C -> Sensor: Write I2C [0x30, 0x93]
+activate Sensor
+note over Sensor: Exit periodic mode → IDLE
+deactivate Sensor
+I2C --> Driver: Receive ACK
+deactivate I2C
+
+Driver -> Driver: Update currentState = SHT3X_IDLE
+Driver --> Parser: Return SHT3X_OK
+deactivate Driver
+
+activate Parser
+Parser -> UART: Print "[CMD] PERIODIC OFF"
+activate UART
+UART -> User: "[CMD] PERIODIC OFF\r\n"
+deactivate UART
+deactivate Parser
+
+note over MainLoop: Next main loop iteration
+MainLoop -> MainLoop: Check SHT3X_IS_PERIODIC_STATE()
+note over MainLoop: Returns false, skip fetch
+
+@enduml

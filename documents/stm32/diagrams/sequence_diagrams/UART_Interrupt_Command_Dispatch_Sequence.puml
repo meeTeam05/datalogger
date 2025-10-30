@@ -1,0 +1,82 @@
+@startuml UART_Interrupt_Command_Dispatch_Sequence
+!theme cerulean-outline
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title UART Interrupt to Command Dispatch Sequence
+
+participant "UART Hardware" as HW
+participant "UART ISR" as ISR
+participant "Ring Buffer" as RingBuf
+participant "Main Loop" as MainLoop
+participant "Command Execute" as CmdExec
+participant "Command Table" as CmdTable
+participant "Parser Function" as Parser
+
+HW -> ISR: Receive byte interrupt
+activate ISR
+ISR -> RingBuf: RingBuffer_Write(byte)
+activate RingBuf
+RingBuf -> RingBuf: buf[head] = byte
+RingBuf -> RingBuf: head = (head + 1) % size
+RingBuf --> ISR: Return
+deactivate RingBuf
+ISR -> HW: Re-enable interrupt
+deactivate ISR
+
+note over MainLoop: Main loop iteration
+MainLoop -> MainLoop: UART_Handle() called
+activate MainLoop
+
+loop Until no complete line
+    MainLoop -> RingBuf: RingBuffer_Available()
+    activate RingBuf
+    RingBuf --> MainLoop: available bytes
+    deactivate RingBuf
+
+    MainLoop -> RingBuf: RingBuffer_Peek()
+    activate RingBuf
+    RingBuf --> MainLoop: byte value
+    deactivate RingBuf
+
+    alt Is newline character
+        MainLoop -> MainLoop: Complete line, null terminate
+        MainLoop -> CmdExec: COMMAND_EXECUTE(line_buffer)
+        activate CmdExec
+
+        CmdExec -> CmdExec: Parse command string
+        CmdExec -> CmdExec: Build command from tokens
+
+        CmdExec -> CmdTable: Find matching command
+        activate CmdTable
+        CmdTable -> CmdTable: Loop through cmdTable[]
+        note over CmdTable: Search: SINGLE, PERIODIC ON/OFF,\nSET TIME, SET PERIODIC INTERVAL,\nMQTT CONNECTED/DISCONNECTED, SD CLEAR
+        CmdTable --> CmdExec: Return result
+        deactivate CmdTable
+
+        alt Command found
+            CmdExec -> Parser: cmdTable[i].func(argc, argv)
+            activate Parser
+            Parser -> Parser: Execute command logic
+            Parser --> CmdExec: Return
+            deactivate Parser
+        else Command not found
+            CmdExec -> Parser: Print "UNKNOWN COMMAND"
+            activate Parser
+            Parser --> CmdExec: Return
+            deactivate Parser
+        end
+
+        CmdExec --> MainLoop: Return
+        deactivate CmdExec
+        MainLoop -> MainLoop: Clear line buffer
+    else Not newline
+        MainLoop -> MainLoop: Add to line buffer
+        MainLoop -> RingBuf: RingBuffer_Read()
+    end
+end
+
+deactivate MainLoop
+
+@enduml

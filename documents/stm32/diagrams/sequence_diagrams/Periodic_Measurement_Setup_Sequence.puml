@@ -1,0 +1,108 @@
+@startuml Periodic_Measurement_Setup_Sequence
+!theme cerulean-outline
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title Periodic Measurement Setup Sequence
+
+actor "User" as User
+participant "UART Interface" as UART
+participant "Command Execute" as CmdExec
+participant "PERIODIC_ON_PARSER" as Parser
+participant "SHT3X Driver" as Driver
+participant "I2C Bus" as I2C
+participant "SHT3X Sensor" as Sensor
+participant "DataManager" as DM
+participant "Main Loop" as MainLoop
+
+User -> UART: "PERIODIC ON\n"
+activate UART
+UART -> CmdExec: Receive complete command
+deactivate UART
+
+activate CmdExec
+CmdExec -> CmdExec: Parse: ["PERIODIC", "ON"]
+CmdExec -> Parser: PERIODIC_ON_PARSER(argc=2, argv)
+deactivate CmdExec
+
+activate Parser
+Parser -> Parser: Set mode=1MPS (default),\nrepeat=HIGH (default)
+Parser -> Driver: SHT3X_Periodic(&g_sht3x, &mode,\n&repeat, &temp, &hum)
+deactivate Parser
+
+activate Driver
+Driver -> Driver: Build I2C command: 0x2032 (1MPS HIGH)
+Driver -> I2C: HAL_I2C_Master_Transmit(0x2032)
+activate I2C
+I2C -> Sensor: Write I2C [0x20, 0x32]
+activate Sensor
+note over Sensor: Enter periodic mode @ 1Hz
+deactivate Sensor
+I2C --> Driver: Receive ACK
+deactivate I2C
+
+Driver -> Driver: Update currentState = SHT3X_PERIODIC_1MPS
+Driver -> Driver: Update modeRepeat = SHT3X_HIGH
+Driver -> Driver: HAL_Delay(100ms) - Wait for first measurement
+
+Driver -> I2C: HAL_I2C_Master_Receive(6 bytes)
+activate I2C
+Sensor -> I2C: Send first measurement
+I2C --> Driver: Raw data
+deactivate I2C
+
+alt I2C OK and CRC valid
+    Driver -> Driver: Parse & validate data
+    Driver --> Parser: Return SHT3X_OK,\ntemp=25.50, hum=60.00
+else I2C error or CRC failed
+    Driver --> Parser: Return SHT3X_ERROR,\ntemp=0.0, hum=0.0
+end
+deactivate Driver
+
+activate Parser
+Parser -> Parser: Initialize next_fetch_ms = HAL_GetTick()
+Parser -> DM: DataManager_UpdatePeriodic(temp, hum)
+activate DM
+DM -> DM: mode = DATA_MANAGER_MODE_PERIODIC
+DM -> DM: Store temperature, humidity
+DM -> DM: Set data_ready = true
+DM --> Parser: Return
+deactivate DM
+deactivate Parser
+
+note over MainLoop: Main loop continues every 5 seconds...
+
+loop Every periodic_interval_ms (default 5000ms)
+    MainLoop -> MainLoop: Check SHT3X_IS_PERIODIC_STATE()
+    MainLoop -> MainLoop: Check (now >= next_fetch_ms)
+    MainLoop -> Driver: SHT3X_FetchData(&g_sht3x,\n&temp, &hum)
+    activate Driver
+    Driver -> I2C: HAL_I2C_Master_Receive(6 bytes)
+    activate I2C
+    Sensor -> I2C: Send periodic measurement
+    I2C --> Driver: Raw data
+    deactivate I2C
+    Driver -> Driver: Parse data
+    Driver --> MainLoop: Return temp, hum
+    deactivate Driver
+
+    MainLoop -> DM: DataManager_UpdatePeriodic(temp, hum)
+    activate DM
+    DM -> DM: Set data_ready = true
+    deactivate DM
+
+    MainLoop -> MainLoop: Toggle PC13 LED
+    MainLoop -> MainLoop: Update next_fetch_ms += periodic_interval_ms
+
+    MainLoop -> DM: DataManager_Print()
+    activate DM
+    DM -> UART: Transmit JSON
+    activate UART
+    UART -> User: {"mode":"PERIODIC","timestamp":...,"temperature":...}
+    deactivate UART
+    DM -> DM: Clear data_ready = false
+    deactivate DM
+end
+
+@enduml
