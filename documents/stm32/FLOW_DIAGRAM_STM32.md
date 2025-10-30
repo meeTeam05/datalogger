@@ -4,358 +4,43 @@ This document describes detailed flow diagrams for processing within the STM32 f
 
 ## Main Application Flow
 
-```mermaid
-flowchart TD
-    A[System Startup] --> B[HAL_Init]
-    B --> C[SystemClock_Config]
-    C --> D[GPIO_Init]
-    D --> E[I2C1_Init]
-    E --> F[SPI1_Init - SD Card]
-    F --> G[SPI2_Init - Display]
-    G --> H[USART1_Init]
-    H --> I[UART_Init]
-    I --> J[SHT3X_Init]
-    J --> K[DS3231_Init]
-    K --> L[DataManager_Init]
-    L --> M[SDCardManager_Init]
-    M --> N{SD Card Ready?}
-    N -->|Yes| O[display_init]
-    N -->|No| P[Print SD Warning]
-    P --> O
-    O --> Q[Enter Main Loop]
-
-    Q --> R[UART_Handle]
-    R --> S[Check PERIODIC State]
-    S --> T{SHT3X_IS_PERIODIC_STATE?}
-    T -->|No| U[DataManager_Print]
-    T -->|Yes| V{Time to Read Data?}
-    V -->|No| U
-    V -->|Yes| W[SHT3X_FetchData]
-    W --> X[DataManager_UpdatePeriodic]
-    X --> Y[Toggle LED PC13]
-    Y --> Z[Update next_fetch_ms]
-    Z --> U
-
-    U --> AA{Data Printed/Saved?}
-    AA -->|Yes| BB{Display Update Needed?}
-    AA -->|No| BB
-    BB -->|Yes| CC[display_update]
-    BB -->|No| DD[HAL_Delay 100ms]
-    CC --> DD
-    DD --> R
-
-    style A fill:#90EE90, color:#000000
-    style Q fill:#FFD700, color:#000000
-    style R fill:#87CEEB, color:#000000
-    style U fill:#FF6B6B, color:#000000
-```
+![Main Application Flow](https://kroki.io/plantuml/svg/eNqNVV1zmkAUfd9fsZ2-mIeMCmpadWgMSONMPpxA2j50hllh1TviLrMssabtf-_ugogxD5UXOPfcD865i9e5JEIW2xTfE2DRJMtSiIkEziI_5Tv0Qa7pluIXWAjCJMo3wDIiyBYvSLxZCV6wxOUpF_ijP9VXg5GvScJ3wFZ4SdKcNiIklvACco9_I6x-N29LTW3f8r0yxkVCRYV3-4O-2zF4oMeu4J478fslPD2O0-vZ9sCAHpAtZ8lZG9_3P7u9E0qzm9-_8rtXJuxzJgN4pbhr1c8PROkyEUBSA02E4LvDQJa-jnC4hnjDaJ5jC_1FSIJMKR7nquCw-8kZL5wgvLct4wBuOIC1A-P2whm3Ndf5yaocyxmDE-xzSbd4xkCqGeC1TCEsKevccZ6N23DIRcgYjYa6W5lpJCwy3WCEhreTu0jXUrdl3E15vIlczpawUuDX-ezxQJhZbrcmz2flPb7EgYddIpIStQ6oB3mWkr1Cn4PJU1hnPquHusptaP84PHiBbdk1zSOS3BNGVlTUbE-3OQURLHGrGgA_UZLsv1xgtbwMt_Y0vzBmDJNylAhMClVbiVuMV8G5ACb1O3wngqm1Hb2bwxJYIiPjlEkqmmIvHKR8aSnJJLCCFznmGRXGlwttxR-1cd5Vp6OGFTSjRJYNjA63yriUGkDXmAse632J-XarIrnJLwcqk9w1jTd4Pn2aPXozV3spaSNuxCg1DaIDKwrCSTg9l-WQEILaaMmNeljL_j7V9C-L-1TGa80cnUabnj1niZptTgXwBOI3xJCvVuos3E09PHe79klQ6_AN8oKkGJTq6kxw0dChrlE2wIz-ktFSDxRt8yPl1GSDGAvPY0ccnb2E2Y3ancdCZoVsB2ogilVzUts7uBncvLGhWn9cjflAaUKT95Wtd60w3NF_DKmPrUd1_W6no9-7Wi28W4MStlWddVEwvdKqLeRV00uH8ZH-LPAMoWtVV_0J_APqa87G)
 
 ## Command Execution Flow
 
-```mermaid
-flowchart TD
-    RxChar([UART RX Interrupt]) --> RingBuf[Store in Ring Buffer]
-    RingBuf --> UARTHandle[UART_Handle Called]
-    UARTHandle --> CheckNewline{Newline\nDetected?}
-
-    CheckNewline -->|No| Return1([Return])
-    CheckNewline -->|Yes| Tokenize[Tokenize Command String]
-    Tokenize --> BuildCmd[Build Command from Tokens]
-    BuildCmd --> FindCmd{Find in\nCommand Table?}
-
-    FindCmd -->|Not Found| UnknownCmd[Print Unknown Command]
-    FindCmd -->|Found| CallParser[Call Parser Function]
-    UnknownCmd --> Return2([Return])
-
-    CallParser --> IsSINGLE{SINGLE\nCommand?}
-    IsSINGLE -->|Yes| SingleParser[SINGLE_PARSER]
-    IsSINGLE -->|No| IsPERIODIC{PERIODIC\nCommand?}
-
-    IsPERIODIC -->|ON| PeriodicOnParser[PERIODIC_ON_PARSER]
-    IsPERIODIC -->|OFF| PeriodicOffParser[PERIODIC_OFF_PARSER]
-    IsPERIODIC -->|No| IsSETTIME{SET TIME\nCommand?}
-
-    IsSETTIME -->|Yes| SetTimeParser[SET_TIME_PARSER]
-    IsSETTIME -->|No| IsINTERVAL{SET PERIODIC\nINTERVAL?}
-
-    IsINTERVAL -->|Yes| IntervalParser[SET_PERIODIC_INTERVAL_PARSER]
-    IsINTERVAL -->|No| IsMQTT{MQTT\nNotification?}
-
-    IsMQTT -->|CONNECTED| MQTTConnParser[MQTT_CONNECTED_PARSER]
-    IsMQTT -->|DISCONNECTED| MQTTDiscParser[MQTT_DISCONNECTED_PARSER]
-    IsMQTT -->|No| OtherCmd[Other Command Handler]
-
-    SingleParser --> CallDriver1[SHT3X_Single]
-    CallDriver1 --> UpdateSingle[DataManager_UpdateSingle]
-    UpdateSingle --> SetFlag[Set data_ready Flag]
-
-    PeriodicOnParser --> CallDriver2[SHT3X_Periodic]
-    CallDriver2 --> UpdatePeriodicMode[DataManager_UpdatePeriodic]
-    UpdatePeriodicMode --> SetFlag
-
-    PeriodicOffParser --> CallDriver3[SHT3X_PeriodicStop]
-    CallDriver3 --> PrintResult[Print Status]
-
-    SetTimeParser --> CallRTC[DS3231_Set_Time]
-    CallRTC --> ForceDisplay[Set force_display_update]
-    ForceDisplay --> PrintResult
-
-    IntervalParser --> SetInterval[Update periodic_interval_ms]
-    SetInterval --> PrintResult
-
-    MQTTConnParser --> UpdateMQTTState[mqtt_current_state = CONNECTED]
-    MQTTDiscParser --> UpdateMQTTState2[mqtt_current_state = DISCONNECTED]
-    UpdateMQTTState --> PrintResult
-    UpdateMQTTState2 --> PrintResult
-
-    SetFlag --> Return3([Return])
-    PrintResult --> Return3
-    OtherCmd --> Return3
-
-    style RxChar fill:#90EE90, color:#000000
-    style FindCmd fill:#FFD700, color:#000000
-    style IsSINGLE fill:#FFD700, color:#000000
-    style IsMQTT fill:#FFD700, color:#000000
-    style SetFlag fill:#FF6B6B, color:#000000
-```
+![Command Execution Flow](https://kroki.io/plantuml/svg/eNq1Vl1z2jgUffevUKcv5KGTAknaBpYtGKthpgHWdnbykBmNsAVosCUqyaG03f--VzZ2wLCZdCaLZ_i45_qce4-lKz5rQ5XJ0gS5Mk2piIn3nUWZ4VIQnMiN88YsWcrQI58pKoyjV1ysqaIpmtFotVAyE7ErE6nQW-zZay9DL2ksN1ws0Jwmmu0hNDL8kZst-ukgeA3qVF4bt_CwwKSKmdrFm5dXl-77PB7YunfhC7ePL4uw91TOxUW7fZUHh5ymUsRHMhjjT-7FQcq-Gr78gJsfchhLYQL-g6Fmq_o9puBLX3Ga5KG-UnJTFtSy11M4XPJoJZjWqOX84ziGm4ShrgbC6-bHXnfW25mPKvORNb97Put1z21a70Hs0lu9Lu_d9f2wfGBoqmQE1NZn-9OXQCAW3XNe3us4-UN2rkEov9O_RyNhmFLZ2liNjnMdGKkY4gL5lmeQzedMOaDUcLmKsoQqNMtjZ5YX8i0PuQE9aMSlScLijuPwOWqM2Sbhgj2IITMsMiz-8wzBEhKosWX6LLfkOpQrJqybZQuBUSDbKdBBxpO4guZKpii_QRd4_maVMAeYiwdRpoZ0lrBKbm4fdCGY09oq0ZQqzRTCmYisy50Krr7oDTfREjUq0u0aOI_zIqoZagSj8Zev3hOcKxVBMu37ged3athN2L4nAXSbsAPEej0R7J1eSoNSRnWmYN8JszP8gGRIDb2lgi6YInfrmBpWENa1mEEAUqIYjbewoujiF6z5q8HV4DBTG7k-CNS6nHr-aDIcuWgyrrVaImQyfq7fKVNcxjw66jjfxSiC3cRFJjP9sm5Luv-_X4z_s2GMX9Ix7Kt1LWEKa93Y-WUy_Xt1BV6IwtHt0XrzQmLDp-sZBu1Wu0nAHBLy9HjR-aGLstzWU-ZbT-dSRYzEXK8TuiVF7qv2NBqHnv93_-uJviq_y5zTTRbrAq13rhNux9sjTUiqX63S279CGLqT8dhzQ29Yq9WCpAJPF5l-M4ZEmVKwrQmMZCj4jyfC161zOAqeLXUf_41q9297tYIn4Y3n14qcwBBX1SFQHDTqGVom4mJyH05qllgBIe0iPjwOinLvxErIjSiFnP2N4cHJrWAUaw2jp7Y3Km3Q5XOnlCn4c7AAnM_wCf-u_gUHs4Cv)
 
 ## SHT3X Single Measurement Flow
 
-```mermaid
-flowchart TD
-    Start([SINGLE_PARSER]) --> ValidateArgs{argc == 1?}
-    ValidateArgs -->|No| Return1([Return])
-    ValidateArgs -->|Yes| SetRepeat[Set Repeatability = HIGH]
-
-    SetRepeat --> I2CCmd[Send I2C Command]
-    I2CCmd --> Wait[HAL_Delay Based on Repeatability]
-    Wait --> ReadI2C[I2C Read 6 Bytes]
-    ReadI2C --> CheckI2C{I2C Success?}
-
-    CheckI2C -->|No| SetZero[Set temp=0.0, hum=0.0]
-    CheckI2C -->|Yes| CheckCRC{CRC Valid?}
-
-    CheckCRC -->|No| SetZero
-    CheckCRC -->|Yes| ParseRaw[Parse Raw Temperature & Humidity]
-
-    SetZero --> UpdateDM[DataManager_UpdateSingle]
-    ParseRaw --> StoreValues[Store in sht3x_t Structure]
-    StoreValues --> UpdateDM
-    UpdateDM --> SetFlag[Set data_ready Flag]
-    SetFlag --> Return2([Return OK])
-
-    style Start fill:#90EE90, color:#000000
-    style CheckI2C fill:#FFD700, color:#000000
-    style CheckCRC fill:#FFD700, color:#000000
-    style UpdateDM fill:#FF6B6B, color:#000000
-```
+![SHT3X Single Measurement Flow](https://kroki.io/plantuml/svg/eNqFVNlu2kAUffdX3KpqRZSmsc2SNgEaMDigZpOdVn2ohAZ7gFHsGTQzDqHLP_Ub-mW9Y7OYgFQsIfsu5x6fuceXShOpszSBcPBQ_TYKGZ8mdHRDicokTSnX1is9wxt4YmNJ8FE9Mj4nkqQwJtHjVIqMx55IhITXft9cpQo1I7FYICRMSKJoKUMizZ6YXsJPC_DXfQnVr_qu3ytyQsZUruJOvVH37DweGuarcM3r-PUi3N_SqdWq1UYe7DGSCh7vjfF9_6NX2ykpT_PrZ75zlqd9wXXIflBw3M3zLUFdOpKRJA91pBSLNSHXXNvww4xFj5wqBa7127I00wmFpkLAc-dDuzlu5_JDIT-U5Ac_EYvm6bjdPDXV7e981eW2m6x9x-mJmgkNDzSdU0k0dsFbGGQpi426ASUxQjZP2brfsvITt87NzOHt1XV_dN8Jwn5gZlxYFptAhchpBK0WOJ-OAA-fQ2VJ1VH-Much1Yg6p0STMUvMjBYMhleDPIuMKjfkmaVZCnNJI6aY4Edm-kWeX0PwGIauB55IU8LjTav97NZsGyYo4IxNZyDzOXv9g871qEcTssS1UTQGwXcZbfCceqo2aHswhoHRBxrQXWqqNm1GSzgGL_DwH6Us7l_2G6EMRJhFEZ7rvlTrIoPzlSQsPlySc7knUlEIyKJ8kDslhthJrQ5awLFTtf_-KRM6gLNegT0Q20A4tv0GgsEhiFAL3CHG0by6-jzS6DOZRYbPtpCimaHCxYu3MLuhkX_Lfm-_g1mWmps9AkYPip6Q-fRf6MHuWa1XAucxm1iHx_xnhIE3Z6JZSkWmDwzYghdL0MOtuSGcTKkcfZnHRNPCgqar0W10L7Zbj0kykrgwS_Qkma4yaKOAojoc7j4XFsrBd6mbqiF_MksAaK7MGFsV1QUhNKWYW9YlPuG3-B_ZS5Ug)
 
 ## SHT3X Periodic Measurement Flow
 
-```mermaid
-flowchart TD
-    Start([PERIODIC_ON_PARSER]) --> ValidateArgs{argc == 2?}
-    ValidateArgs -->|No| Return1([Return])
-    ValidateArgs -->|Yes| SetDefaults[Set Rate=1MPS, Repeatability=HIGH]
-
-    SetDefaults --> BuildI2C[Build I2C Command Word]
-    BuildI2C --> SendI2C[Send I2C Periodic Start]
-    SendI2C --> CheckI2C{I2C Success?}
-
-    CheckI2C -->|No| SetZero[Set temp=0.0, hum=0.0]
-    CheckI2C -->|Yes| UpdateState[Update currentState]
-
-    UpdateState --> InitTiming[Initialize next_fetch_ms]
-    InitTiming --> FirstFetch[SHT3X_FetchData]
-    FirstFetch --> CheckFetch{Fetch Success?}
-
-    CheckFetch -->|No| SetZero
-    CheckFetch -->|Yes| UpdateDM[DataManager_UpdatePeriodic]
-    SetZero --> UpdateDM
-    UpdateDM --> SetFlag[Set data_ready Flag]
-    SetFlag --> Return2([Return OK])
-
-    style Start fill:#90EE90, color:#000000
-    style CheckI2C fill:#FFD700, color:#000000
-    style UpdateDM fill:#FF6B6B, color:#000000
-```
+![SHT3X Periodic Measurement Flow](https://kroki.io/plantuml/svg/eNqlVNtu2zAMffdXcNhLig1L7Fy6NZc1ceIm2NIGcYftYYCh2Ewi1JIySe5ll3-fZDu3dugGzH6xSB7ykNTxudJE6oylEI6v61-iGUoqEhpHUyQqk8iQa-eFXpsPuKULScxR3VC-IZIwWJD4ZiVFxhNfpELCy2Bk34MItSaJuKN8BUuSKjzwkFjTW6of4IcD5hk8TjWqB14wLHxCJihLu9tsNf1abg8t99Lc8PtBszCP9nQajXq9lRuHlDDBkydlgiB45zeOQg6rBc3TwD3N3YHgOqTfEVxvd74kZi59SUmam_pSirstIc--e_P1msY3HJUCz_nlOJrqFKGjTMIz922vs-jlC4DtAuBgARCk4q5TXfQ6VRvf-8pLnNfr0J5veFCeiUzBkGgC_fhbRhXVVHCYigQ7VboFOk6-bufMlJuN5pOr4cSPri6jWX8ejua2Qttx6BIqRK5i6HbBe38CZvkcKg-oTvJmzkLUMCcau-50FuYmQ6LiAtsTriqMT2zd9gEEN2joLWhqlt4dTy7GO-yU3FOWMdhIjA1zwUtsAR5kNE1g4vngC8YIT-Cz2dAOXLv33HoNlmbmLtsoWNPV-ggfIi_gu9Hm96Z0226tM8zi2Cznab95jk-bxHQMcSalac_gNe6clkQpnnKkh-Vz-ISbdZDUXh6O9zpaoo7XEVNHOcb9j9EF6mtzTeAVUK5R3pL0Sa6iVGAz2HUfpQioVBooY5hQy1ciSR4nsA3n6OdbzmvZAlPCyQplVIxgO8OfRjitQWvQ3gHQyBsqXDxKYVevkW26tTe117DOmP04CtkTt3TNf4KmWLC2RQanjWH7P1jxhC6dP_P7CzfLy96MXDLP0_pnSgWdvShMJIls2w9G42RVysWoc446kxyuPpSiPGZvIybc3A6agJFqZjWnisiygtJi4zjn5mT-7b8Bo5K49Q==)
 
 ## Periodic Measurement Stop Flow
 
-```mermaid
-flowchart TD
-    Start([PERIODIC_OFF_PARSER]) --> ValidateArgs{argc == 2?}
-    ValidateArgs -->|No| Return1([Return])
-    ValidateArgs -->|Yes| StopCmd[Send Stop Command 0x3093]
-
-    StopCmd --> CheckI2C{I2C Success?}
-    CheckI2C -->|No| PrintError[Print Error]
-    CheckI2C -->|Yes| ResetState[currentState = SHT3X_IDLE]
-
-    ResetState --> PrintStop[Print Stop Success]
-    PrintStop --> Return2([Return])
-    PrintError --> Return2
-
-    style Start fill:#90EE90, color:#000000
-    style CheckI2C fill:#FFD700, color:#000000
-```
+![Periodic Measurement Stop Flow](https://kroki.io/plantuml/svg/eNplU01z2jAUvOtXvKYXOAE2hIY4boixpsy0DYNz6KEzjLAEeYMtUUkOST_-eyUbCCTWSfuedp925VtjmbZVWcBMaFQc80Vm1XZBC7UjH-yjKAU84VIzaYnZoNwyzUpYsnyz1qqSPFGF0vCRpn6ddJhHxtUO5RpWrDDipMJyi09oX-APAffdvaVKQxrQSVNTmgu9x3uDy0HSrfHMz7yH-8mYDho4fR2n3w_DyxqcICuV5O9kKKVXSf-s5VSNDoa0N6zLVEmb4W8BveC4_86cL2ONrKihsdZqdxgo8OsVfnjEfCOFMRCQf4RYtIWAyDjCUe9THC3jg_HwTTBTaee4tOBDAB9C1FnGUce3xz_l_lgQRxg_CF2iZFZA4gZCWanKwIRZBuP8V4UGLSoZdfBwmpA6ajLykul8ej-ZJot7Shez8TxL517nmhBcQYvpdQ43NxB8boN7ARJaL8K06xuNMiF5M1yiypJJXsOOsvscdq9Cz9IgGLfutGAbyJu-th_FCfiiF5kGCWRVnjtj3svUUnmltbPChe3ueAPZl4fwx2I6-ZoeW7zIXBhhwSpA7nwtFRenSjXRTOPB0b3iGcPFMQB_Gozr2wp-cUoj3BOGllTtt6SpS1ifs1GGheB-Is8E2z15w_fXvbu7YX9y3dBKjitCztl9PlP5xArk4JKo_HMwZ76mz1uRW6cR-AbzhnhP6sUJuXU793P_B0PsLHs=)
 
 ## Data Manager Print Decision Flow
 
-```mermaid
-flowchart TD
-    Start([DataManager_Print Called]) --> CheckReady{data_ready\nFlag Set?}
-    CheckReady -->|No| Return1([Return false])
-    CheckReady -->|Yes| CheckMode{Current Mode?}
-
-    CheckMode -->|SINGLE| GetTimeSingle[Get Unix Timestamp from DS3231]
-    CheckMode -->|PERIODIC| GetTimePeriodic[Get Unix Timestamp from DS3231]
-    CheckMode -->|UNKNOWN| Return2([Return false])
-
-    GetTimeSingle --> SanitizeSingle[Sanitize Float Values]
-    GetTimePeriodic --> SanitizePeriodic[Sanitize Float Values]
-
-    SanitizeSingle --> CheckMQTT{MQTT\nConnected?}
-    SanitizePeriodic --> CheckMQTT
-
-    CheckMQTT -->|Yes| FormatJSON[Format JSON String]
-    CheckMQTT -->|No| BufferToSD[SDCardManager_WriteData]
-
-    FormatJSON --> CheckOverflow{Buffer\nOverflow?}
-    BufferToSD --> ClearFlag[Clear data_ready]
-
-    CheckOverflow -->|Yes| PrintOverflow[Print Overflow Error]
-    CheckOverflow -->|No| TransmitUART[HAL_UART_Transmit JSON]
-    PrintOverflow --> ClearFlag
-
-    TransmitUART --> ClearFlag
-    ClearFlag --> Return3([Return true])
-
-    style Start fill:#90EE90, color:#000000
-    style CheckReady fill:#FFD700, color:#000000
-    style CheckMode fill:#FFD700, color:#000000
-    style CheckMQTT fill:#FFD700, color:#000000
-    style TransmitUART fill:#FF6B6B, color:#000000
-```
+![Data Manager Print Decision Flow](https://kroki.io/plantuml/svg/eNrNVV1v2jAUfc-vuGMvIFVq-V5TRAsJ6dha6AhdtwkJGeKA1cRGtlPWdf3vs50AgTLtdc4LubbvOfece8OVkIjLJI7ARRJNbxFFC8ynd5xQOfUitrbeySWOMTyRGUdUWuKR0BXiKIYZmj8uOEto4LCIcXjv9fSTOyGWKGBrQhcQokjg3A6aS_JE5DO8WKBW9zBVr-pVPDfdYzzAPIuX6426c2biviaehWtOx6un4d6OTq1WrTZM0CUoZjR4A-N53rlT2zuSR_PqTa_cNNseo9InvzCUK9v3AVK6dDhBkQl1OGfrDaGKfnbh8ZLMHykWAirWq2VJIiMMLaES2uUP7dasrdWHTH0w6oOL50QQRkHb0DqdtVun-kJ7QrOLlXaLtP1YyWDMg2EiV4mEEUuk0rx1SjY3LMu4bNkZ0J7L4KAowoEGuLAsEkIx0J3AMQqeJ9SL0AJ8LC9LoPqAQvEZi5JlChNrIudLKDoJ51jluWUBviyZrTkSGIp-f3B900sjetnXWMI9JT9hTGKsKMWr7Z6qpBhyFoPrVyvVMozGTklXcLG77SNKpLZA6YEkfEVRgsVeghGiC9WpKCKqBKVcliFH6a436g_dvvNfkboffB4MHwY5TsqnEZYJp-ngaG_2cvapyQexktzk-61audusuTtmQrK0EEyD1KkUUht8-2U8nlCHUYrnEgf73m5JeIzHqqRP_nCghk21yiLP4WX7oldB4nhVsL-dFJZJXLC_nxSkKNg_XnO1bpYm0E3CEPMJHT5hHqruPs5gyyTt081h6KmJ4m9OaV0MV8kYRIgv_qaMESXSwlN2BOxj52Z63xmNp2P1vRMxSRU4CucrbRUc9Py7amWL1ug2ugdoNCDhToXj4LbvOogHm9l84ERiPazWIWoqHrAwjAjFoKc1wz4_U9_B8x32Aa7tRBhx2I33fp9ioSYhVPNeOnAt146SJzj7Uhyv5J-tO2CGgJZtpW3NDVSOrule8-tKRdXf0x8CoNvb)
 
 ## Periodic Data Fetch Decision Flow
 
-```mermaid
-flowchart TD
-    Start([Main Loop Iteration]) --> CheckPeriodicState{In Periodic\nState?}
-    CheckPeriodicState -->|No| Skip([Skip Fetch])
-    CheckPeriodicState -->|Yes| GetNow[now = HAL_GetTick]
-
-    GetNow --> CheckTime{now >=\nnext_fetch_ms?}
-    CheckTime -->|No| Skip
-    CheckTime -->|Yes| CheckDuplicate{now ==\nlast_fetch_ms?}
-
-    CheckDuplicate -->|Yes| Skip
-    CheckDuplicate -->|No| FetchData[SHT3X_FetchData]
-
-    FetchData --> I2CRead[I2C Read Data from Sensor]
-    I2CRead --> CheckI2C{I2C Success?}
-
-    CheckI2C -->|No| Skip
-    CheckI2C -->|Yes| ParseData[Parse Temperature & Humidity]
-
-    ParseData --> UpdateDM[DataManager_UpdatePeriodic]
-    UpdateDM --> ToggleGPIO[Toggle PC13 LED]
-    ToggleGPIO --> RecordTime[last_fetch_ms = now]
-    RecordTime --> ScheduleNext[next_fetch_ms = now + interval]
-    ScheduleNext --> Done([Continue Main Loop])
-
-    style Start fill:#90EE90, color:#000000
-    style CheckPeriodicState fill:#FFD700, color:#000000
-    style CheckTime fill:#FFD700, color:#000000
-    style UpdateDM fill:#FF6B6B, color:#000000
-```
+![Periodic Data Fetch Decision Flow](https://kroki.io/plantuml/svg/eNqNVdtuGjEQffdXTFVVSlRV4Z6WEBpY2BIpiaJAqz5EQmbXgMWuvbK9EHp57Qf0S_oN_ZR-SceGJVw2aVkJaceec-ZyZvZCG6pMGkdwyxSXIQ-GPjPBdNhhAddcCvLCTFnMYM5HigpD9IyLhCoaw4gGs4mSqQg9GUkFL_2ufbZu6CkN5YKLCYxppNnWCQ0Mn3OzhK8E8Nfeh-qW_ZLfWZ1JFTK1thertapXcPa-DXxtrngtv7oydx_DqVTK5ZozdjiNpQgPaHzff-dVdq5ss_nVU7946o59KUyff2FQLG3ebyjWpaU4jZyppZRcZAGV7PNoHkx5MBNMayiR74QYbiIGDY2A9eLbZmPUzKoPHWoouBZA1gLwI7lonIyajRPr0bwXa89Ss8GbAx6zEPpMaCS-YzS09eYCrin-XUmZNE545kmIazepI-PmHC4NU9QgkeU4I4SP4ehSbARxL7DUhr0_BlSCgKMl08cus7qQCziHXutq-IGZAWbozBjTEb5DkCrFhIFYH9sQENieWnDr1zy_F4I9mOHYyS3Wh_jb18_xekT1v667sPoznqxKuGO3cXXSJOIBZgOJYnOMDrN20X1DLbRPK52zHRdtZLIxMJSwDWafrTcof14Nje3dAaVtCYyVxHFwPdouxgbksuS53kEuROGhWygUwKUOgYxjKsI8GNc4ROqnQYBae7pEjvOWKkxowOLEtj9V7OCK5S7W3oy4AUUX8OfHT_j9y1szP4HXS2Me4mT_D9iru15eGg7NFuKaCjphavgxCbFlmR5tq2rtWjvPayAnE5ysW69YhqtuJzeIT1ynNMIRCa0S8hviwHb0hkJHHeYC3rEAtwYYHMQnsXakvsKC1xgDjt58vT_2YfvBlIUpZmN984DzBfncCGTQViQM95J6RvsM6zMmh2-HrHlsluVGGlcUWDKzJZoV1C7MPkTmjisqyTZjLMOsvisIUvdwC3ORssdld0bczJILvIJftb93XeWs)
 
 ## MQTT-Aware Data Routing Flow
 
-```mermaid
-flowchart TD
-    Start([Main Loop - After Periodic Fetch]) --> CheckMQTT{MQTT\nConnected?}
-
-    CheckMQTT -->|Yes| PrintLive[DataManager_Print - Send Live Data]
-    CheckMQTT -->|No| BufferData[SDCardManager_WriteData - Buffer to SD]
-
-    PrintLive --> CheckBuffered{Has Buffered\nSD Data?}
-    BufferData --> UpdateDisplay[Display_Update]
-
-    CheckBuffered -->|Yes| CheckDelay{100ms Delay\nPassed?}
-    CheckBuffered -->|No| UpdateDisplay
-
-    CheckDelay -->|Yes| ReadSD[SDCardManager_ReadData]
-    CheckDelay -->|No| UpdateDisplay
-
-    ReadSD --> FormatJSON[Format Buffered JSON]
-    FormatJSON --> TransmitSD[Transmit via UART]
-    TransmitSD --> RemoveSD[SDCardManager_RemoveRecord]
-    RemoveSD --> UpdateDisplay
-    UpdateDisplay --> Done([Continue Main Loop])
-
-    style Start fill:#90EE90, color:#000000
-    style CheckMQTT fill:#FFD700, color:#000000
-    style CheckBuffered fill:#FFD700, color:#000000
-    style BufferData fill:#FF6B6B, color:#000000
-```
+![MQTT-Aware Data Routing Flow](https://kroki.io/plantuml/svg/eNqFVdtu4jAQffdXzGpf6EPFvd0CYguE7GrVC0uo-oKETOKA1cRmbQfEXv59xw5QUqiaSCBmxmfOjOcMt9pQZbI0gfufk8nMo4bOxjIzXCzIJ7NkKYM1nysqDNEvXKyooinMafiyUDIT0UAmUsFnf2jfowi9pJHcIAjENNHsyENDw9fcbOEPAXz6b6GGdb_me7lPqoipnb3avGoOKs4eWMo7c2PQ85u5efhKp9Go16-c0eM0lSI6SeP7_s2gUQg5zuY3r_3qtXP7UpiA_2ZQrR1-P1DsS09xmjhTTym52ROq2ffVPFny8EUwraFG_hFiuEkYdDQCtqpfup151_b9srehioHtPuy6D34iN53yvNsp2-DuVOwO1bod3n0UCRes_BjH9js_eE8FXeCFCdMp8_0xQtwFk5bNRLmAOylXcAm92DAFI6a4jHgIPjPh0mZrE8JjKFlSUzGQQrDQsOjrBeAsCChtmb5wtbVsyjyjmo0Ux_mwZswSMBHBHV_nrCxm7uHd0pjR5NJw7J3BidIp15pLcWHp_sUbuepf9dsu2H1YHt-phn4Wx0yxaCoCz2GestmHVyuVVIPHErqdihHV-hz1_dMKvAFV0b4IJBdZ9EKMZf2NGZBJxLQBxUKcEke4XYgrAvtSpdQciMOP4PHhBHaMWEIblYUGVnSbSPox8CRvm0FNUnjqjScnqK77RsIwGNVrH-K97UAq12zsajwBxqYywyBWMoXA293ZTQXld_NOBobCh5KQxa4LiSiKL5amYLbPM8XKkDtdSx6deJGa2ixZklpxnNRuy7bQ5MjAY3KexzscHqTbbIlcWBZ6K0JyFv4VmhSx3_TzWXHDDiOF0sgHwoIHXkEYex1rIxUePdNd8g5vp_xfGctwzGLcPwlFXR-8xzIDbJ44eKzA3Tg7hWtSKDIvkLQ8rlcopdnTKkJYkk9trJhewt3A200XaeGawI2VMTgsmLZdO3JFyC1C4Z_Lfwx20Cw=)
 
 ## Error Handling Flow
 
-```mermaid
-flowchart TD
-    Start([Error Detected]) --> CheckType{Error Type?}
-
-    CheckType -->|I2C Timeout| I2CError[HAL_I2C_GetError]
-    CheckType -->|CRC Mismatch| CRCError[Discard Data]
-    CheckType -->|SD Card Error| SDError[Continue Without Buffering]
-    CheckType -->|Buffer Overflow| BufferError[Report Overflow]
-    CheckType -->|Invalid Command| CmdError[Print Unknown]
-    CheckType -->|Invalid Parameter| ParamError[Print Usage]
-
-    I2CError --> LogI2C[Log Error Code]
-    CRCError --> SetZeroData[Set temp=0.0, hum=0.0]
-    SDError --> LogSD[Warn SD Not Available]
-    BufferError --> LogBuffer[Log Buffer State]
-    CmdError --> LogCmd[Log Command String]
-    ParamError --> LogParam[Log Parameter]
-
-    LogI2C --> ReturnError([Return Error Status])
-    SetZeroData --> UpdateWithZero[DataManager_Update with 0.0]
-    LogSD --> ContinueOp[Continue Without SD]
-    LogBuffer --> ReturnError
-    LogCmd --> ReturnError
-    LogParam --> ReturnError
-
-    UpdateWithZero --> PreserveState{Preserve\nState?}
-    ContinueOp --> PreserveState
-    ReturnError --> PreserveState
-
-    PreserveState -->|Yes| KeepState[Maintain Current Mode]
-    PreserveState -->|No| ResetState[Reset to IDLE]
-
-    KeepState --> End([Continue Operation])
-    ResetState --> End
-
-    style Start fill:#FF6B6B, color:#000000
-    style CheckType fill:#FFD700, color:#000000
-    style ReturnError fill:#FF6B6B, color:#000000
-```
+![Error Handling Flow](https://kroki.io/plantuml/svg/eNqlVW1v2kgQ_u5fMdd-Aal3SQhJ7lKOFmzc5pQ3hUT5UgkN9tisYu9au2so9_Lfb9Y2xqQfKrVYSDA7L88888z6o7GobZlnMNNa6cVnlHEmZLoIM7XxfrErygnWYqlRWs-8CFmgxhyWGL2kWpUy9lWmNLwNZ-7peJgVxmrDmSDBzFDnBCMr1sJu4R8P-DN9nWp2Gg7CoD5TOibd2E_Ozs_848o-d6B3lYfD09Pzyjxrcwz9SXhW-wYCcyXjb8qEYfiHPzxw6VYLzy7Ck4vqOFTSzsXfBCeD9v8tMi8TLTCrTBMmb7OrPXDP3vy4EtGLJGNg4P3neVbYjGBkOOHlye_j0XJcMQ875sExPzpajkdHzmf8RTa-g_FIjD9pjCgpMwgo1RijFUoyHRotpdvRkdhFeV41WO-yzR-QpchS7FL_y92fT8-n79ltI2y0gl7t9Lgt6EPf8yI0BL2rgQ-PIidV2n7Vz-XnyfWCrYtPZKuAysqweg-EMVCVQ1MqjCXdd3De13HXKq0FBr6KqY0KaFmmwOkLrtBxfyBbatlE8LBtaRzk6cUwqD0agP6DDzfC5MgtNAgDYSLUMQRosa3jK63LgptncBgzyd1ic7JgKS_-PP7t-B2sytz9aEPnmJCTcOYk3w1zBW5QYkp68VTwJAiYyhVw8AHGeQC-A1Q104D0WUFClgTPHMHtw7RMEtIMrK17q-SvkRZWRJh1yz4jE8M5b5WFyRpFhstsT6jj2Sp4mjw8doO-qTcP9iFiTZDzVEDJbNuJavDX0OBuTTphZfZ3EyqUtq21zfbX_O6WESjIUKf0WgJNLjfRPeZqtehrRBRT_CMquJJrzETM0spzXqIG4T3TaeFJvki1kW2xN40TSOYvcdfBm9cgdx68Vd2B1Fq1bv9-BuS9uwPJrccBTMM62jOyUhuIWLO8sGC20uLX1yDbNG3Q8wotbNDARqtDgX8fIsm4vgc8TyTQu9dkSK_pi6wm9aEP_B6Q0NuSaVDfIKPmL_glo-QGbrpr3cpNFaSrK6qBQ5mjQqpWRMbtnoKr4Hp2uHHGFd5FyVgknrdX8d0urbu_rCo87yP78Evsf0FuEaE=)
 
 ## Legend
 
-```mermaid
-flowchart LR
-    Start([Start/End - Rounded])
-    Process[Process - Rectangle]
-    Decision{Decision - Diamond}
-    Flag[Critical State Change - Rectangle]
-
-    style Start fill:#90EE90, color:#000000
-    style Decision fill:#FFD700, color:#000000
-    style Flag fill:#FF6B6B, color:#000000
-```
+![Legend](https://kroki.io/plantuml/svg/eNptUttuwjAMfe9XeOIDytjEZeoiBrR7YReNh2mPaWtKRJpUTgpi4uOXEGCdtESKfDk-PpYzNZaTbWsJS6xQldGN3WCNsBM5cWUjsxWq4cRryHmxrUi3qpxrqQl6WepvB2E2vNR7oSpYc2kwiqywEiEx4hsfbocsyVkm9R4WglceHzomcc6S2GNYFMkgAtw5PsLqUOdaeusFufLEzgzdjwEDSW_ST9NJn8HKDxKv2qJAY1zm5EOjhbLgCkxIrFsJukHiVmjlUM-EqDpsWbYY9R3bO-kzz6ummktoQsCLMBYbl_hC6afp1maT-T2DBRbCBPqrGXTEUGhVilPvYoPF1kGWotrY_8jS_njA4JNTmPxquY1Z9CMRWjq4xJvbVIV_aoez4YxBSqQpXlnt5Z6c32Ljo0HVET6w7JSnd9kgWzB4KqzYCXs4AapWcgJ-CeVSd9TPZNvtPx7N03R2JkC_CdfzeHZjalVnDreo7eFC4HZ__gHR1L3uW_4ACa3crQ==)
 
 **Key Points:**
 

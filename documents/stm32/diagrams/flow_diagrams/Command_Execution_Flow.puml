@@ -1,0 +1,97 @@
+@startuml Command_Execution_Flow
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    StartColor #4CAF50
+    EndColor #F44336
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>Command Execution Flow</b></size>\n<size:12><i>UART Command Processing and Routing</i></size>
+
+start
+:<b>UART RX Interrupt</b>;
+:Store in Ring Buffer
+<i>(Circular buffer)</i>;
+:UART_Handle Called;
+
+if (Newline\nDetected?) then (yes)
+    :Tokenize Command String;
+    :Build Command from Tokens;
+
+    if (Find in\nCommand Table?) then (found)
+        :Call Parser Function;
+
+        switch (Command Type?)
+
+        case (SINGLE)
+            :SINGLE_PARSER;
+            :SHT3X_Single
+            <i>(One-shot measurement)</i>;
+            :DataManager_UpdateSingle;
+            :Set data_ready Flag|#FF6B6B;
+            stop
+
+        case (PERIODIC ON)
+            :PERIODIC_ON_PARSER;
+            :SHT3X_Periodic
+            <i>(Start continuous)</i>;
+            :DataManager_UpdatePeriodic;
+            :Set data_ready Flag|#FF6B6B;
+            stop
+
+        case (PERIODIC OFF)
+            :PERIODIC_OFF_PARSER;
+            :SHT3X_PeriodicStop;
+            :Print Status;
+            stop
+
+        case (SET TIME)
+            :SET_TIME_PARSER;
+            :DS3231_Set_Time
+            <i>(RTC update)</i>;
+            :Set force_display_update;
+            :Print Status;
+            stop
+
+        case (SET INTERVAL)
+            :SET_PERIODIC_INTERVAL_PARSER;
+            :Update periodic_interval_ms;
+            :Print Status;
+            stop
+
+        case (MQTT CONNECTED)
+            :MQTT_CONNECTED_PARSER;
+            :mqtt_current_state = CONNECTED;
+            :Print Status;
+            stop
+
+        case (MQTT DISCONNECTED)
+            :MQTT_DISCONNECTED_PARSER;
+            :mqtt_current_state = DISCONNECTED;
+            :Print Status;
+            stop
+
+        case (OTHER)
+            :Other Command Handler;
+            stop
+        endswitch
+
+    else (not found)
+        :Print Unknown Command
+        <i>(Error message)</i>;
+        stop
+    endif
+else (no)
+    stop
+endif
+
+@enduml

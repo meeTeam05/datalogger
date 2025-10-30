@@ -1,0 +1,66 @@
+@startuml SHT3X_Periodic_Measurement
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    StartColor #4CAF50
+    EndColor #F44336
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>SHT3X Periodic Measurement Flow</b></size>\n<size:12><i>Continuous Data Acquisition Mode</i></size>
+
+start
+:<b>PERIODIC_ON_PARSER</b>;
+
+if (argc == 2?) then (yes)
+    :Set Rate=1MPS
+    <i>(1 measurement/sec)</i>;
+    :Set Repeatability=HIGH
+    <i>(Maximum precision)</i>;
+
+    :Build I2C Command Word
+    <i>(0x2130 for 1mps high)</i>;
+
+    :Send I2C Periodic Start;
+
+    if (I2C Success?) then (yes)
+        :Update currentState
+        <i>(SHT3X_PERIODIC)</i>;
+
+        :Initialize next_fetch_ms
+        <i>(HAL_GetTick + interval)</i>;
+
+        :SHT3X_FetchData
+        <i>(First immediate read)</i>;
+
+        if (Fetch Success?) then (yes)
+            :DataManager_UpdatePeriodic|#FF6B6B;
+        else (no)
+            :Set temp=0.0, hum=0.0
+            <i>(First read failed)</i>|#FFB74D;
+            :DataManager_UpdatePeriodic|#FF6B6B;
+        endif
+    else (no)
+        :Set temp=0.0, hum=0.0
+        <i>(I2C start failed)</i>|#FFB74D;
+        :DataManager_UpdatePeriodic|#FF6B6B;
+    endif
+
+    :Set data_ready Flag;
+    :<b>Return OK</b>;
+
+else (no)
+    :<b>Invalid arguments</b>;
+endif
+
+stop
+
+@enduml

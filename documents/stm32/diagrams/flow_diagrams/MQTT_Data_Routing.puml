@@ -1,0 +1,73 @@
+@startuml MQTT_Data_Routing
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    StartColor #4CAF50
+    EndColor #F44336
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>MQTT-Aware Data Routing Flow</b></size>\n<size:12><i>Online/Offline Data Management</i></size>
+
+start
+:<b>Main Loop - After Periodic Fetch</b>;
+
+if (MQTT\nConnected?) then (yes)
+    :DataManager_Print
+    <b>Send Live Data</b>
+    <i>(Real-time transmission)</i>|#FF6B6B;
+    
+    if (Has Buffered\nSD Data?) then (yes)
+        if (100ms Delay\nPassed?) then (yes)
+            :SDCardManager_ReadData
+            <i>(Get oldest record)</i>;
+            
+            :Format Buffered JSON
+            <i>(Reconstruct payload)</i>;
+            
+            :Transmit via UART
+            <i>(Send to ESP32)</i>;
+            
+            :SDCardManager_RemoveRecord
+            <i>(Delete from SD)</i>|#90CAF9;
+            
+        else (no)
+            note right
+                Wait to avoid
+                overwhelming UART
+            end note
+        endif
+    else (no)
+        note right
+            No backlog to sync
+        end note
+    endif
+    
+else (no)
+    :SDCardManager_WriteData
+    <b>Buffer to SD</b>
+    <i>(Offline storage)</i>|#90CAF9;
+    
+    note right
+        Data queued for later
+        transmission when
+        MQTT reconnects
+    end note
+endif
+
+:Display_Update
+<i>(Refresh LCD)</i>;
+
+:Continue Main Loop;
+
+stop
+
+@enduml

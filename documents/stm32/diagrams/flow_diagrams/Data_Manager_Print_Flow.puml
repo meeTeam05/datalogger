@@ -1,0 +1,74 @@
+@startuml Data_Manager_Print_Flow
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    StartColor #4CAF50
+    EndColor #F44336
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>Data Manager Print Decision Flow</b></size>\n<size:12><i>Smart Data Output Routing</i></size>
+
+start
+:<b>DataManager_Print Called</b>;
+
+if (data_ready\nFlag Set?) then (yes)
+
+    switch (Current Mode?)
+    case (SINGLE)
+        :Get Unix Timestamp
+        <i>(from DS3231 RTC)</i>;
+        :Sanitize Float Values
+        <i>(Range validation)</i>;
+
+    case (PERIODIC)
+        :Get Unix Timestamp
+        <i>(from DS3231 RTC)</i>;
+        :Sanitize Float Values
+        <i>(Range validation)</i>;
+
+    case (UNKNOWN)
+        :<b>Return false</b>
+        <i>(Invalid mode)</i>|#FFB74D;
+        stop
+    endswitch
+
+    if (MQTT\nConnected?) then (yes)
+        :Format JSON String
+        <i>{
+            "temp":X,"hum":Y,"ts":Z}</i>;
+
+            if (Buffer\nOverflow?) then (yes)
+                :Print Overflow Error
+                <i>(JSON too large)</i>|#FFB74D;
+            else (no)
+                :HAL_UART_Transmit JSON
+                <i>(Send to ESP32)</i>|#FF6B6B;
+            endif
+
+        else (no)
+            :SDCardManager_WriteData
+            <i>(Buffer offline data)</i>|#90CAF9;
+        endif
+
+        :Clear data_ready
+        <i>(Reset flag)</i>;
+
+        :<b>Return true</b>;
+
+    else (no)
+        :<b>Return false</b>
+        <i>(No data to print)</i>;
+    endif
+
+    stop
+
+    @enduml
