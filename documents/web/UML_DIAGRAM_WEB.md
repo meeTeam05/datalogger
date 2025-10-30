@@ -568,93 +568,7 @@ graph LR
 
 ---
 
-## 8. Event Handling System
-
-```mermaid
-sequenceDiagram
-    participant DOM
-    participant EventListener
-    participant Handler
-    participant State
-    participant UI
-    
-    Note over DOM,UI: User Interaction Events
-    
-    DOM->>EventListener: User clicks button
-    EventListener->>Handler: Dispatch event
-    
-    alt Device Button
-        Handler->>State: Check MQTT connection
-        
-        alt Connected
-            Handler->>State: Toggle isDeviceOn
-            Handler->>MQTT: Publish command
-            Handler->>State: Update button state
-            Handler->>UI: Update button style
-        else Not Connected
-            Handler->>UI: Show error message
-        end
-        
-    else Periodic Button
-        Handler->>State: Check device state
-        
-        alt Device ON
-            Handler->>State: Toggle isPeriodic
-            Handler->>MQTT: Publish command
-            Handler->>State: Update button state
-            Handler->>UI: Update button style
-        else Device OFF
-            Handler->>UI: Show warning
-        end
-        
-    else Single Button
-        Handler->>State: Check device state
-        Handler->>MQTT: Publish SINGLE command
-        Handler->>Logging: Add status message
-        
-    else Time Sync Button
-        Handler->>Browser: Get current time
-        Handler->>State: Update time picker
-        Handler->>UI: Render calendar
-        Handler->>MQTT: Publish SET TIME
-        Handler->>State: Update device clock
-        Handler->>UI: Start clock ticker
-    end
-    
-    Note over DOM,UI: MQTT Message Events
-    
-    MQTT->>EventListener: Message received
-    EventListener->>Handler: handleMQTTMessage
-    
-    Handler->>State: Parse message
-    
-    alt System State
-        Handler->>State: Update isDeviceOn, isPeriodic
-        Handler->>UI: Update button styles
-        
-    else Sensor Data
-        Handler->>State: Update currentTemp, currentHumi
-        Handler->>UI: Update display
-        Handler->>Charts: Push data
-        Handler->>Firebase: Save record
-        Handler->>UI: Update tables
-    end
-    
-    Note over DOM,UI: Navigation Events
-    
-    DOM->>EventListener: Menu item clicked
-    EventListener->>Handler: switchPage
-    
-    Handler->>UI: Hide all pages
-    Handler->>UI: Show selected page
-    Handler->>Handler: Initialize page components
-    Handler->>UI: Bind page-specific events
-    Handler->>UI: Refresh icons
-```
-
----
-
-## 9. Chart Integration Architecture
+## 8. Chart Integration Architecture
 
 ```mermaid
 graph TB
@@ -736,7 +650,7 @@ graph TB
 
 ---
 
-## 10. Settings & Configuration Management
+## 9. Settings & Configuration Management
 
 ```mermaid
 graph TB
@@ -817,7 +731,7 @@ graph TB
 
 ---
 
-## 11. Complete Deployment Architecture
+## 10. Complete Deployment Architecture
 
 ```mermaid
 C4Deployment
@@ -916,5 +830,5 @@ C4Deployment
 
 **Document Version**: 1.0  
 **Last Updated**: 2025-01-XX  
-**Total Architecture Diagrams**: 11  
+**Total Architecture Diagrams**: 10  
 **Coverage**: Complete system architecture from UI to deployment
