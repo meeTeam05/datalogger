@@ -1,0 +1,99 @@
+@startuml Wifi_Connection_and_Mqtt_Startup
+!theme cerulean-outline
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title WiFi Connection and MQTT Startup Sequence
+
+participant "Main Loop" as Main
+participant "WiFi Manager" as WiFi
+participant "ESP Timer" as Timer
+participant "MQTT Handler" as MQTT
+participant "STM32 UART" as STM32
+participant "LED" as LED
+
+note over Main: System running, WiFi disconnected
+
+Main -> WiFi: Check wifi_state
+activate WiFi
+WiFi --> Main: WIFI_STATE_FAILED
+deactivate WiFi
+
+Main -> Timer: Get current time
+Timer --> Main: now_ms
+
+Main -> Main: Check if 5s passed since last retry
+
+alt 5s elapsed
+    Main -> WiFi: WiFi_Manager_Connect()
+    activate WiFi
+    WiFi -> WiFi: Try connection (5 auto-retries)
+
+    note over WiFi: Background connection process
+
+    WiFi --> Main: on_wifi_event(WIFI_STATE_CONNECTING)
+    Main -> LED: Turn off WiFi LED
+    Main -> Main: Log "WiFi: Connecting..."
+
+    alt Connection successful
+        WiFi --> Main: on_wifi_event(WIFI_STATE_CONNECTED)
+        activate Main
+        Main -> LED: Turn on WiFi LED
+        Main -> WiFi: wifi_manager_get_ip_addr()
+        WiFi --> Main: "192.168.1.100"
+        Main -> WiFi: wifi_manager_get_rssi()
+        WiFi --> Main: -45 dBm
+        Main -> Main: Log IP and RSSI
+        Main -> Timer: Mark reconnect time
+        Timer --> Main: g_wifi_reconnect_time_ms = now
+        Main -> Main: Reset disconnect flag
+        deactivate Main
+    end
+    deactivate WiFi
+end
+
+note over Main: Wait 4 seconds for network stabilization
+
+loop Check every 100ms
+    Main -> Timer: Get current time
+    Timer --> Main: now_ms
+    Main -> Main: Calculate elapsed = now - reconnect_time
+
+    alt elapsed >= 4000ms
+        Main -> MQTT: MQTT_Handler_Start(&mqtt_handler)
+        activate MQTT
+        MQTT -> MQTT: esp_mqtt_client_start()
+        MQTT --> Main: Started
+        deactivate MQTT
+
+        Main -> Main: Set g_mqtt_started = true
+        Main -> Main: Clear reconnect timer
+        Main -> Main: Log "MQTT starting..."
+
+        MQTT --> Main: on_mqtt_event(MQTT_EVENT_CONNECTED)
+        activate Main
+        Main -> Main: Set mqtt_handler.connected = true
+        Main -> MQTT: Subscribe command topics
+        activate MQTT
+        MQTT -> MQTT: Subscribe datalogger/stm32/command
+        MQTT -> MQTT: Subscribe datalogger/esp32/relay/control
+        MQTT -> MQTT: Subscribe datalogger/esp32/system/state
+        MQTT --> Main: Subscribed
+        deactivate MQTT
+
+        Main -> Main: Set g_mqtt_reconnected = true
+        Main -> LED: Turn on MQTT LED
+
+        Main -> STM32: "MQTT CONNECTED\n"
+        activate STM32
+        STM32 -> STM32: Process command
+        STM32 -> STM32: Update mqtt_current_state = CONNECTED
+        deactivate STM32
+
+        Main -> Main: Log "MQTT Connected"
+        deactivate Main
+    end
+end
+
+@enduml

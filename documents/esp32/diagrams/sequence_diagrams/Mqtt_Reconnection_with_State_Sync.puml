@@ -1,0 +1,72 @@
+@startuml Mqtt_Reconnection_with_State_Sync
+!theme cerulean-outline
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title MQTT Reconnection with State Synchronization Sequence
+
+participant "MQTT Handler" as MQTT
+participant "Main Loop" as Main
+participant "State Manager" as State
+participant "MQTT Broker" as Broker
+
+note over MQTT: MQTT connection lost\n(broker restart, network glitch)
+
+MQTT -> Main: on_mqtt_event(MQTT_EVENT_DISCONNECTED)
+activate Main
+Main -> Main: Set mqtt_handler.connected = false
+Main -> Main: Increment retry_count
+Main -> Main: Calculate backoff = min(60s, 2^retry * 1s)
+Main -> Main: Log "MQTT disconnected,\nretry in {backoff}s"
+deactivate Main
+
+note over MQTT: Wait for backoff time
+
+MQTT -> MQTT: Try automatic reconnection
+
+alt Reconnection successful
+    MQTT -> Main: on_mqtt_event(MQTT_EVENT_CONNECTED)
+    activate Main
+    Main -> Main: Set mqtt_handler.connected = true
+    Main -> Main: Reset retry_count = 0
+    Main -> Main: Set g_mqtt_reconnected = true
+
+    Main -> MQTT: Subscribe command topics
+    activate MQTT
+    MQTT -> Broker: SUBSCRIBE datalogger/stm32/command
+    MQTT -> Broker: SUBSCRIBE datalogger/esp32/relay/control
+    MQTT -> Broker: SUBSCRIBE datalogger/esp32/system/state
+    Broker --> MQTT: SUBACK
+    deactivate MQTT
+
+    Main -> Main: Log "MQTT reconnected"
+    deactivate Main
+
+    note over Main: Web dashboard detects\nMQTT reconnection
+
+    note over Broker: Web sends state sync request
+    Broker -> MQTT: Forward "REQUEST" to\ndatalogger/esp32/system/state
+
+    MQTT -> Main: on_mqtt_data_received(\n"datalogger/esp32/system/state",\n"REQUEST", 7)
+    activate Main
+    Main -> Main: Check g_mqtt_reconnected == true
+
+    Main -> State: publish_current_state()
+    activate State
+    State -> State: Format JSON:\n{"device":"ON","periodic":"ON"}
+    State -> MQTT: MQTT_Handler_Publish(\n"datalogger/esp32/system/state",\njson, retain=1)
+    activate MQTT
+    MQTT -> Broker: Publish state
+    deactivate MQTT
+    State -> State: Log "State published"
+    deactivate State
+
+    Main -> Main: Set g_mqtt_reconnected = false
+    Main -> Main: Log "State sync complete"
+    deactivate Main
+
+    note over Broker: Web dashboard updates UI\nwith current state
+end
+
+@enduml

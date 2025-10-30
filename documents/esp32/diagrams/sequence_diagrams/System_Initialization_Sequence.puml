@@ -1,0 +1,112 @@
+@startuml System_Initialization_Sequence
+!theme cerulean-outline
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title ESP32 Firmware - System Initialization Sequence
+
+participant "Power Supply" as PWR
+participant "ESP32" as ESP32
+participant "NVS Flash" as NVS
+participant "WiFi Manager" as WiFi
+participant "STM32 UART" as UART
+participant "LED GPIOs" as LED
+participant "MQTT Handler" as MQTT
+participant "Relay Control" as Relay
+participant "JSON Parser" as Parser
+participant "Button Handler" as Button
+
+PWR -> ESP32: Power on
+activate ESP32
+
+ESP32 -> NVS: nvs_flash_init()
+activate NVS
+NVS --> ESP32: OK
+deactivate NVS
+
+ESP32 -> ESP32: esp_event_loop_create_default()
+ESP32 -> ESP32: esp_netif_init()
+
+ESP32 -> WiFi: WiFi_Manager_Init()
+activate WiFi
+WiFi -> WiFi: Configure SSID, password
+WiFi -> WiFi: Register event handlers
+WiFi --> ESP32: Initialization complete
+deactivate WiFi
+
+ESP32 -> UART: STM32_UART_Init(&stm32_uart)
+activate UART
+UART -> UART: Configure UART1: 115200 baud
+UART -> UART: Allocate ring buffer (512 bytes)
+UART -> UART: Register on_stm32_data_received callback
+UART --> ESP32: Initialization complete
+deactivate UART
+
+ESP32 -> LED: gpio_set_direction(WiFi LED)
+ESP32 -> LED: gpio_set_direction(MQTT LED)
+
+ESP32 -> WiFi: WiFi_Manager_Connect_Blocking(15s timeout)
+activate WiFi
+WiFi -> WiFi: Start connection process
+
+alt WiFi connects within 15s
+    WiFi --> ESP32: WIFI_EVENT_STA_GOT_IP
+    ESP32 -> ESP32: Mark reconnect time (for 4s delay)
+    ESP32 -> ESP32: Log: "WiFi connected successfully!"
+else Timeout after 15s
+    WiFi --> ESP32: Timeout
+    ESP32 -> ESP32: Log: "Will retry in background"
+end
+deactivate WiFi
+
+ESP32 -> MQTT: MQTT_Handler_Init(&mqtt_handler)
+activate MQTT
+MQTT -> MQTT: Configure broker URL, credentials
+MQTT -> MQTT: Register on_mqtt_data_received callback
+MQTT -> MQTT: Create unique client ID
+MQTT --> ESP32: Initialization complete
+deactivate MQTT
+
+ESP32 -> Relay: Relay_Init(&relay_control, GPIO_4)
+activate Relay
+Relay -> Relay: Configure GPIO output
+Relay -> Relay: Register on_relay_state_changed callback
+Relay -> Relay: Read initial hardware state
+Relay --> ESP32: Initialization complete (state=OFF)
+deactivate Relay
+
+ESP32 -> Parser: JSON_Parser_Init(&json_parser)
+activate Parser
+Parser -> Parser: Register on_single_sensor_data callback
+Parser -> Parser: Register on_periodic_sensor_data callback
+Parser --> ESP32: Initialization complete
+deactivate Parser
+
+ESP32 -> Button: Button_Init(GPIO_5, relay_callback)
+ESP32 -> Button: Button_Init(GPIO_17, single_callback)
+ESP32 -> Button: Button_Init(GPIO_16, periodic_callback)
+ESP32 -> Button: Button_Init(GPIO_4, interval_callback)
+activate Button
+Button -> Button: Configure GPIOs with pull-up
+Button -> Button: Attach ISR handlers
+Button --> ESP32: All buttons initialized
+deactivate Button
+
+ESP32 -> ESP32: Set g_device_on = Relay state
+ESP32 -> ESP32: Set g_periodic_active = false
+
+ESP32 -> Button: Button_StartTask()
+activate Button
+Button -> Button: Create FreeRTOS task for debouncing
+deactivate Button
+
+ESP32 -> UART: STM32_UART_StartTask()
+activate UART
+UART -> UART: Create FreeRTOS RX task
+deactivate UART
+
+ESP32 -> ESP32: Enter main monitoring loop
+deactivate ESP32
+
+@enduml

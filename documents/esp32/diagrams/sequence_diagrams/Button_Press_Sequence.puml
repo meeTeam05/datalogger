@@ -1,0 +1,65 @@
+@startuml Button_Press_Sequence
+!theme cerulean-outline
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+title Button Press Sequence (Periodic Toggle)
+
+actor "User" as User
+participant "GPIO Hardware" as GPIO
+participant "GPIO ISR" as ISR
+participant "Button Task" as Task
+participant "Button Callback" as Callback
+participant "STM32 UART" as UART
+participant "State Manager" as State
+participant "MQTT" as MQTT
+
+User -> GPIO: Press button GPIO_16
+GPIO -> ISR: GPIO interrupt triggered
+activate ISR
+ISR -> ISR: Temporarily disable interrupt
+ISR -> Task: Notify button task via queue
+deactivate ISR
+
+activate Task
+Task -> Task: Debounce: wait 50ms
+Task -> GPIO: Read GPIO level
+GPIO --> Task: Level LOW (pressed)
+Task -> Task: Wait for release
+Task -> GPIO: Poll GPIO level
+GPIO --> Task: Level HIGH (released)
+Task -> Callback: on_button_periodic_pressed(GPIO_16)
+Task -> ISR: Re-enable interrupt
+deactivate Task
+
+activate Callback
+Callback -> Callback: Check g_device_on == true
+
+alt Device ON
+    Callback -> Callback: Calculate new_periodic_state = !g_periodic_active
+    Callback -> Callback: new_periodic_state = true
+    Callback -> Callback: Format command = "PERIODIC ON"
+    
+    Callback -> UART: STM32_UART_SendCommand(&stm32_uart,\n"PERIODIC ON")
+    activate UART
+    UART -> UART: Send "PERIODIC ON\n"
+    deactivate UART
+    
+    Callback -> State: update_and_publish_state(g_device_on, true)
+    activate State
+    State -> State: g_periodic_active = true (changed)
+    State -> State: state_changed = true
+    State -> State: Format JSON:\n{"device":"ON","periodic":"ON"}
+    State -> MQTT: MQTT_Handler_Publish(\n"datalogger/esp32/system/state",\njson, retain=1)
+    State -> State: Log "Periodic state changed: ON"
+    State -> State: Log "State published"
+    deactivate State
+    
+else Device OFF
+    Callback -> Callback: Log "Button: PERIODIC ignored (device OFF)"
+end
+
+deactivate Callback
+
+@enduml
