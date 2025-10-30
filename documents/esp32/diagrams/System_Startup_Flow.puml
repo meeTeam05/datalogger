@@ -1,0 +1,69 @@
+@startuml System_Startup_Flow
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    StartColor #4CAF50
+    EndColor #F44336
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>System Startup Flow</b></size>\n<size:12><i>ESP32 Boot and Initialization Sequence</i></size>
+
+start
+:<b>ESP32 Power On</b>;
+
+:Initialize NVS Flash;
+note right
+    Non-Volatile Storage
+    for WiFi credentials
+end note
+
+:Initialize Event Loop;
+:Initialize Network Interface;
+
+:Initialize WiFi Manager;
+:Initialize STM32 UART;
+note right
+    UART_NUM_1, 115200 baud
+    TX: GPIO17, RX: GPIO16
+end note
+
+:Initialize LED GPIOs;
+
+:Connect WiFi
+<i>(15s Timeout)</i>;
+
+if (WiFi connected\nwithin 15s?) then (yes)
+    :Mark connection time;
+else (no)
+    :Log warning, continue
+    <i>WiFi will retry in background</i>;
+endif
+
+:Initialize Components:
+• MQTT Handler
+• Relay Control
+• JSON Parser
+• Button Handlers;
+
+if (All Components\ninitialized OK?) then (yes)
+    :Start Services:
+    • Button Task
+    • UART RX Task;
+
+    :<b>Enter Main Loop</b>;
+    stop
+else (no)
+    :<b>ESP32 Restart</b>;
+    stop
+endif
+
+@enduml
