@@ -271,71 +271,7 @@ classDiagram
 
 ## Object Lifecycle Diagram
 
-```mermaid
-stateDiagram-v2
-    [*] --> Uninitialized
-
-    Uninitialized --> Initialized : app_main() calls init functions
-
-    state Initialized {
-        [*] --> NVS_Ready
-        [*] --> EventLoop_Ready
-        [*] --> NetIf_Ready
-        [*] --> WiFi_Init
-        [*] --> UART_Ready
-        [*] --> Components_Init
-
-        WiFi_Init --> WiFi_Connecting : WiFi_Connect()
-        WiFi_Connecting --> WiFi_Connected : connection successful
-        WiFi_Connecting --> WiFi_Failed : max retries
-        WiFi_Connected --> WiFi_Disconnected : connection lost
-        WiFi_Disconnected --> WiFi_Connecting : retry
-        WiFi_Failed --> WiFi_Connecting : manual retry (5s)
-
-        Components_Init --> MQTT_Initialized
-        Components_Init --> Relay_Initialized
-        Components_Init --> Parser_Initialized
-        Components_Init --> Buttons_Initialized
-
-        MQTT_Initialized --> MQTT_Connecting : WiFi stable 4s
-        MQTT_Connecting --> MQTT_Connected : broker connected
-        MQTT_Connecting --> MQTT_Disconnected : connection failed
-        MQTT_Connected --> MQTT_Disconnected : WiFi lost
-        MQTT_Disconnected --> MQTT_Connecting : exponential backoff retry
-
-        Relay_Initialized --> Relay_OFF
-        Relay_OFF --> Relay_ON : Relay_SetState(true)
-        Relay_ON --> Relay_OFF : Relay_SetState(false)
-    }
-
-    Initialized --> Running : start_services()
-
-    state Running {
-        [*] --> Main_Loop
-
-        Main_Loop --> Monitor_WiFi
-        Monitor_WiFi --> Check_MQTT
-        Check_MQTT --> Process_Callbacks
-        Process_Callbacks --> Main_Loop
-
-        state Process_Callbacks {
-            [*] --> Wait_Event
-            Wait_Event --> WiFi_Event : WiFi state change
-            Wait_Event --> MQTT_Event : MQTT message
-            Wait_Event --> UART_Event : STM32 data
-            Wait_Event --> Button_Event : Button press
-            Wait_Event --> Relay_Event : Relay state change
-
-            WiFi_Event --> [*]
-            MQTT_Event --> [*]
-            UART_Event --> [*]
-            Button_Event --> [*]
-            Relay_Event --> [*]
-        }
-    }
-
-    Running --> [*] : system shutdown
-```
+![Object Lifecycle Diagram](https://kroki.io/plantuml/svg/eNqVWM1uGzcQvusp2OSSFDFsyVZ-BEGIrWgBA_VPLac9VIVArSiJ9S5X4XLtOEGAvkMPvfTUR8uTdEju8nctu_EhIjnfcGY483G470uBuajyDF0s_iCpmP9EVyS9TzPS-UFsSE7QLV1wzESnvKFsiznO0QKnN2teVGw5LrKCo-fJRP45EuUGL4s7ytZohbOSuCsCC4K-dhD8O_H1DIeUUTEaoeeTbtJPEi1T8CXhwfpBt__m3Um7Dl4xBhsrNW-T_uRdrMYR6U3efDjstWu6oysqZZIkOZwcxGqa9cnrfvfgoF1H_kkoi0FDP-nHOpr118fdk3fHD3hEMnyvlIwnR5Nxiz-NwLjXfdvXcUkKJqb0C0HdQzM-x3Ccx5ziTE0dc17c1Sd41JN_dvp6Q9MbRsoS9TrfOh1BRUbQsASFg-7b0XAxmkwvD3t1ziCTM2iqjvcMpxvKyHB_MRruS9BoxmpwbzSko-l9KUiOTuE4wRj6BQtaMITZEl1VTFCwMsmKu-E-beCdzm8__o72OF1vxN4IfWS0gZIlGqBhKr0YLLKKSNsuizvC0QXT-6s10KAzz4c2KdXxp_cgeRnsc-rvshjh7XaeY8pevJS6ZyzFWVYiCUWriqXSjbLZ6bRlnzrxtcCz81-m6Irg5f0zhEsEo7kaWasc2cktYRDootg6EDUp53YAz4k4XbnbyPEO-V9pQpXtSlqO5nKEmnx3ZT8eX107quVwh-ZxkW8LBhaXVr-da3apcQqoDr0-CxOeaCWIQoy0Hkdrxr9oxToTLQVGd6LwnWGG18CdzAZRFUZpolgnghcdxqCWgJds4O2cH_4YRpYRSqVdO-gDLdMY584-CE0wzVyQHsfi5ofNIC_mjmuqstxJXV2-Bkfe0EDg7QB9_-cvVLsAlThjZZWmwGGrKntYmWtU7YxU9DfK8WfEieCUlDPGCVAaWbaqcQgjjuPAMQhlRSl8FZ7sXkZWojVA0o57H1nbuldtWxE5ZhXONBDIl45e9CVRCcJvcfZSUqtS963TWqEBNfulalLZ4zRHzdnP19cu_Sm4nJz7nKgvvxB9JW-zCK5mA3x974UKLjEvgf9DDXp63kbLoYaTSghg8khFPb9bh_kRcluTJGEkHgVEvj-KiH19FNLiW0uGqKMdm4w2J2tyom5o2nMi4DgVCI_j2jPCxbrZ5BLdDmTEdgocsF2ANz-itPVO0Ss5Rf2w8SIjuuKOSnSHqbDVZhS2sVngkmazBS9uCIdGo5l_WI9rV0BBks5cXlwp7mhVFXoYaFI-ejQWSzU0FkcIeJ581tkH4Zwx-ZAoVivNUobz_YzTdABqBC8ySwUm4Zrm92s7j1wkicMfMHqYN2rAuSt_3iJufsSc5FfsRf2GsbJyf3PgZgsVGD2aEk2vLwSviH8NGvEmvlZlmwL18HrpBBXC2mqqfgzZLnrNCWGyjVYvwznwyC2FW1RfymE73aDdR5XX455Bt6zaVl15MJqrJtYBeOIFmAgPEplnGqEn5irx2nrQ8YakNyrX9C0lh3NV915RR02cMUWtWMNsPTo7axnXFNMLmv2UjLO94WJeyCZkPoa3gkz4UglGs7ZsjClwJHQEdQXVUxVVCXVXbBWXxA-DWl3DrLH2-IDcphVYSrfRurGD4VzrDY8p7HQdkGxBGlB776jCYhGKHxpEO3-rB4ZFqJ68Qey6uh2MnngEpUvfgnQtmRA8RADeS8IEraUHtgH1OkU9ZW8OARdHusFsTXZBnbgN1GDGcjhsvBvlxG6Aptdnh70ZW2KBd2G82A3q4YxtOWy3C-eGb6BHgXt-L1ujdStr1an8B_klXFbxHfp_QU4Ang7yIvB0mBuAp6EUPzds2sRR5pfhZU6WipX1t5NyUwkp5ZMyKyCbFYGhYoX8Vg6wwQeXyw0uSX1DfP_zX_nEfoXsh4ZX-uWMSiKqbS2iMlV-qFGVCdy0ouuKK3W1hH1DUG-3enmqrxOkPztuOwR0SatD2-tQaLubr0KhwWPLjbkmZw2Ra8qPvSWn8D_aGnpszFB1n5t3egPiHC4fTtLilsCDyxr3Hn5WefYfcyy57w==)
 
 ## Retry Logic and Error Handling
 

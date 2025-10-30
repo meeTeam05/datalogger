@@ -1,0 +1,147 @@
+@startuml Object_Lifecycle
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam state {
+    BackgroundColor<<init>> #E1F5FF
+    BorderColor<<init>> #01579B
+    BackgroundColor<<running>> #E8F5E9
+    BorderColor<<running>> #2E7D32
+    BackgroundColor<<wifi>> #FFF3E0
+    BorderColor<<wifi>> #E65100
+    BackgroundColor<<mqtt>> #F3E5F5
+    BorderColor<<mqtt>> #6A1B9A
+    BackgroundColor<<relay>> #FCE4EC
+    BorderColor<<relay>> #C2185B
+    FontSize 13
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>ESP32 Object Lifecycle State Machine</b></size>\n<size:12><i>System Initialization and Runtime Flow</i></size>
+
+[*] -right-> Uninitialized : <color:blue><b>Power On</b></color>
+
+state Uninitialized <<init>>
+Uninitialized -down-> Initialized : <b>app_main()</b>\ncalls init functions
+
+state Initialized <<init>> {
+    state "NVS Ready" as NVS_Ready <<init>>
+    state "Event Loop Ready" as EventLoop_Ready <<init>>
+    state "NetIf Ready" as NetIf_Ready <<init>>
+    state "WiFi Init" as WiFi_Init <<wifi>>
+    state "UART Ready" as UART_Ready <<init>>
+    state "Components Init" as Components_Init <<init>>
+
+    [*] -down-> NVS_Ready
+    [*] -down-> EventLoop_Ready
+    [*] -down-> NetIf_Ready
+    [*] -down-> WiFi_Init
+    [*] -down-> UART_Ready
+    [*] -down-> Components_Init
+
+    state "WiFi Management" as WiFiStates <<wifi>> {
+        state "Connecting" as WiFi_Connecting <<wifi>>
+        state "Connected" as WiFi_Connected <<wifi>>
+        state "Disconnected" as WiFi_Disconnected <<wifi>>
+        state "Failed" as WiFi_Failed <<wifi>>
+        
+        WiFi_Init -down-> WiFi_Connecting : <b>WiFi_Connect()</b>
+        WiFi_Connecting -right-> WiFi_Connected : ✓ connection\nsuccessful
+        WiFi_Connecting -down-> WiFi_Failed : ✗ max retries\nreached
+        WiFi_Connected -down-> WiFi_Disconnected : connection lost
+        WiFi_Disconnected -left-> WiFi_Connecting : retry
+        WiFi_Failed -up-> WiFi_Connecting : manual retry\n<i>(5s interval)</i>
+    }
+
+    state "Component Initialization" as ComponentStates <<init>> {
+        state "MQTT Initialized" as MQTT_Initialized <<mqtt>>
+        state "Relay Initialized" as Relay_Initialized <<relay>>
+        state "Parser Initialized" as Parser_Initialized <<init>>
+        state "Buttons Initialized" as Buttons_Initialized <<init>>
+        
+        Components_Init -down-> MQTT_Initialized
+        Components_Init -down-> Relay_Initialized
+        Components_Init -down-> Parser_Initialized
+        Components_Init -down-> Buttons_Initialized
+    }
+
+    state "MQTT Connection" as MQTTStates <<mqtt>> {
+        state "MQTT Connecting" as MQTT_Connecting <<mqtt>>
+        state "MQTT Connected" as MQTT_Connected <<mqtt>>
+        state "MQTT Disconnected" as MQTT_Disconnected <<mqtt>>
+        
+        MQTT_Initialized -down-> MQTT_Connecting : WiFi stable\n<i>(4s wait)</i>
+        MQTT_Connecting -right-> MQTT_Connected : ✓ broker\nconnected
+        MQTT_Connecting -down-> MQTT_Disconnected : ✗ connection\nfailed
+        MQTT_Connected -down-> MQTT_Disconnected : WiFi lost
+        MQTT_Disconnected -left-> MQTT_Connecting : <b>exponential\nbackoff retry</b>
+    }
+
+    state "Relay Control" as RelayStates <<relay>> {
+        state "Relay OFF" as Relay_OFF <<relay>>
+        state "Relay ON" as Relay_ON <<relay>>
+        
+        Relay_Initialized -down-> Relay_OFF
+        Relay_OFF -right-> Relay_ON : <b>Relay_SetState(true)</b>
+        Relay_ON -left-> Relay_OFF : <b>Relay_SetState(false)</b>
+    }
+}
+
+Initialized -down-> Running : <color:green><b>start_services()</b></color>
+
+state Running <<running>> {
+    state "Main Loop" as Main_Loop <<running>>
+    state "Monitor WiFi" as Monitor_WiFi <<wifi>>
+    state "Check MQTT" as Check_MQTT <<mqtt>>
+    
+    [*] -down-> Main_Loop
+    Main_Loop -right-> Monitor_WiFi
+    Monitor_WiFi -down-> Check_MQTT
+    Check_MQTT -down-> Process_Callbacks
+    Process_Callbacks -left-> Main_Loop : <i>continuous loop</i>
+
+    state "Event Processing" as Process_Callbacks <<running>> {
+        state "Wait Event" as Wait_Event <<running>>
+        state "WiFi Event" as WiFi_Event <<wifi>>
+        state "MQTT Event" as MQTT_Event <<mqtt>>
+        state "UART Event" as UART_Event <<init>>
+        state "Button Event" as Button_Event <<init>>
+        state "Relay Event" as Relay_Event <<relay>>
+        
+        [*] -down-> Wait_Event
+        
+        Wait_Event -down-> WiFi_Event : WiFi state\nchange
+        Wait_Event -down-> MQTT_Event : MQTT\nmessage
+        Wait_Event -down-> UART_Event : STM32\ndata
+        Wait_Event -down-> Button_Event : Button\npress
+        Wait_Event -down-> Relay_Event : Relay state\nchange
+
+        WiFi_Event -up-> Wait_Event : <i>handled</i>
+        MQTT_Event -up-> Wait_Event : <i>handled</i>
+        UART_Event -up-> Wait_Event : <i>handled</i>
+        Button_Event -up-> Wait_Event : <i>handled</i>
+        Relay_Event -up-> Wait_Event : <i>handled</i>
+    }
+}
+
+Running -down-> [*] : <color:red><b>system shutdown</b></color>
+
+note right of Initialized
+  <b>Initialization Phase</b>
+  • NVS, Event Loop, NetIf setup
+  • WiFi and UART configuration
+  • Component initialization
+  • Service startup
+end note
+
+note right of Running
+  <b>Runtime Phase</b>
+  • Continuous monitoring
+  • Event-driven processing
+  • State management
+  • Error recovery
+end note
+
+@enduml
