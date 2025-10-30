@@ -148,96 +148,6 @@ graph LR
     style Output fill:#DDA0DD
 ```
 
-## State Machine - System Lifecycle
-
-```mermaid
-stateDiagram-v2
-    [*] --> PowerOn
-
-    state PowerOn {
-        [*] --> STM32_Init
-        [*] --> ESP32_Init
-
-        STM32_Init --> STM32_Idle : Init complete<br/>500ms
-        ESP32_Init --> ESP32_Connecting : Init complete<br/>1000ms
-
-        state STM32_Idle {
-            [*] --> WaitingCommand
-            WaitingCommand --> SingleMeasure : SINGLE command
-            WaitingCommand --> PeriodicMeasure : PERIODIC ON
-            SingleMeasure --> WaitingCommand : Done (~20ms)
-            PeriodicMeasure --> WaitingCommand : PERIODIC OFF
-
-            note right of PeriodicMeasure
-                Continuous measurement
-                Interval: 5s-60s
-                Auto-buffer if offline
-            end note
-        }
-
-        state ESP32_Connecting {
-            [*] --> WiFi_Disconnected
-            WiFi_Disconnected --> WiFi_Connecting : Connect attempt
-            WiFi_Connecting --> WiFi_Connected : Success
-            WiFi_Connecting --> WiFi_Failed : Max 5 retries<br/>@ 2s interval
-            WiFi_Failed --> WiFi_Connecting : Manual retry<br/>@ 5s interval
-            WiFi_Connected --> MQTT_Disconnected : 4s stable wait
-
-            MQTT_Disconnected --> MQTT_Connecting : Start connection
-            MQTT_Connecting --> MQTT_Connected : Success
-            MQTT_Connecting --> MQTT_Disconnected : Fail + backoff<br/>60s, 120s, 240s...
-            MQTT_Connected --> MQTT_Disconnected : WiFi lost
-
-            note right of MQTT_Connecting
-                Exponential backoff
-                Min 60s, 2^retry
-                Infinite retries
-            end note
-        }
-    }
-
-    state SystemOperational {
-        state STM32_Operation {
-            [*] --> DataCollection
-            DataCollection --> DataReady : Measurement complete
-            DataReady --> CheckMQTT : data_ready flag set
-            CheckMQTT --> LiveTransmit : MQTT connected
-            CheckMQTT --> BufferToSD : MQTT disconnected
-            LiveTransmit --> DataCollection : Via UART
-            BufferToSD --> DataCollection : Store locally
-
-            note right of BufferToSD
-                Max 204,800 records
-                ~16MB capacity
-                Circular overwrite
-            end note
-        }
-
-        state ESP32_Operation {
-            [*] --> MonitorState
-            MonitorState --> ProcessCommand : MQTT message
-            MonitorState --> ProcessData : UART data
-            MonitorState --> ProcessButton : Button press
-            ProcessCommand --> UpdateState : Parse & Execute
-            ProcessData --> PublishMQTT : Validate & Publish
-            ProcessButton --> UpdateState : Toggle or Control
-            UpdateState --> MonitorState
-            PublishMQTT --> MonitorState
-
-            note right of MonitorState
-                Multi-threaded
-                FreeRTOS tasks
-                Event-driven
-            end note
-        }
-    }
-
-    PowerOn --> SystemOperational : Both ready
-    SystemOperational --> ErrorRecovery : Error detected
-    ErrorRecovery --> SystemOperational : Recovered
-    ErrorRecovery --> PowerOn : Critical error<br/>Reset required
-```
-
 ## Hardware Configuration and Pinout
 
 ```mermaid
@@ -245,7 +155,7 @@ graph TB
     subgraph STM32_HW[STM32F103C8T6 Hardware Configuration]
         STM32_MCU[ARM Cortex-M3<br/>Clock: 72MHz<br/>Flash: 64KB<br/>RAM: 20KB<br/>Power: 20mA active]
 
-        STM32_I2C[I2C1 Interface<br/>PB6: SCL<br/>PB7: SDA<br/>Speed: 100kHz<br/>Pull-up: 4.7kΩ]
+        STM32_I2C[I2C1 Interface<br/>PB6: SCL<br/>PB7: SDA<br/>Speed: 100kHz<br/>Pull-up: 4.7k ohm]
 
         STM32_SPI1[SPI1 SD Card<br/>PA5: SCK<br/>PA6: MISO<br/>PA7: MOSI<br/>PA4: CS<br/>Speed: 18MHz]
 
@@ -265,11 +175,11 @@ graph TB
     subgraph ESP32_HW[ESP32-WROOM-32 Hardware Configuration]
         ESP32_MCU[Xtensa LX6 Dual-core<br/>Clock: 240MHz<br/>Flash: 4MB<br/>SRAM: 520KB<br/>Power: 160mA WiFi ON]
 
-        ESP32_WiFi[WiFi Radio<br/>802.11 b/g/n<br/>Frequency: 2.4GHz<br/>Range: ~50m indoor<br/>Power: -40dBm to +20dBm]
+        ESP32_WiFi[WiFi Radio<br/>802.11 b/g/n<br/>Frequency: 2.4GHz<br/>Range: 50m indoor<br/>Power: -40dBm to +20dBm]
 
         ESP32_UART_HW[UART1 Interface<br/>GPIO17: TX<br/>GPIO16: RX<br/>Baud: 115200<br/>Format: 8N1]
 
-        ESP32_GPIO[GPIO Configuration<br/>GPIO4: Relay (Output)<br/>GPIO5: Button1 (Input)<br/>GPIO16: Button2 (Input)<br/>GPIO17: Button3 (Input)<br/>GPIO4: Button4 (Input)<br/>Pull-up: Internal]
+        ESP32_GPIO[GPIO Configuration<br/>GPIO4: Relay Output<br/>GPIO5: Button1 Input<br/>GPIO16: Button2 Input<br/>GPIO17: Button3 Input<br/>Pull-up: Internal]
 
         ESP32_LED[Status LEDs<br/>GPIO2: WiFi Status<br/>GPIO15: MQTT Status<br/>Active: HIGH]
 
@@ -280,7 +190,7 @@ graph TB
     end
 
     subgraph Peripherals_HW[Peripheral Hardware Specifications]
-        SHT3X_HW[SHT3X Sensor Module<br/>I2C Address: 0x44<br/>Voltage: 2.4V-5.5V<br/>Accuracy: ±0.2°C, ±2%RH<br/>Response: 8s typical<br/>Power: 1.5μA idle]
+        SHT3X_HW[SHT3X Sensor Module<br/>I2C Address: 0x44<br/>Voltage: 2.4V-5.5V<br/>Accuracy: ±0.2°C, ±2% RH<br/>Response: 8s typical<br/>Power: 1.5uA idle]
 
         RTC_HW[DS3231 RTC Module<br/>I2C Address: 0x68<br/>Voltage: 3.3V<br/>Accuracy: ±2ppm<br/>Battery: CR2032<br/>Backup: 10 years]
 
@@ -290,7 +200,7 @@ graph TB
 
         Relay_HW[Relay Module<br/>Type: Mechanical<br/>Control: Active HIGH<br/>Voltage: 5V<br/>Current: 10A max<br/>Switching: 250VAC/30VDC]
 
-        Buttons_HW[Tactile Buttons<br/>Type: 4x Push button<br/>Configuration: Active LOW<br/>Debounce: 200ms<br/>Pull-up: 10kΩ internal]
+        Buttons_HW[Tactile Buttons<br/>Type: 4x Push button<br/>Configuration: Active LOW<br/>Debounce: 200ms<br/>Pull-up: 10k ohm internal]
     end
 
     STM32_I2C <-->|I2C Bus<br/>100kHz| SHT3X_HW

@@ -1,8 +1,8 @@
-# UML Class Diagrams - Firmware System
+# Firmware System - UML Class Diagrams
 
 This document provides the UML class diagrams and component diagrams for the ESP32 and STM32 firmware system.
 
-## Complete System Class Diagram
+## System Class Diagram
 
 ```mermaid
 classDiagram
@@ -367,6 +367,96 @@ graph TB
     style Custom_Drivers fill:#DDA0DD
     style Protocol fill:#F0E68C
     style Application fill:#90EE90
+```
+
+## State Machine - System Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> PowerOn
+
+    state PowerOn {
+        [*] --> STM32_Init
+        [*] --> ESP32_Init
+
+        STM32_Init --> STM32_Idle : Init complete<br/>500ms
+        ESP32_Init --> ESP32_Connecting : Init complete<br/>1000ms
+
+        state STM32_Idle {
+            [*] --> WaitingCommand
+            WaitingCommand --> SingleMeasure : SINGLE command
+            WaitingCommand --> PeriodicMeasure : PERIODIC ON
+            SingleMeasure --> WaitingCommand : Done (~20ms)
+            PeriodicMeasure --> WaitingCommand : PERIODIC OFF
+
+            note right of PeriodicMeasure
+                Continuous measurement
+                Interval: 5s-60s
+                Auto-buffer if offline
+            end note
+        }
+
+        state ESP32_Connecting {
+            [*] --> WiFi_Disconnected
+            WiFi_Disconnected --> WiFi_Connecting : Connect attempt
+            WiFi_Connecting --> WiFi_Connected : Success
+            WiFi_Connecting --> WiFi_Failed : Max 5 retries<br/>@ 2s interval
+            WiFi_Failed --> WiFi_Connecting : Manual retry<br/>@ 5s interval
+            WiFi_Connected --> MQTT_Disconnected : 4s stable wait
+
+            MQTT_Disconnected --> MQTT_Connecting : Start connection
+            MQTT_Connecting --> MQTT_Connected : Success
+            MQTT_Connecting --> MQTT_Disconnected : Fail + backoff<br/>60s, 120s, 240s...
+            MQTT_Connected --> MQTT_Disconnected : WiFi lost
+
+            note right of MQTT_Connecting
+                Exponential backoff
+                Min 60s, 2^retry
+                Infinite retries
+            end note
+        }
+    }
+
+    state SystemOperational {
+        state STM32_Operation {
+            [*] --> DataCollection
+            DataCollection --> DataReady : Measurement complete
+            DataReady --> CheckMQTT : data_ready flag set
+            CheckMQTT --> LiveTransmit : MQTT connected
+            CheckMQTT --> BufferToSD : MQTT disconnected
+            LiveTransmit --> DataCollection : Via UART
+            BufferToSD --> DataCollection : Store locally
+
+            note right of BufferToSD
+                Max 204,800 records
+                ~16MB capacity
+                Circular overwrite
+            end note
+        }
+
+        state ESP32_Operation {
+            [*] --> MonitorState
+            MonitorState --> ProcessCommand : MQTT message
+            MonitorState --> ProcessData : UART data
+            MonitorState --> ProcessButton : Button press
+            ProcessCommand --> UpdateState : Parse & Execute
+            ProcessData --> PublishMQTT : Validate & Publish
+            ProcessButton --> UpdateState : Toggle or Control
+            UpdateState --> MonitorState
+            PublishMQTT --> MonitorState
+
+            note right of MonitorState
+                Multi-threaded
+                FreeRTOS tasks
+                Event-driven
+            end note
+        }
+    }
+
+    PowerOn --> SystemOperational : Both ready
+    SystemOperational --> ErrorRecovery : Error detected
+    ErrorRecovery --> SystemOperational : Recovered
+    ErrorRecovery --> PowerOn : Critical error<br/>Reset required
 ```
 
 ## Deployment Diagram
