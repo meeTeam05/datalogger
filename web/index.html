@@ -125,15 +125,15 @@
               <i data-feather="activity"></i>
               Current Reading
             </div>
-            <div class="reading-time" id="lastUpdate">Updated at --:--:--</div>
+            <div class="reading-time" id="lastUpdate">--/--/---- --:--:--</div>
             <div class="reading-values">
               <div class="reading-value">
+                <div class="reading-label">Temperature</div>
                 <div class="reading-number" id="currentTemp">--</div>
-                <div class="reading-unit">C</div>
               </div>
               <div class="reading-value">
+                <div class="reading-label">Humidity</div>
                 <div class="reading-number" id="currentHumi">--</div>
-                <div class="reading-unit">%</div>
               </div>
             </div>
           </div>
@@ -152,7 +152,7 @@
             <div class="card">
               <div class="card-header">
                 <i data-feather="trending-up"></i>
-                Temperature (C)
+                Temperature
               </div>
               <div class="chart-container">
                 <canvas id="tempChart"></canvas>
@@ -176,7 +176,7 @@
             <div class="card">
               <div class="card-header">
                 <i data-feather="droplet"></i>
-                Humidity (%)
+                Humidity
               </div>
               <div class="chart-container">
                 <canvas id="humiChart"></canvas>
@@ -270,7 +270,7 @@
                         font-weight: 600;
                       "
                     >
-                      Temp (C)
+                      Temp
                     </th>
                     <th
                       style="
@@ -279,7 +279,7 @@
                         font-weight: 600;
                       "
                     >
-                      Humidity (%)
+                      Humidity
                     </th>
                     <th
                       style="
@@ -965,7 +965,7 @@
                         font-weight: 600;
                       "
                     >
-                      Temp (C)
+                      Temp
                     </th>
                     <th
                       style="
@@ -974,7 +974,7 @@
                         font-weight: 600;
                       "
                     >
-                      Humidity (%)
+                      Humidity
                     </th>
                     <th
                       style="
@@ -1382,118 +1382,6 @@
                 </div>
               </div>
 
-              <!-- Display Preferences -->
-              <div
-                style="
-                  margin-bottom: 2rem;
-                  padding-top: 1.5rem;
-                  border-top: 1px solid var(--border-color);
-                "
-              >
-                <h3
-                  style="
-                    font-size: 1.125rem;
-                    font-weight: 700;
-                    margin-bottom: 1rem;
-                    color: var(--primary);
-                    display: flex;
-                    align-items: center;
-                    gap: 0.5rem;
-                  "
-                >
-                  <i data-feather="eye" style="width: 20px; height: 20px"></i>
-                  Display Preferences
-                </h3>
-                <div
-                  style="
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                    gap: 1rem;
-                  "
-                >
-                  <div>
-                    <label
-                      style="
-                        display: block;
-                        font-weight: 600;
-                        margin-bottom: 0.5rem;
-                        color: var(--text-primary);
-                      "
-                      >Temperature Unit</label
-                    >
-                    <select
-                      id="tempUnit"
-                      style="
-                        width: 100%;
-                        padding: 0.5rem 0.75rem;
-                        border: 1px solid var(--border-color);
-                        border-radius: 0.5rem;
-                        font-size: 0.875rem;
-                        background-color: var(--bg-primary);
-                        color: var(--text-primary);
-                      "
-                    >
-                      <option value="C">Celsius (C)</option>
-                      <option value="F">Fahrenheit (F)</option>
-                      <option value="K">Kelvin (K)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label
-                      style="
-                        display: block;
-                        font-weight: 600;
-                        margin-bottom: 0.5rem;
-                        color: var(--text-primary);
-                      "
-                      >Time Format</label
-                    >
-                    <select
-                      id="timeFormat"
-                      style="
-                        width: 100%;
-                        padding: 0.5rem 0.75rem;
-                        border: 1px solid var(--border-color);
-                        border-radius: 0.5rem;
-                        font-size: 0.875rem;
-                        background-color: var(--bg-primary);
-                        color: var(--text-primary);
-                      "
-                    >
-                      <option value="24h">24-hour</option>
-                      <option value="12h">12-hour (AM/PM)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label
-                      style="
-                        display: block;
-                        font-weight: 600;
-                        margin-bottom: 0.5rem;
-                        color: var(--text-primary);
-                      "
-                      >Date Format</label
-                    >
-                    <select
-                      id="dateFormat"
-                      style="
-                        width: 100%;
-                        padding: 0.5rem 0.75rem;
-                        border: 1px solid var(--border-color);
-                        border-radius: 0.5rem;
-                        font-size: 0.875rem;
-                        background-color: var(--bg-primary);
-                        color: var(--text-primary);
-                      "
-                    >
-                      <option value="DD/MM/YYYY">DD/MM/YYYY</option>
-                      <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-                      <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
               <!-- Chart Settings -->
               <div
                 style="
@@ -1797,7 +1685,7 @@
       <footer class="footer">
         <div class="footer-item">
           <i data-feather="clock" style="width: 16px; height: 16px"></i>
-          System Time: <strong id="footerTime">--:--:--</strong>
+          System Time: <strong id="footerDateTime">--/--/---- --:--:--</strong>
         </div>
         <div class="footer-item">DataLogger System</div>
       </footer>
