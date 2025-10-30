@@ -1,5 +1,4 @@
 @startuml MQTT_Connection_State_Sync
-!theme cerulean-outline
 skinparam sequenceMessageAlign center
 skinparam responseMessageBelowArrow true
 skinparam BoxPadding 10

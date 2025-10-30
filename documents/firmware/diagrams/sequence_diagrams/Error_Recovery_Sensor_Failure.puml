@@ -1,5 +1,4 @@
 @startuml Error_Recovery_Sensor_Failure
-!theme cerulean-outline
 skinparam sequenceMessageAlign center
 skinparam responseMessageBelowArrow true
 skinparam BoxPadding 10

@@ -1,5 +1,4 @@
 @startuml SD_Buffer_Transmission
-!theme cerulean-outline
 skinparam sequenceMessageAlign center
 skinparam responseMessageBelowArrow true
 skinparam BoxPadding 10
