@@ -17,7 +17,7 @@ graph TB
     end
 
     subgraph Layer2[" "]
-        subgraph ESP32_System["ESP32-WROOM-32 Gateway Layer"]
+        subgraph ESP32_System["ESP32"]
             direction TB
 
             subgraph ESP32_Core["Core Application"]
@@ -46,7 +46,7 @@ graph TB
     end
 
     subgraph Layer3[" "]
-        subgraph STM32_System["STM32F103C8T6 Data Acquisition Layer"]
+        subgraph STM32_System["STM32"]
             direction TB
 
             subgraph STM32_Core["Core Application"]
@@ -152,7 +152,7 @@ graph TB
 
 ```mermaid
 graph TB
-    subgraph STM32_System["STM32 System - Layered Architecture"]
+    subgraph STM32_System["STM32 System"]
         direction TB
 
         subgraph Application_Layer["Application Layer"]
@@ -220,7 +220,7 @@ graph TB
 
 ```mermaid
 graph TB
-    subgraph ESP32_System["ESP32 System - Layered Architecture"]
+    subgraph ESP32_System["ESP32 System"]
         direction TB
 
         subgraph Application_Layer["Application Layer"]
@@ -880,7 +880,7 @@ graph TB
 
 ```mermaid
 graph TB
-    subgraph Deployment_System["System Deployment Architecture"]
+    subgraph Deployment_System["System Deployment"]
         direction TB
 
         subgraph Physical_Device["Physical Device Layer"]
@@ -1036,6 +1036,83 @@ gantt
     MQTT Backoff 2s       :milestone, 2000
     MQTT Backoff 4s       :milestone, 4000
     Button Debounce 200ms :milestone, 200
+```
+
+Test
+```plantuml
+@startuml Deployment_Modern
+!theme aws-orange
+left to right direction
+
+node "Edge Device Layer" as edge #LightBlue {
+    
+    artifact "ESP32 Container" as esp32_container {
+        component "Gateway App\n(C/FreeRTOS)" as esp32_app
+        component "WiFi Stack" as wifi
+        component "MQTT Client" as mqtt_client
+    }
+    
+    artifact "STM32 Container" as stm32_container {
+        component "Controller App\n(C/HAL)" as stm32_app
+        component "Sensor Drivers" as drivers
+        component "Storage Manager" as storage
+    }
+    
+    node "Hardware Layer" as hw {
+        component "SHT3X" as sensor
+        component "SD Card" as sd
+        component "Display" as lcd
+    }
+}
+
+cloud "Network Layer" as network #LightYellow {
+    node "WiFi AP" as wifi_ap
+    node "Local Network\n192.168.x.x" as lan
+}
+
+cloud "Application Layer" as app #LightGreen {
+    node "MQTT Broker\n(Mosquitto)" as broker {
+        component "Pub/Sub Engine" as pubsub
+        database "Message Queue" as queue
+    }
+    
+    node "Client Applications" as clients {
+        component "Web Dashboard\n(React + MQTT.js)" as web
+        component "Mobile App\n(Native MQTT)" as mobile
+    }
+}
+
+' Connections with protocols
+esp32_app -down-> stm32_app : UART\n115200 baud\nJSON
+stm32_app -down-> drivers : I2C/SPI
+drivers -down-> sensor : I2C 100kHz
+drivers -down-> sd : SPI 18MHz
+drivers -down-> lcd : SPI 36MHz
+
+esp32_app -right-> wifi : 802.11
+wifi -right-> wifi_ap : 2.4GHz
+wifi_ap --> lan : Ethernet
+lan --> broker : TCP/IP
+
+mqtt_client -up-> pubsub : MQTT v5.0\nQoS 0/1
+web --> pubsub : WebSocket
+mobile --> pubsub : TCP/IP
+
+note top of edge
+  **Edge Computing**
+  - Local processing
+  - Offline capability
+  - Real-time control
+end note
+
+note top of broker
+  **Message Broker**
+  - Decoupled architecture
+  - Async communication
+  - Persistent sessions
+end note
+
+@enduml
 ```
 
 ## System Performance Characteristics
