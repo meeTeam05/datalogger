@@ -1,0 +1,72 @@
+@startuml MQTT_Connection_State_Machine
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    StartColor #4CAF50
+    EndColor #F44336
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>MQTT Connection State Machine</b></size>\n<size:12><i>MQTT Lifecycle with Exponential Backoff Retry</i></size>
+
+start
+:<b>MQTT Handler</b>;
+
+repeat
+    if (WiFi\nconnected?) then (no)
+        :<b>State: DISCONNECTED</b>;
+    else (yes)
+        if (Network stable\nfor 4s?) then (no)
+            :Wait for stabilization;
+        else (yes)
+            :esp_mqtt_client_start();
+            :<b>State: CONNECTING</b>;
+
+            if (MQTT Event?) then (CONNECTED)
+                :connected = true;
+                :Subscribe command topics:
+                • datalogger/stm32/command
+                • datalogger/esp32/relay/control
+                • datalogger/esp32/system/state;
+                :Set mqtt_reconnected flag;
+                :<b>State: ACTIVE</b>;
+
+                repeat
+                    if (New message?) then (DATA)
+                        :Call data_callback();
+                    elseif (DISCONNECT) then
+                        :connected = false;
+                        :<b>State: DISCONNECTED</b>;
+                        break
+                        endif
+                        repeat while (Connected?) is (yes)
+
+                        elseif (DISCONNECTED) then
+                        :connected = false;
+                        :<b>State: DISCONNECTED</b>;
+
+                        elseif (ERROR) then
+                        if (Max retries\nreached?) then (yes)
+                            :<b>State: DISCONNECTED</b>;
+                        else (no)
+                            :Exponential backoff delay
+                            <i>min(60s, 2^retry)</i>;
+                        endif
+                        endif
+                        endif
+                        endif
+
+                    repeat while (System running?) is (yes)
+                    ->no;
+
+                    stop
+
+                    @enduml

@@ -1,0 +1,61 @@
+@startuml State_Update_and_Publish
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    StartColor #4CAF50
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title State Update and Publish Flow\n<i>Device State Change Detection and MQTT Publishing</i>
+
+start
+:Update and Publish State();
+
+partition "Check Device State" {
+    if ("g_device_on changed?") then (yes)
+    :state_changed = true;
+    :Log "Device state changed";
+    else (no)
+    :no change;
+endif
+}
+
+partition "Check Periodic State" {
+if ("g_periodic_active changed?") then (yes)
+:state_changed = true;
+:Log "Periodic state changed";
+else (no)
+:no change;
+endif
+}
+
+if (state_changed == true?) then (yes)
+if (MQTT connected?) then (yes)
+    :Format JSON state:
+    {
+        "device_on": bool,
+        "periodic_active": bool,
+        "uptime_ms": uint64
+    }
+    ;
+    :MQTT_Handler_Publish
+    datalogger/esp32/system/state (retain=1);
+    :Log "State published";
+    stop
+else (no)
+    :MQTT disconnected → skip publish;
+    stop
+endif
+else (no)
+:No state change → exit;
+stop
+endif
+@enduml

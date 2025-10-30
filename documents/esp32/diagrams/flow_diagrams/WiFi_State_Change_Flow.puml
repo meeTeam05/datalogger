@@ -1,0 +1,47 @@
+@startuml WiFi_State_Change_Flow
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    StartColor #4CAF50
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>WiFi State Change Flow</b></size>\n<size:12><i>WiFi Connection Event Handling</i></size>
+
+start
+:<b>WiFi state changed</b>;
+
+switch (WiFi State?)
+case (CONNECTING)
+    :Log "Connecting...";
+    :Turn off WiFi LED;
+    stop
+
+case (CONNECTED)
+    :Log "Connected";
+    :Turn on WiFi LED;
+    :Get IP address;
+    :Get signal strength (RSSI);
+    :Reset disconnect flag;
+    stop
+
+case (DISCONNECTED)
+    :Log "Disconnected";
+    :Turn off WiFi LED;
+    stop
+
+    case (FAILED)
+    :Log "Connection failed";
+    :Turn off WiFi LED;
+    stop
+endswitch
+
+@enduml

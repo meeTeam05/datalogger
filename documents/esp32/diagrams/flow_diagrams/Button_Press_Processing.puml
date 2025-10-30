@@ -1,0 +1,78 @@
+@startuml Button_Press_Processing
+!theme vibrant
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+skinparam activity {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    StartColor #4CAF50
+    DiamondBackgroundColor #FFF9C4
+    DiamondBorderColor #F57F17
+    FontSize 12
+    FontName Arial
+    ArrowColor #424242
+    ArrowThickness 2
+}
+
+title <size:18><b>Button Press Processing Flow</b></size>\n<size:12><i>Multi-button Input Handling with Debouncing</i></size>
+
+start
+:<b>Button pressed</b>;
+
+:Hardware + software\nnoise filtering
+<i>(200ms debounce)</i>;
+
+switch (Which button?)
+
+case (GPIO_5\nRelay Button)
+    :Toggle relay state;
+    :Update g_device_on;
+
+    if (New state\nOFF?) then (yes)
+        :Force g_periodic_active = false;
+    endif
+
+    :Relay callback processing;
+    stop
+
+case (GPIO_17\nSingle Button)
+    if (Device ON?) then (no)
+        :Log ignore - device OFF;
+        stop
+    else (yes)
+        :Send <b>SINGLE</b> to STM32;
+        stop
+    endif
+
+case (GPIO_16\nPeriodic Button)
+    if (Device ON?) then (no)
+        :Log ignore - device OFF;
+        stop
+    else (yes)
+        :Toggle g_periodic_active;
+
+        if (New periodic\nstate?) then (true)
+            :Send <b>PERIODIC ON</b>\nto STM32;
+        else (false)
+            :Send <b>PERIODIC OFF</b>\nto STM32;
+        endif
+
+        :update_and_publish_state();
+        stop
+    endif
+
+case (GPIO_4\nInterval Button)
+    if (Device ON?) then (no)
+        :Log ignore - device OFF;
+        stop
+    else (yes)
+        :Cycle g_interval_index
+        <i>(0→1→2→0...)</i>;
+        :Create <b>SET PERIODIC INTERVAL</b>\ncommand;
+        :Send command to STM32;
+        stop
+    endif
+
+endswitch
+
+@enduml
