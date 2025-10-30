@@ -1,5 +1,4 @@
 @startuml Sensor_Data_Reception_and_Publishing
-!theme cerulean-outline
 skinparam sequenceMessageAlign center
 skinparam responseMessageBelowArrow true
 skinparam BoxPadding 10

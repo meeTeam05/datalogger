@@ -1,5 +1,4 @@
 @startuml Wifi_Disconnection_and_Reconnection
-!theme cerulean-outline
 skinparam sequenceMessageAlign center
 skinparam responseMessageBelowArrow true
 skinparam BoxPadding 10

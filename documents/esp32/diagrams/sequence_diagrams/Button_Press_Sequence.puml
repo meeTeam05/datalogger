@@ -1,5 +1,4 @@
 @startuml Button_Press_Sequence
-!theme cerulean-outline
 skinparam sequenceMessageAlign center
 skinparam responseMessageBelowArrow true
 skinparam BoxPadding 10
