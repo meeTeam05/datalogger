@@ -423,7 +423,7 @@ mosquitto_pub -h [broker-ip] -p 1883 -t 'datalogger/esp32/command' \
 ```
 DATALOGGER/
 ├── LICENSE.md                             # MIT License
-├── README.md                              # This file - project overview
+├── README.md                              # This file project overview
 │
 ├── broker/                                # MQTT Broker (Mosquitto)
 │   ├── README.md                          # Broker setup & configuration guide
@@ -433,22 +433,35 @@ DATALOGGER/
 │           └── passwd.txt                 # Bcrypt password file
 │
 ├── documents/                             # Technical Documentation
-│   ├── firmware/                          # Complete firmware system diagrams
-│   │   ├── FLOW_DIAGRAM_FIRMWARE.md       # 31 comprehensive flowcharts
-│   │   ├── SEQUENCE_DIAGRAM_FIRMWARE.md   # System-level sequences
-│   │   └── UML_DIAGRAM_FIRMWARE.md        # Complete system UML
-│   ├── STM32/                             # STM32 firmware diagrams
-│   │   ├── FLOW_DIAGRAM_STM32.md          # 15 flowcharts
-│   │   ├── SEQUENCE_DIAGRAM_STM32.md      # 10 sequence diagrams
-│   │   └── UML_CLASS_DIAGRAM_STM32.md     # 11 architecture diagrams
-│   ├── ESP32/                             # ESP32 gateway diagrams
-│   │   ├── FLOW_DIAGRAM_ESP32.md          # 15 flowcharts
-│   │   ├── SEQUENCE_DIAGRAM_ESP32.md      # 10 sequence diagrams
-│   │   └── UML_CLASS_DIAGRAM_ESP32.md     # 11 architecture diagrams
-│   └── WEB/                               # Web dashboard diagrams
-│       ├── FLOW_DIAGRAM_WEB.md            # 15 web application flowcharts
-│       ├── SEQUENCE_DIAGRAM_WEB.md        # 10 web interaction sequences
-│       └── UML_DIAGRAM_WEB.md             # 11 web architecture diagrams
+│   ├── README.md                          # Documentation overview (110 diagrams)
+│   │
+│   ├── esp32/                             # ESP32 Gateway Documentation (22 diagrams)
+│   │   ├── README.md                      # ESP32 documentation overview
+│   │   ├── FLOW_DIAGRAM_ESP32.md          # 10 flowcharts
+│   │   ├── SEQUENCE_DIAGRAM_ESP32.md      # 7 sequence diagrams
+│   │   ├── UML_CLASS_DIAGRAM_ESP32.md     # 5 architecture diagrams
+│   │   └── diagrams/
+│   │
+│   ├── firmware/                          # Integrated Firmware Documentation (23 diagrams)
+│   │   ├── README.md                      # Firmware system overview
+│   │   ├── FLOW_DIAGRAM_FIRMWARE.md       # 10 flowcharts
+│   │   ├── SEQUENCE_DIAGRAM_FIRMWARE.md   # 10 sequence diagrams
+│   │   ├── UML_DIAGRAM_FIRMWARE.md        # 3 architecture diagrams
+│   │   └── diagrams/
+│   │
+│   ├── stm32/                             # STM32 Sensor Controller Documentation (29 diagrams)
+│   │   ├── README.md                      # STM32 documentation overview
+│   │   ├── FLOW_DIAGRAM_STM32.md          # 10 flowcharts
+│   │   ├── SEQUENCE_DIAGRAM_STM32.md      # 8 sequence diagrams
+│   │   ├── UML_CLASS_DIAGRAM_STM32.md     # 11 architecture diagrams
+│   │   └── diagrams/
+│   │
+│   └── web/                               # Web Dashboard Documentation (36 diagrams)
+│       ├── README.md                      # Web documentation overview
+│       ├── FLOW_DIAGRAM_WEB.md            # 15 flowcharts
+│       ├── SEQUENCE_DIAGRAM_WEB.md        # 11 sequence diagrams
+│       ├── UML_DIAGRAM_WEB.md             # 10 architecture diagrams
+│       └── diagrams/
 │
 ├── firmware/                              # Embedded Firmware
 │   ├── README.md                          # Firmware overview
