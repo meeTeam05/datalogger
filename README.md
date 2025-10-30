@@ -57,6 +57,88 @@ This project implements a **production-ready environmental monitoring system** d
 3. **Mosquitto MQTT Broker** - Message routing with WebSocket support (ports 1883, 8083)
 4. **Web Dashboard** - Real-time monitoring, historical data analysis, and device control interface
 
+## Project Directory Structure
+
+```
+DATALOGGER/
+├── LICENSE.md                             # MIT License
+├── README.md                              # This file project overview
+│
+├── broker/                                # MQTT Broker (Mosquitto)
+│   ├── README.md                          # Broker setup & configuration guide
+│   ├── mosquitto.conf                     # Main broker configuration
+│   └── config/
+│       └── auth/
+│           └── passwd.txt                 # Bcrypt password file
+│
+├── documents/                             # Technical Documentation
+│   ├── README.md                          # Documentation overview (110 diagrams)
+│   │
+│   ├── esp32/                             # ESP32 Gateway Documentation (22 diagrams)
+│   │   ├── README.md                      # ESP32 documentation overview
+│   │   ├── FLOW_DIAGRAM_ESP32.md          # 10 flowcharts
+│   │   ├── SEQUENCE_DIAGRAM_ESP32.md      # 7 sequence diagrams
+│   │   ├── UML_CLASS_DIAGRAM_ESP32.md     # 5 architecture diagrams
+│   │   └── diagrams/
+│   │
+│   ├── firmware/                          # Integrated Firmware Documentation (23 diagrams)
+│   │   ├── README.md                      # Firmware system overview
+│   │   ├── FLOW_DIAGRAM_FIRMWARE.md       # 10 flowcharts
+│   │   ├── SEQUENCE_DIAGRAM_FIRMWARE.md   # 10 sequence diagrams
+│   │   ├── UML_DIAGRAM_FIRMWARE.md        # 3 architecture diagrams
+│   │   └── diagrams/
+│   │
+│   ├── stm32/                             # STM32 Sensor Controller Documentation (29 diagrams)
+│   │   ├── README.md                      # STM32 documentation overview
+│   │   ├── FLOW_DIAGRAM_STM32.md          # 10 flowcharts
+│   │   ├── SEQUENCE_DIAGRAM_STM32.md      # 8 sequence diagrams
+│   │   ├── UML_CLASS_DIAGRAM_STM32.md     # 11 architecture diagrams
+│   │   └── diagrams/
+│   │
+│   └── web/                               # Web Dashboard Documentation (36 diagrams)
+│       ├── README.md                      # Web documentation overview
+│       ├── FLOW_DIAGRAM_WEB.md            # 15 flowcharts
+│       ├── SEQUENCE_DIAGRAM_WEB.md        # 11 sequence diagrams
+│       ├── UML_DIAGRAM_WEB.md             # 10 architecture diagrams
+│       └── diagrams/
+│
+├── firmware/                              # Embedded Firmware
+│   ├── README.md                          # Firmware overview
+│   │
+│   ├── STM32/                             # STM32F103C8T6 Firmware
+│   │   ├── README.md                      # STM32 comprehensive documentation
+│   │   ├── STM32_DATALOGGER.ioc           # STM32CubeMX configuration
+│   │   ├── Core/                          # HAL-generated code
+│   │   ├── Datalogger_Lib/                # Custom libraries (18 modules)
+│   │   │   ├── README.md                  # Library overview
+│   │   │   ├── inc/                       # Library headers
+│   │   │   ├── src/                       # Library implementations
+│   │   │   └── docs/                      # Module-specific documentation
+│   │   └── Drivers/                       # STM32 HAL drivers
+│   │
+│   └── ESP32/                             # ESP32 Gateway Firmware
+│       ├── README.md                      # ESP32 gateway documentation
+│       ├── CMakeLists.txt                 # ESP-IDF project configuration
+│       ├── main/                          # Main application
+│       └── components/                    # ESP-IDF Components (9 modules)
+│           ├── README.md                  # Components overview
+│           ├── wifi_manager/              # WiFi connection management
+│           ├── mqtt_handler/              # MQTT v5 client
+│           ├── stm32_uart/                # UART bridge to STM32
+│           ├── relay_control/             # GPIO relay control
+│           ├── json_sensor_parser/        # Parse STM32 sensor JSON
+│           ├── json_utils/                # JSON utilities
+│           ├── ring_buffer/               # Circular buffer for UART
+│           ├── button_handler/            # Physical button input
+│           └── coap_handler/              # CoAP protocol (optional)
+│
+└── web/                                   # Web Dashboard
+    ├── README.md                          # Dashboard documentation
+    ├── index.html                         # Main HTML structure
+    ├── app.js                             # JavaScript application logic
+    └── style.css                          # CSS styling
+```
+
 ## Key Features
 
 ### Data Acquisition & Storage
@@ -417,88 +499,6 @@ mosquitto_pub -h [broker-ip] -p 1883 -t 'datalogger/esp32/command' \
 | **ILI9225 Display**     | 15-20mA         | 20mA          | Active display           |
 | **Relay Module**        | 15-20mA         | 70mA          | Coil energized           |
 | **Total System**        | ~200mA @ 3.3V   | ~500mA @ 3.3V | All components active    |
-
-## Project Directory Structure
-
-```
-DATALOGGER/
-├── LICENSE.md                             # MIT License
-├── README.md                              # This file project overview
-│
-├── broker/                                # MQTT Broker (Mosquitto)
-│   ├── README.md                          # Broker setup & configuration guide
-│   ├── mosquitto.conf                     # Main broker configuration
-│   └── config/
-│       └── auth/
-│           └── passwd.txt                 # Bcrypt password file
-│
-├── documents/                             # Technical Documentation
-│   ├── README.md                          # Documentation overview (110 diagrams)
-│   │
-│   ├── esp32/                             # ESP32 Gateway Documentation (22 diagrams)
-│   │   ├── README.md                      # ESP32 documentation overview
-│   │   ├── FLOW_DIAGRAM_ESP32.md          # 10 flowcharts
-│   │   ├── SEQUENCE_DIAGRAM_ESP32.md      # 7 sequence diagrams
-│   │   ├── UML_CLASS_DIAGRAM_ESP32.md     # 5 architecture diagrams
-│   │   └── diagrams/
-│   │
-│   ├── firmware/                          # Integrated Firmware Documentation (23 diagrams)
-│   │   ├── README.md                      # Firmware system overview
-│   │   ├── FLOW_DIAGRAM_FIRMWARE.md       # 10 flowcharts
-│   │   ├── SEQUENCE_DIAGRAM_FIRMWARE.md   # 10 sequence diagrams
-│   │   ├── UML_DIAGRAM_FIRMWARE.md        # 3 architecture diagrams
-│   │   └── diagrams/
-│   │
-│   ├── stm32/                             # STM32 Sensor Controller Documentation (29 diagrams)
-│   │   ├── README.md                      # STM32 documentation overview
-│   │   ├── FLOW_DIAGRAM_STM32.md          # 10 flowcharts
-│   │   ├── SEQUENCE_DIAGRAM_STM32.md      # 8 sequence diagrams
-│   │   ├── UML_CLASS_DIAGRAM_STM32.md     # 11 architecture diagrams
-│   │   └── diagrams/
-│   │
-│   └── web/                               # Web Dashboard Documentation (36 diagrams)
-│       ├── README.md                      # Web documentation overview
-│       ├── FLOW_DIAGRAM_WEB.md            # 15 flowcharts
-│       ├── SEQUENCE_DIAGRAM_WEB.md        # 11 sequence diagrams
-│       ├── UML_DIAGRAM_WEB.md             # 10 architecture diagrams
-│       └── diagrams/
-│
-├── firmware/                              # Embedded Firmware
-│   ├── README.md                          # Firmware overview
-│   │
-│   ├── STM32/                             # STM32F103C8T6 Firmware
-│   │   ├── README.md                      # STM32 comprehensive documentation
-│   │   ├── STM32_DATALOGGER.ioc           # STM32CubeMX configuration
-│   │   ├── Core/                          # HAL-generated code
-│   │   ├── Datalogger_Lib/                # Custom libraries (18 modules)
-│   │   │   ├── README.md                  # Library overview
-│   │   │   ├── inc/                       # Library headers
-│   │   │   ├── src/                       # Library implementations
-│   │   │   └── docs/                      # Module-specific documentation
-│   │   └── Drivers/                       # STM32 HAL drivers
-│   │
-│   └── ESP32/                             # ESP32 Gateway Firmware
-│       ├── README.md                      # ESP32 gateway documentation
-│       ├── CMakeLists.txt                 # ESP-IDF project configuration
-│       ├── main/                          # Main application
-│       └── components/                    # ESP-IDF Components (9 modules)
-│           ├── README.md                  # Components overview
-│           ├── wifi_manager/              # WiFi connection management
-│           ├── mqtt_handler/              # MQTT v5 client
-│           ├── stm32_uart/                # UART bridge to STM32
-│           ├── relay_control/             # GPIO relay control
-│           ├── json_sensor_parser/        # Parse STM32 sensor JSON
-│           ├── json_utils/                # JSON utilities
-│           ├── ring_buffer/               # Circular buffer for UART
-│           ├── button_handler/            # Physical button input
-│           └── coap_handler/              # CoAP protocol (optional)
-│
-└── web/                                   # Web Dashboard
-    ├── README.md                          # Dashboard documentation
-    ├── index.html                         # Main HTML structure
-    ├── app.js                             # JavaScript application logic
-    └── style.css                          # CSS styling
-```
 
 ## Troubleshooting
 
