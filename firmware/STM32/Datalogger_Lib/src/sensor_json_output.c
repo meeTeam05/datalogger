@@ -84,6 +84,7 @@ int sensor_json_format(char *buffer, size_t buffer_size,
  */
 void sensor_json_output_send(const char *mode, float temperature, float humidity)
 {
+    //TODO: Use dynamic allocation if needed in next version
     static char json_buffer[JSON_BUFFER_SIZE];
 
     // Use the new format function
