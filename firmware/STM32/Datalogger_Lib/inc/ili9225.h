@@ -23,8 +23,11 @@
 #define ILI9225_SPI_PORT hspi2
 extern SPI_HandleTypeDef ILI9225_SPI_PORT;
 
-// DMA Support (comment to disable and save RAM)
-// #define ILI9225_USE_DMA
+// Use DMA for data transfers
+#if 0
+#define ILI9225_USE_DMA
+#endif
+
 #ifdef ILI9225_USE_DMA
 #define ILI9225_DMA_MIN_SIZE 16    // Min bytes to use DMA
 #define ILI9225_DMA_BUFFER_LINES 5 // Buffer size (lines)
@@ -41,13 +44,15 @@ extern SPI_HandleTypeDef ILI9225_SPI_PORT;
 #define ILI9225_LCD_HEIGHT 220
 
 // Display Rotation (0-3)
-// #define ILI9225_ROTATION 0    // 0=Portrait (176x220)
-// #define ILI9225_ROTATION 1    // 1=Landscape (220x176)
-// #define ILI9225_ROTATION 2    // 2=Portrait180 (176x220)
+// #define ILI9225_ROTATION 0 // 0=Portrait (176x220)
+// #define ILI9225_ROTATION 1 // 1=Landscape (220x176)
+// #define ILI9225_ROTATION 2 // 2=Portrait180 (176x220)
 #define ILI9225_ROTATION 3 // 3=Landscape180 (220x176)
 
-// CS Control (comment if CS tied to GND)
+// Use Chip Select pin
+#if 1
 #define ILI9225_USE_CS
+#endif
 
 // Pin Definitions
 #define ILI9225_RST_PORT ILI9225_RST_GPIO_Port
