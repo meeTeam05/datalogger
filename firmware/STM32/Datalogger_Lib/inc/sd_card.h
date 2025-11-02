@@ -54,6 +54,7 @@
 /* Block Size */
 #define SD_BLOCK_SIZE 512
 
+// Comment it if including main.h which has the same definitions
 /* SPI Configuration */
 #define SD_CS_PORT GPIOA
 #define SD_CS_PIN GPIO_PIN_4 // Must match main.h SD_CS_Pin definition

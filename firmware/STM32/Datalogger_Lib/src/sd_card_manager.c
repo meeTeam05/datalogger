@@ -180,7 +180,7 @@ bool SDCardManager_WriteData(uint32_t timestamp, float temperature, float humidi
         return false;
     }
 
-    PRINT_CLI("[SD] Saved: T=%.1fC H=%.1f%% [%s] | Buffer: %lu/%d\r\n",
+    PRINT_CLI("[SD] Saved: T=%.2fC H=%.2f%% [%s] | Buffer: %lu/%d\r\n",
               temperature, humidity, mode_str,
               (unsigned long)g_metadata.count, SD_BUFFER_SIZE);
     return true;
