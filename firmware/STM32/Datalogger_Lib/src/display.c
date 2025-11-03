@@ -36,10 +36,10 @@
 
 // ZONE 2: Temperature & Humidity (Middle - prominent, same row)
 #define SENSOR_Y 76          // Sensor row Y (44 + 18 + 14 spacing)
-#define TEMP_ICON_X 20       // Temperature icon X
-#define TEMP_VALUE_X 35      // Temperature value X (icon + 15px)
-#define HUMIDITY_ICON_X 122  // Humidity icon X (right side)
-#define HUMIDITY_VALUE_X 137 // Humidity value X (icon + 15px)
+#define TEMP_ICON_X 15       // Temperature icon X
+#define TEMP_VALUE_X 30      // Temperature value X (icon + 15px)
+#define HUMIDITY_ICON_X 115  // Humidity icon X (right side)
+#define HUMIDITY_VALUE_X 130 // Humidity value X (icon + 15px)
 
 // ZONE 3: System Status (Bottom - compact, balanced)
 #define STATUS_Y1 118     // First status row (76 + 26 + 16 spacing)
@@ -344,7 +344,7 @@ void display_update(time_t time_unix, float temperature, float humidity,
 
     /* ZONE 2: TEMPERATURE & HUMIDITY (Center, LARGE, WHITE) */
     // Temperature (Left side) - WHITE for clarity
-    sprintf(buffer, "%.1f", temperature);
+    sprintf(buffer, "%.2f", temperature);
     if (strcmp(buffer, prev_temp_str) != 0 || first_draw)
     {
         // Clear temperature area
@@ -367,7 +367,7 @@ void display_update(time_t time_unix, float temperature, float humidity,
     }
 
     // Humidity (Right side) - WHITE for clarity
-    sprintf(buffer, "%.1f", humidity);
+    sprintf(buffer, "%.2f", humidity);
     if (strcmp(buffer, prev_humi_str) != 0 || first_draw)
     {
         // Clear humidity area
