@@ -91,12 +91,6 @@ datalogger/
 └── web/             # Web dashboard (HTML/JS/CSS + Firebase)
 ```
 
-## Video Demo
-
-### WiFi Reconnection Demo
-
-<video src="https://github.com/nhat092005/datalogger/assets/WiFi Reconnection Demo.mp4" controls width="800"></video>
-
 ## Documentation
 
 | Topic                   | Reference                                                                          |
@@ -109,6 +103,27 @@ datalogger/
 | ESP32 components        | [firmware/ESP32/components/README.md](firmware/ESP32/components/README.md)         |
 | Web dashboard           | [web/README.md](web/README.md)                                                     |
 | Technical diagrams      | [documents/](documents/)                                                           |
+
+## Video Demo
+
+<div align="center">
+<table>
+  <tr>
+    <td align="center">
+      <a href="https://www.youtube.com/watch?v=Vg-FLoMRY9o">
+        <img src="https://img.youtube.com/vi/Vg-FLoMRY9o/mqdefault.jpg" width="400"/>
+      </a>
+      <br/><b>Embedded Data Logger Demo</b>
+    </td>
+    <td align="center">
+      <a href="https://www.youtube.com/watch?v=ait-4wsLwS8">
+        <img src="https://img.youtube.com/vi/ait-4wsLwS8/mqdefault.jpg" width="400"/>
+      </a>
+      <br/><b>WiFi Reconnection Demo</b>
+    </td>
+  </tr>
+</table>
+</div>
 
 ## License
 
